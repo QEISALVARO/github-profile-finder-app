@@ -1,141 +1,277 @@
 /**
- * Design tokens — Gitscope (design.md §1.1–1.3).
- * Dark-first palette anchored on bg #111612 and accent #2dd86f.
+ * Gitscope design tokens — the single source of truth for colour, elevation
+ * and radii. No component may declare a raw colour; add a token here instead.
+ * Source: design.md §1.
  */
 
 export type ThemeMode = 'light' | 'dark';
 
-export interface Palette {
-  bg: string;
+export type BaseColors = {
+  ink: string;
+  muted: string;
+  paper: string;
   surface: string;
-  surfaceElement: string;
-  border: string;
-  text: string;
-  textSecondary: string;
-  textMuted: string;
+  line: string;
   accent: string;
   accentSoft: string;
+  nav: string;
+  navText: string;
+};
+
+export type FixedColors = {
   onAccent: string;
-  live: string;
-  danger: string;
-  warning: string;
-  info: string;
-  overlay: string;
-  shadow: string;
-}
-
-export const DarkPalette: Palette = {
-  bg: '#111612',
-  surface: '#171D19',
-  surfaceElement: '#1D2420',
-  border: '#28312B',
-  text: '#EDF3EE',
-  textSecondary: '#9DA8A0',
-  textMuted: '#5F6B63',
-  accent: '#2DD86F',
-  accentSoft: '#2DD86F1F',
-  onAccent: '#0A130D',
-  live: '#2DD86F',
-  danger: '#FF5C5C',
-  warning: '#F5B83D',
-  info: '#4DA3FF',
-  overlay: '#00000099',
-  shadow: '#000000',
+  greenText: string;
+  greenStrong: string;
+  error: string;
+  warnText: string;
+  warnBg: string;
+  heat0: string;
+  heat1: string;
+  heat2: string;
+  heat3: string;
+  heat4: string;
+  langDefault: string;
+  langJavaScript: string;
+  langTypeScript: string;
+  langHTML: string;
+  langRuby: string;
+  langPython: string;
+  langGo: string;
+  white: string;
+  black: string;
+  backdrop: string;
+  ringTrack: string;
+  onAccentGlass: string;
 };
 
-export const LightPalette: Palette = {
-  bg: '#F5F8F5',
-  surface: '#FFFFFF',
-  surfaceElement: '#EDF2EE',
-  border: '#DCE4DE',
-  text: '#111612',
-  textSecondary: '#57635B',
-  textMuted: '#8B968E',
-  accent: '#17A553',
-  accentSoft: '#17A5531A',
-  onAccent: '#FFFFFF',
-  live: '#17A553',
-  danger: '#D63030',
-  warning: '#B67A11',
-  info: '#2074D4',
-  overlay: '#11161266',
-  shadow: '#111612',
+export type DerivedColors = {
+  topbarBg: string;
+  tabsTrack: string;
+  navInactive: string;
+  scoreCircleBorder: string;
+  coverDot: string;
+  githubCardMuted: string;
+  networkCardMuted: string;
+  networkBtnBorder: string;
+  connectedPillBg: string;
+  recentDotRing: string;
+  loaderTrack: string;
 };
 
-export const Themes: Record<ThemeMode, Palette> = {
-  dark: DarkPalette,
-  light: LightPalette,
+export type ColorTokens = BaseColors & FixedColors & DerivedColors;
+
+export type ShadowStyle = {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
 };
 
-export const Spacing = {
-  one: 4,
-  two: 8,
-  three: 12,
-  four: 16,
-  five: 20,
-  six: 24,
-  eight: 32,
-  ten: 40,
+export type ShadowTokens = {
+  card: ShadowStyle;
+  profile: ShadowStyle;
+  tab: ShadowStyle;
+  nav: ShadowStyle;
+  sheet: ShadowStyle;
+  toast: ShadowStyle;
+};
+
+export type Theme = {
+  mode: ThemeMode;
+  colors: ColorTokens;
+  shadows: ShadowTokens;
+  radii: typeof radii;
+};
+
+export const lightBase: BaseColors = {
+  ink: '#111612',
+  muted: '#68716a',
+  paper: '#f4f6f1',
+  surface: '#ffffff',
+  line: '#dce1da',
+  accent: '#2dd86f',
+  accentSoft: '#dff9e8',
+  nav: '#111612',
+  navText: '#ffffff',
+};
+
+export const darkBase: BaseColors = {
+  ink: '#f3f7f2',
+  muted: '#9fa8a1',
+  paper: '#101410',
+  surface: '#181d19',
+  line: '#303831',
+  accent: '#2dd86f',
+  accentSoft: '#1d3c27',
+  nav: '#f0f4ef',
+  navText: '#121612',
+};
+
+/** Colours that intentionally do not change between light and dark. */
+export const fixedColors: FixedColors = {
+  onAccent: '#101510',
+  greenText: '#258b4d',
+  greenStrong: '#18733a',
+  error: '#d04444',
+  warnText: '#9b6b12',
+  warnBg: '#fff2cc',
+  heat0: '#dce1da',
+  heat1: '#b9efca',
+  heat2: '#75df9b',
+  heat3: '#35c96d',
+  heat4: '#168d45',
+  langDefault: '#718096',
+  langJavaScript: '#f1e05a',
+  langTypeScript: '#3178c6',
+  langHTML: '#e34c26',
+  langRuby: '#701516',
+  langPython: '#3572a5',
+  langGo: '#00add8',
+  white: '#ffffff',
+  black: '#000000',
+  backdrop: 'rgba(4,8,5,0.58)',
+  ringTrack: 'rgba(255,255,255,0.45)',
+  onAccentGlass: 'rgba(255,255,255,0.5)',
+};
+
+export const radii = {
+  xs: 2,
+  sm: 5,
+  md: 6,
+  control: 9,
+  card: 15,
+  panel: 16,
+  hero: 17,
+  feature: 18,
+  pill: 9999,
 } as const;
 
-export const Radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  pill: 999,
-} as const;
-
-// Registered font names (expo-google-fonts registers each weight under its
-// exported constant name — required for correct rendering on Android).
-export const FontFamily = {
-  sans: 'Manrope_400Regular',
-  sansMedium: 'Manrope_500Medium',
-  sansSemibold: 'Manrope_600SemiBold',
-  sansBold: 'Manrope_700Bold',
-  sansExtrabold: 'Manrope_800ExtraBold',
-  mono: 'DMMono_500Medium',
-} as const;
-
-export type FontWeightKey = keyof typeof FontFamily;
-
-export const MaxContentWidth = 430;
-
-/** #RRGGBB / #RGB → rgba() with the given alpha (0–1). */
-export function withAlpha(hex: string, alpha: number): string {
-  const a = Math.min(1, Math.max(0, alpha));
-  let h = hex.replace('#', '');
-  if (h.length === 3) {
-    h = h
-      .split('')
-      .map((c) => c + c)
-      .join('');
-  }
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-/** Linear mix of two hex colors; weight 0 = colorA, 1 = colorB. */
-export function mix(colorA: string, colorB: string, weight: number): string {
-  const w = Math.min(1, Math.max(0, weight));
-  const parse = (hex: string): [number, number, number] => {
-    const h = hex.replace('#', '');
-    return [
-      parseInt(h.slice(0, 2), 16),
-      parseInt(h.slice(2, 4), 16),
-      parseInt(h.slice(4, 6), 16),
-    ];
+export function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace('#', '');
+  const full =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized;
+  const value = Number.parseInt(full, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
   };
-  const [r1, g1, b1] = parse(colorA);
-  const [r2, g2, b2] = parse(colorB);
-  const toHex = (n: number) =>
-    Math.round(n)
-      .toString(16)
-      .padStart(2, '0');
-  const r = toHex(r1 + (r2 - r1) * w);
-  const g = toHex(g1 + (g2 - g1) * w);
-  const b = toHex(b1 + (b2 - b1) * w);
-  return `#${r}${g}${b}`;
 }
+
+export function withAlpha(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/** Mix `pctA` percent of `hexA` with the remainder of `hexB`. */
+export function mix(hexA: string, hexB: string, pctA: number): string {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const ratio = Math.min(100, Math.max(0, pctA)) / 100;
+  const channel = (x: number, y: number) => Math.round(x * ratio + y * (1 - ratio));
+  return `rgb(${channel(a.r, b.r)},${channel(a.g, b.g)},${channel(a.b, b.b)})`;
+}
+
+function derived(base: BaseColors): DerivedColors {
+  return {
+    topbarBg: withAlpha(base.paper, 0.92),
+    tabsTrack: withAlpha(base.line, 0.55),
+    navInactive: withAlpha(base.navText, 0.55),
+    scoreCircleBorder: mix(base.accent, base.line, 55),
+    coverDot: withAlpha(fixedColors.onAccent, 0.22),
+    githubCardMuted: withAlpha(base.surface, 0.6),
+    networkCardMuted: withAlpha(base.surface, 0.65),
+    networkBtnBorder: withAlpha(base.surface, 0.18),
+    connectedPillBg: withAlpha(base.accent, 0.12),
+    recentDotRing: withAlpha(base.accent, 0.22),
+    loaderTrack: withAlpha(base.ink, 0.25),
+  };
+}
+
+function makeShadows(shadowColor: string): ShadowTokens {
+  return {
+    card: {
+      shadowColor,
+      shadowOffset: { width: 0, height: 7 },
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      elevation: 2,
+    },
+    profile: {
+      shadowColor,
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.07,
+      shadowRadius: 15,
+      elevation: 4,
+    },
+    tab: {
+      shadowColor,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.08,
+      shadowRadius: 5,
+      elevation: 1,
+    },
+    nav: {
+      shadowColor: fixedColors.black,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.22,
+      shadowRadius: 15,
+      elevation: 8,
+    },
+    sheet: {
+      shadowColor: fixedColors.black,
+      shadowOffset: { width: 0, height: -15 },
+      shadowOpacity: 0.25,
+      shadowRadius: 25,
+      elevation: 16,
+    },
+    toast: {
+      shadowColor: fixedColors.black,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+  };
+}
+
+function makeTheme(mode: ThemeMode, base: BaseColors): Theme {
+  return {
+    mode,
+    colors: {
+      ...base,
+      ...fixedColors,
+      // heat0 follows the theme's divider colour.
+      heat0: base.line,
+      ...derived(base),
+    },
+    shadows: makeShadows(mode === 'light' ? base.ink : fixedColors.black),
+    radii,
+  };
+}
+
+export const lightTheme = makeTheme('light', lightBase);
+export const darkTheme = makeTheme('dark', darkBase);
+export const themes: Record<ThemeMode, Theme> = {
+  light: lightTheme,
+  dark: darkTheme,
+};
+
+export type ColorToken = keyof ColorTokens;
+export type ThemeRadius = keyof typeof radii;
+
+/** Language colour lookup used by language dots and progress labels. */
+export const languageColors: Record<string, ColorToken> = {
+  JavaScript: 'langJavaScript',
+  TypeScript: 'langTypeScript',
+  HTML: 'langHTML',
+  Ruby: 'langRuby',
+  Python: 'langPython',
+  Go: 'langGo',
+};

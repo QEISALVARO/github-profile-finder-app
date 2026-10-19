@@ -40,10 +40,10 @@ export default function RootLayout() {
     ...navTheme,
     colors: {
       ...navTheme.colors,
-      background: colors.bg,
+      background: colors.paper,
       card: colors.surface,
-      text: colors.text,
-      border: colors.border,
+      text: colors.ink,
+      border: colors.line,
       primary: colors.accent,
     },
   };
