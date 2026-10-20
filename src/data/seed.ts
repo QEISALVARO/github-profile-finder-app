@@ -9,7 +9,6 @@ import type { Candidate, FeedProject, GithubRepo, GithubUser } from '@/types';
 
 export type { Candidate, FeedProject, GithubRepo, GithubUser };
 
-
 export interface SeedDeveloper {
   username: string;
   name: string;
