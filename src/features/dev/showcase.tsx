@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { AnalysisFixtures } from '@/features/dev/AnalysisFixtures';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CARD_PRESETS, type CardVariantName } from '@/components/ui/Card';
@@ -147,6 +148,8 @@ export function DevShowcase() {
           />
         </View>
       </View>
+
+      <AnalysisFixtures />
 
       <ThemeScope mode="light">
         <Showcase mode="light" />
