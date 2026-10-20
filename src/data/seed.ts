@@ -1,9 +1,61 @@
 // ---------------------------------------------------------------------------
 // Lampiran A (PRD) — seed data. Copied as-is from the PRD appendix; treat as
 // immutable fixtures for Explore/Talent/Analysis during early milestones.
-// NOTE: Lampiran A was not available in this repo, so these placeholders use
-// the same shape. Replace bodies verbatim with the PRD appendix text.
+// The PRD types (§4) and the Explore fixtures (candidates, feedProjects,
+// fallbackUser, fallbackRepos) live here so there is exactly one source of
+// truth per PRD §2.1.
 // ---------------------------------------------------------------------------
+
+export interface Candidate {
+  login: string;
+  name: string;
+  role: string;
+  language: string;
+  location: string;
+  score: number;
+  avatar: string;
+  stage: 'Saved' | 'Interviewing' | 'Hired';
+  availability: string;
+}
+
+export interface FeedProject {
+  id: number;
+  name: string;
+  description: string;
+  role: string;
+  stack: string[];
+  location: string;
+  score: number;
+  active: boolean;
+  demo: string;
+  developer: Candidate;
+  stars: number;
+}
+
+export interface GithubUser {
+  login: string;
+  name: string | null;
+  avatar_url: string;
+  bio: string | null;
+  followers: number;
+  following: number;
+  public_repos: number;
+  location: string | null;
+  html_url: string;
+}
+
+export interface GithubRepo {
+  id: number;
+  name: string;
+  description: string | null;
+  language: string | null;
+  stargazers_count: number;
+  forks_count?: number;
+  fork?: boolean;
+  homepage?: string | null;
+  pushed_at?: string;
+  html_url: string;
+}
 
 export interface SeedDeveloper {
   username: string;
@@ -269,6 +321,57 @@ export const seedDevelopers: SeedDeveloper[] = [
     ],
     score: 91,
   },
+];
+
+export const candidates: Candidate[] = [
+  { login: 'sindresorhus', name: 'Sindre Sorhus', role: 'Front-End', language: 'TypeScript', location: 'Oslo', score: 96, avatar: 'https://github.com/sindresorhus.png', stage: 'Interviewing', availability: 'Open to work' },
+  { login: 'yyx990803', name: 'Evan You', role: 'Front-End', language: 'TypeScript', location: 'Singapore', score: 94, avatar: 'https://github.com/yyx990803.png', stage: 'Saved', availability: 'Freelance' },
+  { login: 'cassidoo', name: 'Cassidy Williams', role: 'Full-Stack', language: 'JavaScript', location: 'Chicago', score: 91, avatar: 'https://github.com/cassidoo.png', stage: 'Saved', availability: 'Open to work' },
+  { login: 'gaearon', name: 'Dan Abramov', role: 'Front-End', language: 'JavaScript', location: 'London', score: 89, avatar: 'https://github.com/gaearon.png', stage: 'Hired', availability: 'Not available' },
+];
+
+export const feedProjects: FeedProject[] = [
+  {
+    id: 101, name: 'Nusa Commerce',
+    description: 'Aplikasi marketplace mobile dengan payment gateway, live tracking, dan seller analytics.',
+    role: 'Mobile', stack: ['Flutter 65%', 'Dart 35%'], location: 'Jakarta', score: 96, active: true, demo: 'Play Store', stars: 1280,
+    developer: { login: 'angga-risky', name: 'Angga Risky', role: 'Mobile', language: 'Dart', location: 'Jakarta', score: 96, avatar: 'https://github.com/angga-risky.png', stage: 'Saved', availability: 'Open to work' },
+  },
+  {
+    id: 102, name: 'Sentra AI Vision',
+    description: 'Computer vision pipeline untuk inspeksi kualitas manufaktur secara real-time.',
+    role: 'Data', stack: ['Python 72%', 'PyTorch 28%'], location: 'Bandung', score: 94, active: true, demo: 'Live Web', stars: 842,
+    developer: { login: 'alishobeiri', name: 'Ali Shobeiri', role: 'AI / Data', language: 'Python', location: 'Bandung', score: 94, avatar: 'https://github.com/alishobeiri.png', stage: 'Interviewing', availability: 'Open to work' },
+  },
+  {
+    id: 103, name: 'Karsa Microservices',
+    description: 'High-performance commerce API dengan event-driven architecture dan observability.',
+    role: 'Back-End', stack: ['Go 78%', 'Docker 22%'], location: 'Indonesia', score: 92, active: true, demo: 'API Docs', stars: 634,
+    developer: { login: 'mgechev', name: 'Minko Gechev', role: 'Back-End', language: 'Go', location: 'Indonesia', score: 92, avatar: 'https://github.com/mgechev.png', stage: 'Saved', availability: 'Freelance' },
+  },
+  {
+    id: 104, name: 'Ruang Dashboard',
+    description: 'Accessible analytics dashboard dengan collaborative workspace dan modular charts.',
+    role: 'Front-End', stack: ['React 58%', 'TypeScript 42%'], location: 'Surabaya', score: 90, active: false, demo: 'Vercel', stars: 471,
+    developer: { login: 'cassidoo', name: 'Cassidy Williams', role: 'Front-End', language: 'TypeScript', location: 'Surabaya', score: 90, avatar: 'https://github.com/cassidoo.png', stage: 'Saved', availability: 'Open to work' },
+  },
+];
+
+export const fallbackUser: GithubUser = {
+  login: 'octocat',
+  name: 'The Octocat',
+  avatar_url: 'https://github.com/octocat.png',
+  bio: "GitHub's friendly mascot, exploring code and open source.",
+  followers: 16298,
+  following: 9,
+  public_repos: 8,
+  location: 'San Francisco',
+  html_url: 'https://github.com/octocat',
+};
+
+export const fallbackRepos: GithubRepo[] = [
+  { id: 1, name: 'Spoon-Knife', description: 'A delightful repository for testing and learning.', language: 'TypeScript', stargazers_count: 13076, forks_count: 2401, homepage: 'https://octocat.github.io', pushed_at: '2025-01-12', html_url: 'https://github.com/octocat/Spoon-Knife' },
+  { id: 2, name: 'Hello-World', description: 'My first repository on GitHub!', language: 'Go', stargazers_count: 3041, forks_count: 328, pushed_at: '2024-11-04', html_url: 'https://github.com/octocat/Hello-World' },
 ];
 
 export const seedLanguages = [

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/theme/useTheme';
@@ -9,7 +9,16 @@ import { useTheme } from '@/theme/useTheme';
  * paddingX 20, paddingBottom 116 + insets.bottom, no scroll indicators,
  * content capped at maxWidth 430 and centered.
  */
-export function PageContainer({ children }: { children: ReactNode }) {
+export function PageContainer({
+  children,
+  /** design.md §1.4 — Explore uses 30, other pages sit directly under TopBar. */
+  paddingTop = 0,
+  keyboardShouldPersistTaps = 'never',
+}: {
+  children: ReactNode;
+  paddingTop?: number;
+  keyboardShouldPersistTaps?: ScrollViewProps['keyboardShouldPersistTaps'];
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -17,7 +26,11 @@ export function PageContainer({ children }: { children: ReactNode }) {
     <View style={[styles.flex, { backgroundColor: theme.colors.paper }]}>
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={[styles.content, { paddingBottom: 116 + insets.bottom }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop, paddingBottom: 116 + insets.bottom },
+        ]}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
         overScrollMode="never"

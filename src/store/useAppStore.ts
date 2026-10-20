@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { fallbackRepos, fallbackUser, type GithubRepo, type GithubUser } from '@/data/seed';
 import type { ThemeMode } from '@/theme/tokens';
 
 // ---------------------------------------------------------------------------
@@ -42,14 +43,36 @@ interface AppState {
   setThemeMode: (mode: ThemeMode | 'system') => void;
   toggleTheme: () => void;
 
-  // --- Explore / search -----------------------------------------------------
+  // --- Explore feed (PRD §6) — NOT persisted --------------------------------
   query: string;
   setQuery: (q: string) => void;
+  feedRole: string;
+  setFeedRole: (role: string) => void;
+  feedLocation: string;
+  setFeedLocation: (location: string) => void;
+  recentOnly: boolean;
+  toggleRecentOnly: () => void;
+  /** FR-E9 — empty string means no error. */
+  error: string;
+  setError: (error: string) => void;
+  /** D2 — id of the card currently running Analyze, null = none. */
+  loadingId: number | null;
+  setLoadingId: (id: number | null) => void;
+  /** FR-E8 — resets query/role/location/recentOnly, never error/loadingId. */
+  resetFeedFilters: () => void;
+
+  // --- Legacy M0 filters (kept for Talent/Analysis milestones) --------------
   filters: FilterState;
   setFilters: (patch: Partial<FilterState>) => void;
   resetFilters: () => void;
 
-  // --- Analysis -------------------------------------------------------------
+  // --- Analysis target ------------------------------------------------------
+  /** Currently analysed developer; also drives the Profile tab (PRD §6). */
+  user: GithubUser;
+  repos: GithubRepo[];
+  saved: boolean;
+  /** TODO(M3): replace with the real fetch + fallback flow (PRD §5.2). */
+  setAnalysisTarget: (user: GithubUser, repos: GithubRepo[]) => void;
   analysis: AnalysisProgress;
   setAnalysis: (patch: Partial<AnalysisProgress>) => void;
   resetAnalysis: () => void;
@@ -82,11 +105,29 @@ export const useAppStore = create<AppState>()(
 
       query: '',
       setQuery: (query) => set({ query }),
+      feedRole: 'All',
+      setFeedRole: (feedRole) => set({ feedRole }),
+      feedLocation: 'All locations',
+      setFeedLocation: (feedLocation) => set({ feedLocation }),
+      recentOnly: false,
+      toggleRecentOnly: () => set((s) => ({ recentOnly: !s.recentOnly })),
+      error: '',
+      setError: (error) => set({ error }),
+      loadingId: null,
+      setLoadingId: (loadingId) => set({ loadingId }),
+      resetFeedFilters: () =>
+        set({ query: '', feedRole: 'All', feedLocation: 'All locations', recentOnly: false }),
+
       filters: { language: null, minStars: 50, maxResultAgeDays: 30 },
       setFilters: (patch) =>
         set((s) => ({ filters: { ...s.filters, ...patch } })),
       resetFilters: () =>
         set({ filters: { language: null, minStars: 50, maxResultAgeDays: 30 } }),
+
+      user: fallbackUser,
+      repos: fallbackRepos,
+      saved: false,
+      setAnalysisTarget: (user, repos) => set({ user, repos, saved: false }),
 
       analysis: { status: 'idle', step: null, progress: 0 },
       setAnalysis: (patch) =>

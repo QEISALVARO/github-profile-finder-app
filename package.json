@@ -50,12 +50,15 @@
   "devDependencies": {
     "@types/d3-array": "^3.2.2",
     "@types/d3-scale": "^4.0.9",
+    "@types/jest": "^30.0.0",
     "@types/lodash-es": "^4.17.12",
     "@types/react": "~19.2.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "^57.0.2",
     "eslint-plugin-prettier": "^5.5.7",
     "husky": "^9.1.7",
+    "jest": "^30.5.2",
+    "jest-expo": "~57.0.0",
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.10",
     "typescript": "~6.0.3"
@@ -66,7 +69,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo"
   },
   "private": true
 }
