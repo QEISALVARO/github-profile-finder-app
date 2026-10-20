@@ -1,61 +1,14 @@
 // ---------------------------------------------------------------------------
 // Lampiran A (PRD) — seed data. Copied as-is from the PRD appendix; treat as
 // immutable fixtures for Explore/Talent/Analysis during early milestones.
-// The PRD types (§4) and the Explore fixtures (candidates, feedProjects,
-// fallbackUser, fallbackRepos) live here so there is exactly one source of
-// truth per PRD §2.1.
+// The PRD model types (§4) live in `src/types` (single source of truth) and
+// are re-exported here so existing `@/data/seed` imports keep working.
 // ---------------------------------------------------------------------------
 
-export interface Candidate {
-  login: string;
-  name: string;
-  role: string;
-  language: string;
-  location: string;
-  score: number;
-  avatar: string;
-  stage: 'Saved' | 'Interviewing' | 'Hired';
-  availability: string;
-}
+import type { Candidate, FeedProject, GithubRepo, GithubUser } from '@/types';
 
-export interface FeedProject {
-  id: number;
-  name: string;
-  description: string;
-  role: string;
-  stack: string[];
-  location: string;
-  score: number;
-  active: boolean;
-  demo: string;
-  developer: Candidate;
-  stars: number;
-}
+export type { Candidate, FeedProject, GithubRepo, GithubUser };
 
-export interface GithubUser {
-  login: string;
-  name: string | null;
-  avatar_url: string;
-  bio: string | null;
-  followers: number;
-  following: number;
-  public_repos: number;
-  location: string | null;
-  html_url: string;
-}
-
-export interface GithubRepo {
-  id: number;
-  name: string;
-  description: string | null;
-  language: string | null;
-  stargazers_count: number;
-  forks_count?: number;
-  fork?: boolean;
-  homepage?: string | null;
-  pushed_at?: string;
-  html_url: string;
-}
 
 export interface SeedDeveloper {
   username: string;
