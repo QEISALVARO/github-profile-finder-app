@@ -73,7 +73,7 @@ export default function AnalysisScreen() {
   };
 
   return (
-    <PageContainer>
+    <PageContainer paddingTop={27}>
       <Animated.View style={animatedStyle}>
         <Pressable
           accessibilityRole="button"

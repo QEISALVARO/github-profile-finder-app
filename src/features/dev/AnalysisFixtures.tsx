@@ -97,8 +97,8 @@ export function AnalysisFixtures() {
 
 const styles = StyleSheet.create({
   block: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    marginTop: 26,
+    paddingBottom: 8,
     gap: 8,
   },
   card: {
