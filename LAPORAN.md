@@ -190,3 +190,120 @@ Urutan yang disarankan:
 | `d065b4a` | 2026-10-19 | M1: design system + `/dev` showcase |
 | `5dc9127` | 2026-10-19 | M0: scaffold app shell |
 | `218f152` | 2026-10-13 | Initial commit |
+
+---
+
+# Laporan Fase — R1 Auth & Profil (frontend) · PRD V2
+
+**Tanggal laporan:** 26 Oktober 2026
+**Basis dokumen:** `PRD_V2_REAL.md` §6 (Auth), §11A (Filter Negara), §13 (Profile/Report), §15 (desain baru), §18 (fase R1)
+**Cakupan yang dipilih:** frontend saja, **UI-only dengan mock session** (tanpa SDK Supabase — keputusan yang dikonfirmasi saat memulai). Integrasi `@supabase/supabase-js` + TanStack Query (K1/K7) menyusul setelah backend R0 ada; bentuk state di `useAuthStore` sengaja mengikuti skema DB agar migrasi nanti hanya mengganti sumber data.
+
+---
+
+## 1. Ringkasan Eksekutif
+
+Fase R1 (frontend) **selesai penuh**: aplikasi kini punya alur masuk Welcome → Onboarding peran → tabs, Profile tab yang menampilkan akun login, dan layar Settings lengkap dengan kebijakan privasi POL-1/POL-4/POL-9. Gate auth memakai `Stack.Protected` (expo-router SDK 57) sehingga history back tidak keluar jalur.
+
+| Metrik | Hasil |
+|---|---|
+| Fase | **R1 Auth & Profil — frontend (UI-only)** |
+| File baru/diubah | 13 file baru + 3 file diubah, ± 3.200 baris (termasuk test) |
+| Unit test | **77 test, 8 suite — semua lulus** (sebelumnya 57/6) |
+| Typecheck | `tsc --noEmit` — **lulus** |
+| Lint | `expo lint` — **lulus, 0 error 0 warning** |
+| Bundle Android | `expo export -p android` — **sukses** (Hermes 3.2 MB) |
+| Static render web | `expo export -p web` — **sukses**, route baru (`welcome`, `onboarding`, `profile/settings`) ter-generate |
+
+---
+
+## 2. Yang Dikerjakan
+
+### 2.1 Auth store (`src/store/useAuthStore.ts`)
+- Sesi mock GitHub (`session`), peran `roles[]`, flag `onboarded`, pengaturan developer (`countryCode/city/countrySource/listed/openToMessages/availability`), profil recruiter (`company/title/targetCountries`), semua **persist ke AsyncStorage** (`gitscope.auth`).
+- **Guard kebijakan di level store:**
+  - **POL-9** — `setListed(true)` tanpa negara dipaksa `false`; mencabut negara otomatis mematikan `listed` dan `countrySource`.
+  - **POL-1** — default `listed = false` (opt-in eksplisit).
+  - **POL-4** — default `openToMessages = false`.
+  - **§11A** — `targetCountries` default `[]` = semua negara.
+- Flag `hydrated` + `onRehydrateStorage` agar cold start tidak salah route; di web SSR tidak menulis storage (memperbaiki crash `window is not defined` saat static export).
+
+### 2.2 Dataset negara (`src/data/countries.ts`)
+- 140 negara (ISO 3166-1 alpha-2, 5 region) + alias pencarian ("USA", "UK", "Deutschland", "Brasil", …).
+- `flagEmoji(iso2)` diturunkan dari kode regional (tanpa menyimpan emoji), `searchCountries` (prioritas exact → prefix → contains), `findCountry`, `countryLabel`, `formatCountrySelection` (chip `🇮🇩 Indonesia +1`).
+- Menjadi padanan frontend dari tabel `countries` (seed R0) — konsumen tidak perlu berubah saat backend datang.
+
+### 2.3 CountryPicker (`src/components/CountryPicker.tsx`)
+- Bottom sheet §11A: pencarian, chip terpilih, daftar bendera+nama+region, mode `single`/`multi`, tombol **Apply / Clear / All countries**, teks bantu privasi.
+- State di-reset lewat mount komponen anak (tanpa setState di dalam effect — lolos lint React 19).
+
+### 2.4 Layar Welcome (`src/app/welcome.tsx`)
+- Brand mark + hero + tombol **Continue with GitHub** (membuat sesi demo, ditandai eksplisit "Mode demo" — bukan data palsu yang menyamar).
+- Catatan kebijakan: 18+ (§3.2), hanya data publik GitHub, POL-1, Privacy/ToS menyusul.
+- Titik penggantian OAuth Supabase hanya fungsi `handleSignIn` — pergantian ke `signInWithOAuth` tidak menyentuh UI lain.
+
+### 2.5 Onboarding (`src/app/onboarding.tsx` + `src/features/onboarding/`)
+- Wizard Role → Developer → Recruiter (form mengikuti peran yang dipilih), progress bar, error inline, tombol Back.
+- **Developer:** negara domisili (wajib untuk listing — sakelar mati + penjelasan POL-9), kota, `listed`, `open_to_messages`, availability.
+- **Recruiter:** perusahaan (wajib), jabatan, negara tujuan multi-pilih (kosong = semua, §11A).
+- Ditemukan & diperbaiki saat pengujian: label tombol "Selesai" salah tampil di langkah pertama (steps bisa 1 saat role belum dipilih).
+
+### 2.6 Auth gate (`src/app/_layout.tsx`)
+- `Stack.Protected` (diverifikasi via docs Expo SDK 57): tanpa sesi → `/welcome`; sesi tanpa onboarding → `/onboarding`; sesi + onboarding → `(tabs)` + `/dev`. History route otomatis dibersihkan saat guard berubah.
+- Render ditunda sampai persist selesai di-native agar tidak ada flash route salah.
+
+### 2.7 Profile tab (`src/app/(tabs)/profile/`)
+- Konversi `profile.tsx` → nested stack (`index` + `settings`), mengikuti pola tab Explore.
+- Layout design.md §3.21: cover hijau berpola titik (SVG `Pattern`), intro avatar overlap, badge peran (`DEVELOPER · RECRUITER`), `@login · GitHub connected`, statistik Reports/Shortlisted/Interviews, SettingsList, kartu GitHub connect + pill ACTIVE, trust note penafian skor (AIR-1/AIR-2), versi.
+- Ikon `settings` (gear) ditambahkan ke design system.
+
+### 2.8 Settings (`src/app/(tabs)/profile/settings.tsx`)
+- **Visibilitas & pesan** (developer): sakelar `listed` (nonaktif tanpa negara + alasan POL-9), `open_to_messages` (POL-4), availability.
+- **Lokasi domisili:** ganti negara via CountryPicker (sumber `self`), kota.
+- **Profil recruiter:** perusahaan, jabatan, negara tujuan via CountryPicker multi.
+- **Tampilan:** tema Terang/Gelap/Ikuti sistem.
+- **Akun:** Keluar (konfirmasi, pengaturan tetap) dan **Hapus akun** (konfirmasi destruktif → reset state, §13).
+
+---
+
+## 3. Hasil Verifikasi
+
+| Pemeriksaan | Perintah | Hasil |
+|---|---|---|
+| Typecheck | `npx tsc --noEmit` | ✅ Lulus |
+| Lint | `npx expo lint` | ✅ Lulus (0 error, 0 warning) |
+| Unit test | `npx jest --ci` | ✅ 8 suite, **77 test** lulus |
+| Bundle Android | `npx expo export -p android` | ✅ Sukses |
+| Static render web | `npx expo export -p web` | ✅ Sukses; `welcome.html`, `onboarding.html`, `profile/settings.html` ter-generate berisi konten benar |
+| Dev server | `npx expo start` | ✅ Metro jalan, typed routes regenerate |
+
+Suite test baru:
+
+| Suite | Cakupan |
+|---|---|
+| `data/__tests__/countries.test.ts` | Flag emoji, alias (USA/UK/Deutschland), prioritas pencarian, format chip, unique ISO2 |
+| `store/__tests__/authStore.test.ts` | Sesi, onboarding gate, **guard POL-9/POL-1/POL-4**, target negara, signOut vs deleteAccount |
+| `app/__tests__/r1-screens.test.tsx` | Smoke render Welcome/Onboarding/Profile/Settings + interaksi tombol Lanjut & validasi role kosong |
+
+---
+
+## 4. Gap yang Diketahui (untuk fase berikut)
+
+1. **Login masih mock** — sesi dibuat lokal; `signInWithOAuth({ provider: 'github' })` + `expo-web-browser` menunggu proyek Supabase (R0). Tidak ada pemanggilan GitHub/Supabase dari client (sesuai K4).
+2. **Facet count negara belum ada** — CountryPicker tanpa angka per negara; menunggu RPC `country_facets()` (R0/R3).
+3. **Statistik Profile (Reports/Interviews) masih 0** — akan diisi dari tabel `reports`/`pipeline_entries` (R6/R4); label jujur untuk akun baru.
+4. **Inferensi negara dari lokasi GitHub** belum ada (butuh Edge Function R0) — onboarding menampilkan pilihan manual sebagai otoritatif.
+5. **`design_v2.md` belum ditulis** — layar Welcome/Onboarding/CountryPicker mengikuti token `design.md` tetapi belum didokumentasikan terpisah (PRD §15).
+6. Privacy Policy & Terms masih berupa teks "menyusul" — wajib sebelum rilis (R7).
+7. Feed/Discover **belum memakai filter negara** — konsumen baru ada di onboarding/Settings; penyambungan ke Feed masuk R3, ke Discover masuk R4.
+8. Belum diuji di perangkat sungguhan (butuh development build; M6).
+
+---
+
+## 5. Rekomendasi Langkah Berikutnya
+
+1. **R0 Fondasi** — proyek Supabase + migrasi + RLS + seed `countries` (bisa memakai dataset `src/data/countries.ts`), GitHub OAuth App, Edge Functions.
+2. Ganti mock session → `signInWithOAuth` sungguhan; pasang TanStack Query (K7).
+3. **M3c** (v1) tetap relevan — wiring `analyzeDeveloper()` ke tombol Analyze — sebelum R2 menggantinya dengan Edge Function.
+4. Hubungkan CountryPicker ke Feed (R3) dan Discover (R4).
+5. Tulis `design_v2.md` untuk layar baru (PRD §15).

@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 
+import { useAuthStore } from '@/store/useAuthStore';
 import { useTheme } from '@/theme/useTheme';
 
 // Keep the splash visible until fonts are loaded and the app is ready.
@@ -61,5 +62,31 @@ export default function RootLayout() {
 }
 
 function RootNavigatorSlot() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const session = useAuthStore((s) => s.session);
+  const onboarded = useAuthStore((s) => s.onboarded);
+
+  // Tunggu persist auth selesai direhydrate (cold start) supaya guard tidak
+  // sempat melempar user ke halaman yang salah.
+  if (!hydrated) return null;
+
+  // R1 gate (PRD v2 §6.1): tanpa sesi → Welcome; sesi tanpa onboarding →
+  // Onboarding; sesi + onboarding → tabs. Stack.Protected menghapus history
+  // route yang guard-nya berubah sehingga tombol back tidak keluar jalur.
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Protected guard={session === null}>
+        <Stack.Screen name="welcome" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={session !== null && !onboarded}>
+        <Stack.Screen name="onboarding" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={session !== null && onboarded}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="dev" />
+      </Stack.Protected>
+    </Stack>
+  );
 }
