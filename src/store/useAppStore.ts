@@ -2,8 +2,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { fallbackRepos, fallbackUser, type GithubRepo, type GithubUser } from '@/data/seed';
+import { fallbackRepos, fallbackUser } from '@/data/seed';
+import type { Candidate, GithubRepo, GithubUser } from '@/types';
 import type { ThemeMode } from '@/theme/tokens';
+
+// ---------------------------------------------------------------------------
+// M3b additions (PRD §6) — analysis state read by the Analysis screen. All
+// additions are additive; M2 keys (query, feedRole, feedLocation, recentOnly,
+// error, loadingId) are untouched. M3c will add the analyzeDeveloper action
+// that fills user/repos and resets `saved` (M2's setAnalysisTarget already
+// resets `saved`).
+// ---------------------------------------------------------------------------
+
+export type ChatPerson = GithubUser | Candidate;
 
 // ---------------------------------------------------------------------------
 // PRD §6 — app state skeleton. Every key ships with its default now; feature
@@ -89,6 +100,17 @@ interface AppState {
   // --- Active tab (kept for deep links / restore) ---------------------------
   activeTab: TabKey;
   setActiveTab: (tab: TabKey) => void;
+
+  // --- Analysis (PRD §6) — M3b additive keys --------------------------------
+  // NOTE: `user` / `repos` / `saved` live in the M2 "Analysis target" block
+  // above — they are declared once, not twice.
+  chat: { open: boolean; project: string; person: ChatPerson | null };
+  notice: string;
+  setUser: (user: GithubUser) => void;
+  setRepos: (repos: GithubRepo[]) => void;
+  setSaved: (saved: boolean) => void;
+  openChat: (project?: string, person?: ChatPerson | null) => void;
+  showNotice: (notice: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -164,6 +186,20 @@ export const useAppStore = create<AppState>()(
 
       activeTab: 'explore',
       setActiveTab: (activeTab) => set({ activeTab }),
+
+      // M3b — additive analysis state (PRD §6). `user`/`repos`/`saved` are
+      // owned by the M2 block above; M3b only adds the chat/notice slots and
+      // the plain setters the Analysis screen + /dev fixtures need.
+      chat: { open: false, project: '', person: null },
+      notice: '',
+      setUser: (user) => set({ user }),
+      setRepos: (repos) => set({ repos }),
+      setSaved: (saved) => set({ saved }),
+      // Minimal additive actions for FR-A3/FR-A8 — they only set state; the
+      // ChatSheet and Toast UIs land in M5.
+      openChat: (project = '', person = null) =>
+        set({ chat: { open: true, project, person } }),
+      showNotice: (notice) => set({ notice }),
     }),
     {
       name: 'gitscope',
