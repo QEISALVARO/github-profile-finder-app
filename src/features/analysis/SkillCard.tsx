@@ -12,11 +12,14 @@ import type { LanguageStat } from '@/lib/scoring';
 export type SkillCardProps = {
   role: string;
   stats: LanguageStat[];
+  /** Framework dari manifest BE (PRD v2 §9.2); default = label v1. */
+  frameworks?: string[];
 };
 
 /** FR-A4 — skill fingerprint (design.md §3.10). */
-export function SkillCard({ role, stats }: SkillCardProps) {
+export function SkillCard({ role, stats, frameworks }: SkillCardProps) {
   const theme = useTheme();
+  const chips = frameworks && frameworks.length > 0 ? frameworks : ['React', 'Vite', 'Node.js'];
 
   return (
     <Card variant="skill">
@@ -68,18 +71,20 @@ export function SkillCard({ role, stats }: SkillCardProps) {
       </View>
 
       <View style={styles.frameworks}>
-        <Chip variant="default" mono size={7}>
-          React
-        </Chip>
-        <Chip variant="default" mono size={7}>
-          Vite
-        </Chip>
-        <Chip variant="default" mono size={7}>
-          Node.js
-        </Chip>
-        <Chip variant="dashed" mono size={7}>
-          +3 tools
-        </Chip>
+        {chips.slice(0, 3).map((framework) => (
+          <Chip key={framework} variant="default" mono size={7}>
+            {framework}
+          </Chip>
+        ))}
+        {chips.length > 3 ? (
+          <Chip variant="dashed" mono size={7}>
+            {`+${chips.length - 3} tools`}
+          </Chip>
+        ) : chips.length === 3 ? (
+          <Chip variant="dashed" mono size={7}>
+            +3 tools
+          </Chip>
+        ) : null}
       </View>
     </Card>
   );

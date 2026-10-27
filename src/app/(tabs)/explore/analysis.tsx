@@ -19,9 +19,9 @@ import { useAppStore } from '@/store/useAppStore';
 import { useTheme } from '@/theme/useTheme';
 
 /**
- * FR-A1…A8 — Developer Intelligence screen. Reads `user`/`repos`/`saved`
- * from the store (filled by M3c's analyze flow or the /dev fixtures) and
- * derives every displayed value through the pure `deriveAnalysis` helper.
+ * FR-A1…A8 — Developer Intelligence screen. Bila `analysisVm` tersedia (hasil
+ * Edge Function R2), seluruh angka dibaca dari VM; bila null (fixture /dev
+ * atau sesi lama), fallback ke deriveAnalysis v1 agar layar tetap jalan.
  */
 export default function AnalysisScreen() {
   const theme = useTheme();
@@ -33,8 +33,27 @@ export default function AnalysisScreen() {
   const setSaved = useAppStore((s) => s.setSaved);
   const openChat = useAppStore((s) => s.openChat);
   const showNotice = useAppStore((s) => s.showNotice);
+  const analysisVm = useAppStore((s) => s.analysisVm);
+  const staleNotice = useAppStore((s) => s.staleNotice);
 
-  const analysis = useMemo(() => deriveAnalysis(user, repos), [user, repos]);
+  const legacy = useMemo(() => deriveAnalysis(user, repos), [user, repos]);
+
+  // Tampilan efektif: VM bila ada, jika tidak nilai turunan v1.
+  const role = analysisVm?.inferredRole ?? legacy.role;
+  const primary = analysisVm?.primaryLanguage ?? legacy.primary;
+  const stats = analysisVm?.languageStats ?? legacy.stats;
+  const authenticity = analysisVm?.authenticity ?? legacy.authenticity;
+  const confidence = analysisVm?.confidence;
+  const tier = analysisVm?.tier;
+  const frameworks = analysisVm?.frameworks;
+  const originalRatio = analysisVm ? Math.round(analysisVm.metrics.originalRatio * 100) : legacy.originalRatio;
+  const originalCount = analysisVm?.metrics.originalCount ?? legacy.originalCount;
+  const demoRatio = analysisVm ? Math.round(analysisVm.metrics.demoRatio * 100) : legacy.demoRatio;
+  const commitHealth = analysisVm?.metrics.commitHealth;
+  const contributionDepth = analysisVm?.metrics.contributionDepth;
+  const heatmap = analysisVm?.heatmap;
+  const yoyPct = analysisVm?.metrics.yoyPct;
+  const contributions12m = analysisVm?.metrics.contributions12m;
 
   // FR-A1 — view-in: 250 ms ease, translateX 12 → 0 + opacity 0 → 1.
   // `useState` (not `useRef`) keeps the Animated.Value stable across renders
@@ -101,10 +120,18 @@ export default function AnalysisScreen() {
           </T>
         </View>
 
+        {staleNotice ? (
+          <View style={styles.staleBanner}>
+            <T size={8} weight="700" color="warnText">
+              {staleNotice}
+            </T>
+          </View>
+        ) : null}
+
         <ProfileCard
           user={user}
-          role={analysis.role}
-          primary={analysis.primary}
+          role={role}
+          primary={primary}
           saved={saved}
           onToggleSaved={() => setSaved(!saved)}
           // TODO(M5) — ChatSheet UI lands in M5; openChat only sets state now.
@@ -116,9 +143,9 @@ export default function AnalysisScreen() {
           eyebrow="ROLE INTELLIGENCE"
           title="Skill fingerprint"
           rightVariant="mono-note"
-          note="94% CONFIDENCE"
+          note={typeof confidence === 'number' ? `${confidence}% CONFIDENCE` : '94% CONFIDENCE'}
         />
-        <SkillCard role={analysis.role} stats={analysis.stats} />
+        <SkillCard role={role} stats={stats} frameworks={frameworks} />
 
         <SectionHeading
           eyebrow="PROJECT VALIDATION"
@@ -126,21 +153,25 @@ export default function AnalysisScreen() {
           rightVariant="verified-label"
           verifiedLabel="VERIFIED"
         />
-        <ScoreCard authenticity={analysis.authenticity} />
+        <ScoreCard authenticity={authenticity} confidence={confidence} tier={tier} />
         <MetricGrid
-          originalRatio={analysis.originalRatio}
-          originalCount={analysis.originalCount}
+          originalRatio={originalRatio}
+          originalCount={originalCount}
           repoCount={repos.length}
-          demoRatio={analysis.demoRatio}
+          demoRatio={demoRatio}
+          commitHealth={commitHealth}
+          contributionDepth={contributionDepth}
         />
 
         <SectionHeading
           eyebrow="CONTRIBUTION ACTIVITY"
-          title="12 month momentum"
+          title="12 week momentum"
           rightVariant="mono-note"
-          note="642 contributions"
+          note={
+            typeof contributions12m === 'number' ? `${contributions12m} contributions` : '642 contributions'
+          }
         />
-        <Heatmap />
+        <Heatmap values={heatmap} yoyPct={yoyPct} />
 
         <SectionHeading
           eyebrow="VERIFIED PROJECTS"
@@ -153,7 +184,7 @@ export default function AnalysisScreen() {
           <VerifiedRepoCard
             key={repo.id}
             repo={repo}
-            authenticity={analysis.authenticity}
+            authenticity={authenticity}
             // TODO(M5) — ChatSheet UI lands in M5; openChat only sets state now.
             onDiscuss={(repoName) => openChat(repoName, user)}
           />
@@ -171,6 +202,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     alignSelf: 'flex-start',
+  },
+  staleBanner: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
   },
   backIcon: {
     transform: [{ rotate: '180deg' }],

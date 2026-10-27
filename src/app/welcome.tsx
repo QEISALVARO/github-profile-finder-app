@@ -7,43 +7,56 @@ import { Icon } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { useAppStore } from '@/store/useAppStore';
-import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { signInWithGitHub } from '@/lib/auth';
 import { useTheme } from '@/theme/useTheme';
 
 /**
  * PRD v2 §6.1 — Welcome / Login GitHub (layar baru §15.1).
  *
- * Mode sekarang: **mock session** (keputusan frontend tanpa SDK). Tombol
- * membuat sesi demo lokal lalu masuk onboarding. Penggantian dengan
- * `signInWithOAuth({ provider: 'github' })` + `expo-web-browser` (K2) hanya
- * menyentuh fungsi `handleSignIn` di bawah.
+ * R2: tombol memakai GitHub OAuth via Supabase (K2, scope read:user tanpa
+ * email). Bila backend belum hidup (env kosong / offline), fallback ke sesi
+ * demo lokal yang ditandai eksplisit agar tidak dianggap data nyata.
  */
 
 /** Identitas demo — ditandai eksplisit di UI supaya tidak dianggap data nyata. */
-const DEMO_SESSION: AuthSession = {
-  login: 'octocat',
-  name: 'Octo Cat',
-  avatarUrl: 'https://github.com/octocat.png?size=128',
-  githubId: 583231,
-  bio: 'Akun demo Gitscope — menggantikan alur OAuth GitHub saat backend siap.',
-  locationText: 'San Francisco',
-};
+const DEMO_LOGIN = 'octocat';
 
 export default function WelcomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const signIn = useAuthStore((s) => s.signIn);
+  const setAuthError = useAuthStore((s) => s.setAuthError);
+  const authError = useAuthStore((s) => s.authError);
   const onboarded = useAuthStore((s) => s.onboarded);
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const [signingIn, setSigningIn] = useState(false);
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (signingIn) return;
     setSigningIn(true);
-    signIn(DEMO_SESSION);
-    // Guard di root layout menentukan tujuan akhir; replace eksplisit agar
-    // tidak ada frame Welcome yang tersisa di stack.
-    router.replace(onboarded ? '/explore' : '/onboarding');
+    setAuthError(null);
+    try {
+      const { error } = await signInWithGitHub();
+      if (error) {
+        // Backend belum hidup / dibatalkan user → sesi demo lokal agar alur
+        // onboarding tetap bisa dicoba; OAuth asli dipakai saat R0 siap.
+        setAuthError(error);
+        signIn({
+          login: DEMO_LOGIN,
+          name: 'Octo Cat',
+          avatarUrl: 'https://github.com/octocat.png?size=128',
+          githubId: 583231,
+          bio: 'Akun demo Gitscope — OAuth GitHub aktif setelah backend R0 terpasang.',
+          locationText: 'San Francisco',
+        });
+      }
+      // Sukses OAuth: sesi Supabase → useAuthStore via onAuthStateChange di
+      // DataProvider; guard root layout menentukan tujuan akhir.
+      router.replace(onboarded ? '/explore' : '/onboarding');
+    } finally {
+      setSigningIn(false);
+    }
   };
 
   return (
@@ -120,10 +133,14 @@ export default function WelcomeScreen() {
           </Pressable>
 
           <T size={8} color="muted" lh={1.6} style={styles.ctaNote}>
-            Mode demo: sesi dibuat lokal tanpa jaringan. Login OAuth GitHub yang sesungguhnya
-            (Supabase, scope <T mono size={8}>read:user</T> — tanpa akses email) aktif setelah
-            backend R0 terpasang.
+            Login OAuth GitHub (Supabase, scope <T mono size={8}>read:user</T> — tanpa akses email).
+            Bila backend belum hidup, dipakai sesi demo lokal.
           </T>
+          {authError !== null && authError !== '' ? (
+            <T size={8} color="error" lh={1.6} style={styles.ctaNote}>
+              {authError}
+            </T>
+          ) : null}
 
           {/* Info ringkas */}
           <View style={[styles.infoCard, { borderColor: theme.colors.line, backgroundColor: theme.colors.surface }]}>

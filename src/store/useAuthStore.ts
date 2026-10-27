@@ -57,6 +57,9 @@ interface AuthState {
   session: AuthSession | null;
   roles: UserRole[];
   onboarded: boolean;
+  /** Error login terakhir (OAuth gagal / dibatalkan) untuk slot UI Welcome. */
+  authError: string | null;
+  setAuthError: (error: string | null) => void;
 
   // --- profiles + developer_settings ---------------------------------------
   countryCode: string | null;
@@ -97,6 +100,7 @@ const initialState = {
   session: null,
   roles: [] as UserRole[],
   onboarded: false,
+  authError: null as string | null,
   countryCode: null,
   city: null,
   countrySource: null,
@@ -113,9 +117,11 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       ...initialState,
 
-      signIn: (session) => set({ session }),
+      signIn: (session) => set({ session, authError: null }),
 
-      signOut: () => set({ session: null, onboarded: false }),
+      signOut: () => set({ session: null, onboarded: false, authError: null }),
+
+      setAuthError: (authError) => set({ authError }),
 
       setRoles: (roles) => set({ roles }),
 

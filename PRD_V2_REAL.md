@@ -346,7 +346,7 @@ Semua kebijakan **wajib diuji** dengan pgTAP (§17).
 ### 8.1 Kontrak Edge Function `analyze-developer`
 ```
 POST /functions/v1/analyze-developer   { login: string, force?: boolean }
-200 { analysis, user, repos(≤8), source: "fresh" | "cache" | "stale", stale_since?: string }
+200 AnalysisVM (datar: user, repos(≤8), authenticity, breakdown, metrics, heatmap[84], source: "fresh" | "cache" | "stale", staleSince?)
 404 { code: "NOT_FOUND" }   429 { code: "RATE_LIMITED", retry_after: number }   502 { code: "UPSTREAM_ERROR" }
 ```
 Dibatasi laju per pengguna (mis. 30 analisis/jam; sesuaikan).

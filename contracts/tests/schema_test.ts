@@ -1,0 +1,87 @@
+// @ts-nocheck
+// contracts/tests/schema_test.ts
+// Deno test: parse semua fixture dengan skema zod yang sesuai
+// Jalankan: deno test --allow-read contracts/tests/
+
+import { assertEquals } from "jsr:@std/assert";
+import { z } from "npm:zod@^3.24.0";
+import { AnalysisVM } from "../src/analysis.ts";
+import { FeedPage, CountryFacet } from "../src/feed.ts";
+import { DiscoverPage, PipelineEntry } from "../src/talent.ts";
+import { StartConversationInput, Message } from "../src/chat.ts";
+import { ErrorBody } from "../src/common.ts";
+
+const fixturesDir = new URL("../fixtures/", import.meta.url);
+
+async function loadFixture(name: string): Promise<unknown> {
+  const path = new URL(name, fixturesDir);
+  const text = await Deno.readTextFile(path);
+  return JSON.parse(text);
+}
+
+Deno.test("AnalysisVM fixtures parse correctly", async () => {
+  const raw = await loadFixture("analysis_vm.json") as unknown[];
+  assertEquals(Array.isArray(raw), true, "should be array");
+  for (const item of raw) {
+    const result = AnalysisVM.safeParse(item);
+    if (!result.success) {
+      const desc = (item as Record<string, string>)._description ?? "unknown";
+      throw new Error(`AnalysisVM parse failed for "${desc}": ${result.error.message}`);
+    }
+  }
+});
+
+Deno.test("FeedPage fixture parses correctly", async () => {
+  const raw = await loadFixture("feed_page.json");
+  const result = FeedPage.safeParse(raw);
+  if (!result.success) throw new Error(`FeedPage parse failed: ${result.error.message}`);
+  assertEquals(result.data.items.length, 2);
+});
+
+Deno.test("DiscoverPage fixture parses correctly", async () => {
+  const raw = await loadFixture("discover_page.json");
+  const result = DiscoverPage.safeParse(raw);
+  if (!result.success) throw new Error(`DiscoverPage parse failed: ${result.error.message}`);
+  assertEquals(result.data.items.length, 2);
+});
+
+Deno.test("CountryFacet fixtures parse correctly", async () => {
+  const raw = await loadFixture("country_facets.json") as unknown[];
+  for (const item of raw) {
+    const result = CountryFacet.safeParse(item);
+    if (!result.success) throw new Error(`CountryFacet parse failed: ${result.error.message}`);
+  }
+});
+
+Deno.test("ErrorBody fixtures parse correctly", async () => {
+  const raw = await loadFixture("error_body.json") as unknown[];
+  for (const item of raw) {
+    const result = ErrorBody.safeParse(item);
+    if (!result.success) throw new Error(`ErrorBody parse failed: ${result.error.message}`);
+  }
+});
+
+Deno.test("StartConversationInput fixture parses correctly", async () => {
+  const raw = await loadFixture("start_conversation.json");
+  const result = StartConversationInput.safeParse(raw);
+  if (!result.success) throw new Error(`StartConversationInput parse failed: ${result.error.message}`);
+});
+
+Deno.test("Message fixture parses correctly", async () => {
+  const raw = await loadFixture("message.json");
+  const result = Message.safeParse(raw);
+  if (!result.success) throw new Error(`Message parse failed: ${result.error.message}`);
+});
+
+Deno.test("CountryFacet supports <5 privacy mask", () => {
+  const result = CountryFacet.safeParse({ iso2: "NO", count: "<5" });
+  if (!result.success) throw new Error(`CountryFacet <5 parse failed: ${result.error.message}`);
+  assertEquals(result.data.count, "<5");
+});
+
+Deno.test("CountryFacet supports numeric counts", () => {
+  const result = CountryFacet.safeParse({ iso2: "US", count: 1247 });
+  if (!result.success) throw new Error(`CountryFacet numeric parse failed: ${result.error.message}`);
+  assertEquals(result.data.count, 1247);
+});
+

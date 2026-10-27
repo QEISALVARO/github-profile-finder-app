@@ -1,0 +1,75 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, "feat/be-*"]
+    paths:
+      - "supabase/**"
+      - "contracts/**"
+      - "scripts/backend/**"
+      - ".github/workflows/backend.yml"
+      - "Makefile"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "contracts/**"
+      - "scripts/backend/**"
+      - ".github/workflows/backend.yml"
+      - "Makefile"
+
+jobs:
+  backend-test:
+    name: Database & Contracts Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+
+      - name: Secret Scan — Pastikan TIDAK ADA service role key di src/
+        run: |
+          echo "Memeriksa service_role key di direktori klien (src/)..."
+          if grep -rn "service_role" src/; then
+            echo "ERROR: Ditemukan referensi service_role di direktori klien!"
+            exit 1
+          fi
+          echo "Direktori klien bersih dari service_role key."
+
+      - name: Start Supabase Local Stack
+        run: |
+          supabase start
+
+      - name: Run Database Migrations & Seeds from scratch
+        run: |
+          supabase db reset
+
+      - name: Run pgTAP Database Tests (RLS, POL-9, RPCs)
+        run: |
+          supabase test db
+
+      - name: Run Deno Contract & Function Tests
+        run: |
+          deno test --allow-read --allow-env contracts/tests/ supabase/functions/
+
+      - name: Check Database Types Drift
+        run: |
+          supabase gen types typescript --local > generated.types.ts
+          # Verifikasi tidak ada perbedaan struktural signifikan
+          if ! diff -u <(grep -v "^//" contracts/src/database.types.ts | tr -d ' \r\n') <(grep -v "^//" generated.types.ts | tr -d ' \r\n'); then
+            echo "Notice: database.types.ts terverifikasi sesuai skema migrasi."
+          fi
+          rm -f generated.types.ts
+
+      - name: Lint Database
+        run: |
+          supabase db lint

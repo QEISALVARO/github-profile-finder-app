@@ -1,0 +1,5 @@
+[
+  { "code": "NOT_FOUND", "message": "GitHub user not found" },
+  { "code": "RATE_LIMITED", "message": "Too many analysis requests", "retry_after": 300 },
+  { "code": "UPSTREAM_ERROR", "message": "GitHub API temporarily unavailable" }
+]

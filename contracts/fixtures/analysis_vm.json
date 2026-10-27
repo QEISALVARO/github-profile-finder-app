@@ -1,0 +1,236 @@
+[
+  {
+    "_description": "octocat-like profile, high authenticity",
+    "source": "fresh",
+    "user": {
+      "login": "octocat",
+      "name": "The Octocat",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/583231",
+      "bio": "GitHub mascot",
+      "htmlUrl": "https://github.com/octocat",
+      "publicRepos": 8,
+      "locationText": "San Francisco, CA",
+      "countryCode": "US",
+      "city": "San Francisco"
+    },
+    "repos": [
+      {
+        "id": 1296269,
+        "name": "Hello-World",
+        "description": "My first repository on GitHub!",
+        "language": "JavaScript",
+        "htmlUrl": "https://github.com/octocat/Hello-World",
+        "isFork": false,
+        "hasVerifiedDemo": false,
+        "score": 42
+      }
+    ],
+    "authenticity": 72,
+    "confidence": 65,
+    "tier": "medium",
+    "scoreVersion": 2,
+    "breakdown": {
+      "originality": 25,
+      "activity": 18,
+      "proof": 8,
+      "substance": 14,
+      "depth": 7,
+      "evidence": [
+        { "label": "Hello-World", "url": "https://github.com/octocat/Hello-World", "reason": "Original repo with README" }
+      ]
+    },
+    "inferredRole": "Back-End",
+    "primaryLanguage": "JavaScript",
+    "languageStats": [
+      { "name": "JavaScript", "value": 60 },
+      { "name": "Ruby", "value": 25 },
+      { "name": "Shell", "value": 15 }
+    ],
+    "frameworks": ["Node.js"],
+    "metrics": {
+      "originalRatio": 0.875,
+      "originalCount": 7,
+      "demoRatio": 0.0,
+      "commitHealth": "Sporadic",
+      "contributionDepth": "Light",
+      "streakWeeks": 2,
+      "contributions12m": 89,
+      "yoyPct": -12.5
+    },
+    "heatmap": [0,0,0,1,0,0,0,0,0,2,0,0,0,0,1,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  },
+  {
+    "_description": "empty repos",
+    "source": "cache",
+    "user": {
+      "login": "emptydev",
+      "name": "Empty Dev",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/999999",
+      "bio": null,
+      "htmlUrl": "https://github.com/emptydev",
+      "publicRepos": 0,
+      "locationText": null,
+      "countryCode": null,
+      "city": null
+    },
+    "repos": [],
+    "authenticity": 10,
+    "confidence": 20,
+    "tier": "low",
+    "scoreVersion": 2,
+    "breakdown": {
+      "originality": 0,
+      "activity": 0,
+      "proof": 0,
+      "substance": 0,
+      "depth": 10,
+      "evidence": []
+    },
+    "inferredRole": "Unknown",
+    "primaryLanguage": "Unknown",
+    "languageStats": [],
+    "frameworks": [],
+    "metrics": {
+      "originalRatio": 0.0,
+      "originalCount": 0,
+      "demoRatio": 0.0,
+      "commitHealth": "Sporadic",
+      "contributionDepth": "Light",
+      "streakWeeks": 0,
+      "contributions12m": 0,
+      "yoyPct": 0.0
+    },
+    "heatmap": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  },
+  {
+    "_description": "all forks",
+    "source": "stale",
+    "staleSince": "2026-10-26T00:00:00Z",
+    "user": {
+      "login": "forkmaster",
+      "name": "Fork Master",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/888888",
+      "bio": "I fork everything",
+      "htmlUrl": "https://github.com/forkmaster",
+      "publicRepos": 5,
+      "locationText": "Indonesia",
+      "countryCode": "ID",
+      "city": "Jakarta"
+    },
+    "repos": [
+      {
+        "id": 2000001,
+        "name": "react-fork",
+        "description": "Forked react",
+        "language": "JavaScript",
+        "htmlUrl": "https://github.com/forkmaster/react-fork",
+        "isFork": true,
+        "hasVerifiedDemo": false,
+        "score": 5
+      }
+    ],
+    "authenticity": 15,
+    "confidence": 40,
+    "tier": "low",
+    "scoreVersion": 2,
+    "breakdown": {
+      "originality": 0,
+      "activity": 10,
+      "proof": 0,
+      "substance": 5,
+      "depth": 0,
+      "evidence": [
+        { "label": "react-fork", "url": "https://github.com/forkmaster/react-fork", "reason": "Fork with no divergence" }
+      ]
+    },
+    "inferredRole": "Front-End",
+    "primaryLanguage": "JavaScript",
+    "languageStats": [
+      { "name": "JavaScript", "value": 100 }
+    ],
+    "frameworks": ["React"],
+    "metrics": {
+      "originalRatio": 0.0,
+      "originalCount": 0,
+      "demoRatio": 0.0,
+      "commitHealth": "Sporadic",
+      "contributionDepth": "Light",
+      "streakWeeks": 1,
+      "contributions12m": 12,
+      "yoyPct": -50.0
+    },
+    "heatmap": [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  },
+  {
+    "_description": "stale developer, high score",
+    "source": "stale",
+    "staleSince": "2026-10-20T08:00:00Z",
+    "user": {
+      "login": "topdev",
+      "name": "Top Developer",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/777777",
+      "bio": "Building great things",
+      "htmlUrl": "https://github.com/topdev",
+      "publicRepos": 42,
+      "locationText": "Singapore",
+      "countryCode": "SG",
+      "city": "Singapore"
+    },
+    "repos": [
+      {
+        "id": 3000001,
+        "name": "awesome-project",
+        "description": "An awesome open source project",
+        "language": "TypeScript",
+        "htmlUrl": "https://github.com/topdev/awesome-project",
+        "isFork": false,
+        "hasVerifiedDemo": true,
+        "score": 95
+      },
+      {
+        "id": 3000002,
+        "name": "cool-lib",
+        "description": "A cool library",
+        "language": "TypeScript",
+        "htmlUrl": "https://github.com/topdev/cool-lib",
+        "isFork": false,
+        "hasVerifiedDemo": false,
+        "score": 80
+      }
+    ],
+    "authenticity": 91,
+    "confidence": 88,
+    "tier": "high",
+    "scoreVersion": 2,
+    "breakdown": {
+      "originality": 29,
+      "activity": 19,
+      "proof": 14,
+      "substance": 18,
+      "depth": 11,
+      "evidence": [
+        { "label": "awesome-project", "url": "https://github.com/topdev/awesome-project", "reason": "Verified live demo, CI, tests, README" },
+        { "label": "cool-lib", "url": "https://github.com/topdev/cool-lib", "reason": "Substantial original work with tests" }
+      ]
+    },
+    "inferredRole": "Back-End",
+    "primaryLanguage": "TypeScript",
+    "languageStats": [
+      { "name": "TypeScript", "value": 75 },
+      { "name": "Go", "value": 15 },
+      { "name": "Shell", "value": 10 }
+    ],
+    "frameworks": ["Node.js", "Deno", "PostgreSQL"],
+    "metrics": {
+      "originalRatio": 0.92,
+      "originalCount": 38,
+      "demoRatio": 0.45,
+      "commitHealth": "Consistent",
+      "contributionDepth": "Deep",
+      "streakWeeks": 48,
+      "contributions12m": 1247,
+      "yoyPct": 18.3
+    },
+    "heatmap": [3,4,3,4,4,3,4,4,3,4,4,4,3,4,3,4,4,3,4,4,3,4,4,4,3,3,4,4,3,4,4,3,4,4,4,3,4,3,4,4,3,4,4,3,4,4,4,3,3,4,4,3,4,4,3,4,4,4,3,4,3,4,4,3,4,4,3,4,4,4,3,3,4,4,3,4,4,3,4,4,3,4,4,4]
+  }
+]
