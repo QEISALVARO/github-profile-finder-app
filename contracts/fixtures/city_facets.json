@@ -1,17 +1,17 @@
 [
   {
-    "_description": "Jakarta, count besar",
+    "_description": "Jakarta, hitungan kecil (masking)",
     "city": "Jakarta",
-    "count": 18
+    "count": "<5"
   },
   {
-    "_description": "Bandung, count kecil (masking)",
+    "_description": "Bandung, hitungan kecil (masking)",
     "city": "Bandung",
     "count": "<5"
   },
   {
-    "_description": "Surabaya",
+    "_description": "Surabaya, hitungan kecil (masking)",
     "city": "Surabaya",
-    "count": 7
+    "count": "<5"
   }
 ]
