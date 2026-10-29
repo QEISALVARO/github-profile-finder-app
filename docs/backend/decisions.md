@@ -83,3 +83,14 @@ Dokumen ini mencatat keputusan arsitektur dan teknis non-trivial yang diambil se
   - Berdasarkan hasil spike, `PatGitHubAuth` dijadikan default runtime karena dapat membaca data publik dan kalender kontribusi user sembarang tanpa hambatan batasan instalasi organisasi.
   - Kerangka `AppGitHubAuth` (penukaran JWT RS256 ke installation token) tetap disediakan dan diuji secara modular untuk kebutuhan integrasi masa depan via `GITHUB_AUTH_MODE=app`.
 
+
+## ADR-009/014 BE-3 (D1-D6 + riset)
+
+- D1 hanya pemilik: verifikasi kolaborator butuh izin yg tak dimiliki; jalur kontributor ditunda (backlog). Terbukti publish-project NOT_OWNER 403.
+- D2 stack top-3 byte persen bulat = 100; framework hanya utk inferensi role; chip framework ditunda (butuh FeedItem.frameworks v0.2).
+- D3 kolom hitungan tak ditulis klien: RLS 019 cabut tulis authenticated; tulis via Edge Function/RPC. Terbukti pgTAP 08.
+- D4 visible/rank_score didenormalisasi + trigger; indeks parsial + keyset pagination; cron harian/mingguan.
+- D5 admin = klaim JWT app_metadata.role; non-admin FORBIDDEN + audit_log. Terbukti pgTAP 09.
+- D6 facet mask <5 (ambang app.facet_min_count=5); totalCount eksak. Terbukti pgTAP + fixture.
+- Riset Postgres: setweight butuh leksem tsvector (bangun per-bagian); encode() wrap 76 char (strip ws); decode() tolak base64url (konversi balik); standard_conforming_strings membuat backslash-s literal (pakai POSIX class); quote_literal merusak prefix-term; generated menolak now() (pakai trigger); Supabase beri GRANT default ke anon/authenticated.
+- Riset GraphQL: resolve satu repo by databaseId butuh node ID global; dipakai list-OWNER-30 + cocokkan databaseId (1 query).

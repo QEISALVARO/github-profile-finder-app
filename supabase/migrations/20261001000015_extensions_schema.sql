@@ -20,3 +20,8 @@ do $$ begin
     create extension if not exists "pgtap" schema extensions;
   end if;
 end $$;
+
+-- Fungsi unaccent/tsvector dipakai trigger + RPC: beri USAGE agar peran
+-- klien (authenticated) bisa eksekusi walau extension di schema khusus.
+-- (Di Supabase asli search_path sudah mencakup extensions; grant ini aman.)
+grant usage on schema extensions to authenticated;
