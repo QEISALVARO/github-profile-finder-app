@@ -1,0 +1,44 @@
+=== rencana pgTAP per berkas ===
+01_rls_enabled.sql: plan=2 asersi_terhitung=2 finish=True txn_begin_rollback=False
+02_default_deny.sql: plan=4 asersi_terhitung=4 finish=True txn_begin_rollback=False
+03_rls_policies.sql: plan=7 asersi_terhitung=7 finish=True txn_begin_rollback=False
+04_pol9_enforcement.sql: plan=4 asersi_terhitung=4 finish=True txn_begin_rollback=False
+05_location_normalize.sql: plan=10 asersi_terhitung=10 finish=True txn_begin_rollback=False
+06_rpcs.sql: plan=6 asersi_terhitung=6 finish=True txn_begin_rollback=False
+07_be2_ingestion.sql: plan=8 asersi_terhitung=8 finish=True txn_begin_rollback=False
+TOTAL rencana: 41
+
+=== idempotensi migrasi (IF NOT EXISTS / OR REPLACE / DO-block) ===
+20261001000001_extensions.sql: guards=4
+20261001000002_enums.sql: guards=0
+20261001000003_geo_tables.sql: guards=0
+20261001000004_profiles.sql: guards=0
+20261001000005_github_analysis.sql: guards=0
+20261001000006_projects.sql: guards=1
+20261001000007_chat_pipeline.sql: guards=0
+20261001000008_rls.sql: guards=0
+20261001000009_auth_trigger.sql: guards=3
+20261001000010_location_normalize.sql: guards=1
+20261001000011_pol9_triggers.sql: guards=3
+20261001000012_rpcs.sql: guards=7
+20261001000013_last_message_trigger.sql: guards=1
+20261001000014_be2_ingestion.sql: guards=12
+
+=== rujukan silang: tabel di tests vs dibuat di migrations ===
+01_rls_enabled.sql: []
+02_default_deny.sql: ['analyses', 'developer_settings', 'messages', 'pipeline_entries']
+03_rls_policies.sql: ['conversations', 'developer_settings', 'messages', 'profiles', 'projects']
+04_pol9_enforcement.sql: ['developer_settings', 'profiles', 'projects']
+05_location_normalize.sql: ['normalize_location']
+06_rpcs.sql: ['availability', 'complete_onboarding', 'profiles', 'recruiter_profiles', 'update_developer_settings', 'user_role']
+07_be2_ingestion.sql: ['check_rate_limit', 'github_snapshots', 'purge_expired_lookups', 'rate_limits']
+
+=== fungsi yang diuji vs didefinisikan ===
+normalize_location: defined=True tested=True
+check_rate_limit: defined=True tested=True
+purge_expired_lookups: defined=True tested=True
+complete_onboarding: defined=True tested=True
+set_country: defined=True tested=False
+update_developer_settings: defined=True tested=True
+update_recruiter_profile: defined=True tested=False
+handle_new_github_user: defined=True tested=False

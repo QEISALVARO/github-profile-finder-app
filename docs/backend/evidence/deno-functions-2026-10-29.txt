@@ -1,0 +1,38 @@
+=== deno check functions (pure modules) ===
+-- supabase/functions/_shared/ssrf/ip.ts
+[0m[32mCheck[0m supabase/functions/_shared/ssrf/ip.ts
+-- supabase/functions/_shared/ssrf/safe-fetch.ts
+[0m[32mCheck[0m supabase/functions/_shared/ssrf/safe-fetch.ts
+-- supabase/functions/_shared/scoring/config.ts
+[0m[32mCheck[0m supabase/functions/_shared/scoring/config.ts
+-- supabase/functions/_shared/scoring/score.ts
+[0m[32mCheck[0m supabase/functions/_shared/scoring/score.ts
+-- supabase/functions/_shared/scoring/derive.ts
+[0m[32mCheck[0m supabase/functions/_shared/scoring/derive.ts
+-- supabase/functions/_shared/scoring/frameworks.ts
+[0m[32mCheck[0m supabase/functions/_shared/scoring/frameworks.ts
+-- supabase/functions/_shared/scoring/role.ts
+[0m[32mCheck[0m supabase/functions/_shared/scoring/role.ts
+-- supabase/functions/_shared/scoring/vm.ts
+[0m[32mCheck[0m supabase/functions/_shared/scoring/vm.ts
+-- supabase/functions/_shared/http.ts
+[0m[32mCheck[0m supabase/functions/_shared/http.ts
+
+=== deno check npm-dependent (expected FAIL on Windows, CI Linux decides) ===
+-- supabase/functions/_shared/supabase.ts
+    at [0m[36mfile:///C:/Users/User/Downloads/github-profile-finder-app/supabase/functions/_shared/supabase.ts[0m:[0m[33m5[0m:[0m[33m46[0m
+-- supabase/functions/analyze-developer/index.ts
+    at [0m[36mfile:///C:/Users/User/Downloads/github-profile-finder-app/supabase/functions/_shared/supabase.ts[0m:[0m[33m5[0m:[0m[33m46[0m
+-- supabase/functions/delete-account/index.ts
+    at [0m[36mfile:///C:/Users/User/Downloads/github-profile-finder-app/supabase/functions/delete-account/index.ts[0m:[0m[33m6[0m:[0m[33m30[0m
+-- supabase/functions/refresh-stale/index.ts
+    at [0m[36mfile:///C:/Users/User/Downloads/github-profile-finder-app/supabase/functions/_shared/supabase.ts[0m:[0m[33m5[0m:[0m[33m46[0m
+
+=== deno test functions (offline) ===
+
+[0m[32mok[0m | 27 passed | 0 failed [0m[38;5;245m(1s)[0m
+
+
+real	0m10.565s
+user	0m0.030s
+sys	0m0.076s

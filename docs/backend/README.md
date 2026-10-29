@@ -15,9 +15,9 @@ Dokumentasi arsitektur dan panduan pengembang backend Gitscope (Fase BE-0 Fondas
 
 ## 2. Prasyarat Sistem
 
-1. **Docker Desktop**: Wajib berjalan untuk menjalankan stack kontainer Supabase lokal (`supabase start`).
-2. **Node.js & npm / bun**: Untuk menjalankan `npx supabase` atau scripts.
-3. **Deno**: Untuk menjalankan unit test kontrak dan Edge Functions.
+1. **Docker Desktop**: Wajib berjalan untuk menjalankan stack kontainer Supabase lokal (`supabase start`). Tanpa Docker: `make up/reset/test-db/types/lint` dan smoke test TIDAK DAPAT dijalankan — gunakan CI `backend.yml` (GitHub Actions, ber-Docker) atau pasang Docker Desktop dulu (lihat `docs/backend/evidence/README.md`).
+2. **Node.js & npm / bun**: Untuk menjalankan `npx supabase` atau scripts. CI memakai Node 20 + `npm ci`.
+3. **Deno**: Untuk menjalankan unit test kontrak dan Edge Functions. Terverifikasi lokal: Deno 2.9.8 (`deno check` + `deno test --allow-read --allow-env`, tanpa `--allow-net` untuk unit test).
 
 ---
 

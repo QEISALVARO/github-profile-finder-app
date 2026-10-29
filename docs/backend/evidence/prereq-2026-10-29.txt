@@ -1,0 +1,18 @@
+=== docker info ===
+/usr/bin/bash: line 3: docker: command not found
+EXIT:0
+
+=== supabase CLI ===
+2.122.0
+
+=== deno ===
+deno 2.9.8 (long term support, release, x86_64-pc-windows-msvc)
+v8 15.0.245.2-rusty
+
+=== ports 54321-54324 ===
+
+(empty = bebas)
+
+=== .env ===
+-rw-r--r-- 1 User 197121 3268 Oct 27 11:16 .env
+1
