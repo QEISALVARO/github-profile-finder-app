@@ -71,9 +71,12 @@ jobs:
       - name: Deno check contracts
         run: |
           deno check --frozen contracts/src/*.ts
-          # Fungsi backend memakai workspace supabase/deno.json + lockfile
-          # (tanpa dependensi Expo dari package.json root).
-          cd supabase && deno check --frozen ./functions/analyze-developer/index.ts ./functions/delete-account/index.ts ./functions/refresh-stale/index.ts ./_shared/ssrf/safe-fetch.ts ./_shared/scoring/score.ts
+      - name: Deno check functions
+        run: |
+          # Workspace backend: supabase/deno.json + supabase/deno.lock
+          # (tanpa dependensi Expo dari package.json root). Dijalankan dari
+          # root agar path sama dengan langkah lain; --config menunjuk workspace.
+          deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts
 
       - name: Start Supabase Local Stack
         run: |
