@@ -122,13 +122,13 @@ jobs:
           supabase gen types typescript --local > generated.types.ts
           # Perbandingan semantik: abaikan komentar/header dan whitespace
           # (format CLI boleh berubah antar versi; yang dijaga adalah ISI
-          # skema: tabel, kolom, fungsi). Normalisasi: buang baris komentar,
-          # ciutkan whitespace, lalu bandingkan.
-          norm() { grep -vE '^\s*//' "$1" | tr -d ' \t\r\n' | tr -s '[:space:]'; }
-          if ! diff -u <(norm contracts/src/database.types.ts) <(norm generated.types.ts) > /tmp/drift.diff; then
+          # skema: tabel, kolom, fungsi).
+          grep -vE '^\s*(//|$)' contracts/src/database.types.ts | tr -d '[:space:]' > /tmp/committed.norm
+          grep -vE '^\s*(//|$)' generated.types.ts | tr -d '[:space:]' > /tmp/generated.norm
+          if ! diff -u /tmp/committed.norm /tmp/generated.norm > /tmp/drift.diff; then
             echo "ERROR: contracts/src/database.types.ts tidak selaras dengan skema migrasi."
-            echo "Jalankan 'make types' dan commit hasilnya. Diff (dinormalisasi):"
-            head -n 40 /tmp/drift.diff
+            echo "Jalankan 'make types' dan commit hasilnya. Diff (dinormalisasi, 40 baris pertama):"
+            head -c 4000 /tmp/drift.diff
             rm -f generated.types.ts
             exit 1
           fi
