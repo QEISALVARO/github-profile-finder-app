@@ -34,4 +34,10 @@ export const authMock: AuthAdapter = {
   async signOut(): Promise<void> {
     useAuthStore.getState().signOut();
   },
+
+  // Mock delete: the demo account has no server row, so clearing the session is
+  // the whole operation. No fake network call, no fake success payload.
+  async deleteAccount(): Promise<void> {
+    useAuthStore.getState().deleteAccount();
+  },
 };

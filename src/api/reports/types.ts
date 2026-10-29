@@ -18,5 +18,7 @@ export type ExportReportInput = {
 };
 
 export interface ReportsAdapter {
+  /** Reports created in this session (mock) — newest first. */
+  list(): Promise<ReportSummary[]>;
   exportReport(input: ExportReportInput): Promise<ReportSummary>;
 }

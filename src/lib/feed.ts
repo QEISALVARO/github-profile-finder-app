@@ -15,12 +15,20 @@ export const parseKeywords = (query: string): string[] =>
 export type FeedFilters = {
   query: string;
   role: string;
+  /** Legacy v1 location chip (city name, `Indonesia`, or `All locations`). */
   location: string;
   recentOnly: boolean;
+  /** PRD v2 §11A — ISO 3166-1 alpha-2 codes; empty/undefined = every country. */
+  countries?: string[];
+  /** City filter; empty/undefined = every city. */
+  city?: string;
 };
 
 export function filterProjects(projects: FeedProject[], f: FeedFilters): FeedProject[] {
   const keywords = parseKeywords(f.query);
+  const countries = f.countries ?? [];
+  const city = (f.city ?? '').trim().toLowerCase();
+
   return projects.filter((p) => {
     const searchable =
       `${p.name} ${p.description} ${p.role} ${p.stack.join(' ')} ${p.developer.name}`.toLowerCase();
@@ -30,7 +38,19 @@ export function filterProjects(projects: FeedProject[], f: FeedFilters): FeedPro
       f.location === 'All locations' ||
       p.location === f.location ||
       (f.location === 'Indonesia' && p.location !== '');
-    return matchesKeyword && matchesRole && matchesLocation && (!f.recentOnly || p.active);
+    // POL-9 — a project without a country never passes an active country filter.
+    const matchesCountry =
+      countries.length === 0 ||
+      (p.countryCode !== null && p.countryCode !== undefined && countries.includes(p.countryCode));
+    const matchesCity = city === '' || (p.city ?? p.location).toLowerCase() === city;
+    return (
+      matchesKeyword &&
+      matchesRole &&
+      matchesLocation &&
+      matchesCountry &&
+      matchesCity &&
+      (!f.recentOnly || p.active)
+    );
   });
 }
 

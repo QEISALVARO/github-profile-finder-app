@@ -10,24 +10,35 @@ export type ScoreCardProps = {
   vm: AnalysisVM;
 };
 
+/** PRD v2 §9.2 — tier copy follows the BE tier, never a static label. */
+const TIER_COPY: Record<AnalysisVM['tier'], string> = {
+  high: 'Original, active work',
+  medium: 'Promising signals, verify evidence',
+  low: 'Limited verifiable evidence',
+};
+
 /**
  * FR-A5 — green authenticity card (design.md §3.11).
- * The copy below it stays verbatim from PRD §5.3 (static in v1).
+ * Authenticity, confidence and tier all come from the VM.
  */
 export function ScoreCard({ vm }: ScoreCardProps) {
   const authenticity = vm.authenticity;
+  const copy = TIER_COPY[vm.tier];
+
   return (
     <Card variant="score" style={styles.card}>
       <ScoreRing value={authenticity} accessibilityLabel={`Skor keaslian ${authenticity} dari 100`} />
       <View style={styles.copy}>
         <T size={7} mono ls={1} color="onAccent">
-          HIGH CONFIDENCE
+          {`${vm.confidence}% CONFIDENCE`}
         </T>
         <T size={14} weight="700" color="onAccent" style={styles.title}>
-          Original, active work
+          {copy}
         </T>
         <T size={8} lh={1.5} color="onAccent">
-          Aktivitas konsisten dan mayoritas repository bukan hasil fork.
+          {vm.tier === 'high'
+            ? 'Aktivitas konsisten dan mayoritas repository bukan hasil fork.'
+            : 'Periksa evidence di bawah sebelum menghubungi kandidat.'}
         </T>
       </View>
     </Card>

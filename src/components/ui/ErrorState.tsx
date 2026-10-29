@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
+import { openGithubUrl } from '@/lib/links';
 import { useTheme } from '@/theme/useTheme';
 
 export type ErrorStateProps = {
@@ -12,6 +13,8 @@ export type ErrorStateProps = {
   /** Rendered as the primary retry button when provided. */
   onRetry?: () => void;
   retryLabel?: string;
+  /** `UPSTREAM_ERROR` — offer "Buka di GitHub" as a second action. */
+  githubUrl?: string;
   icon?: IconName;
   style?: object;
 };
@@ -26,6 +29,7 @@ export function ErrorState({
   message,
   onRetry,
   retryLabel = 'Coba lagi',
+  githubUrl,
   icon = 'close',
   style,
 }: ErrorStateProps) {
@@ -68,6 +72,19 @@ export function ErrorState({
           </T>
         </Pressable>
       ) : null}
+
+      {githubUrl ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Buka di GitHub"
+          hitSlop={hitSlopFor(96, 44)}
+          onPress={() => openGithubUrl(githubUrl)}
+          style={({ pressed }) => [styles.github, pressed && styles.pressed]}>
+          <T size={8} weight="700" color="greenText">
+            Buka di GitHub
+          </T>
+        </Pressable>
+      ) : null}
     </Card>
   );
 }
@@ -104,6 +121,12 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  github: {
+    marginTop: 10,
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
   },
 });
 

@@ -12,8 +12,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 
-import { QueryProvider } from '@/api/queries/client';
 import { useAuthStore } from '@/store/useAuthStore';
+import { DataProvider } from '@/providers/DataProvider';
 import { useTheme } from '@/theme/useTheme';
 
 // Keep the splash visible until fonts are loaded and the app is ready.
@@ -54,12 +54,13 @@ export default function RootLayout() {
     <ThemeProvider value={themedNav}>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       {/* FE-2 — one QueryClient for the whole app; sits above the router so
-          every screen shares the same cache. */}
-      <QueryProvider>
-        {/* Children render only after fonts resolve to avoid font flash;
-            keep the splash up in the meantime. */}
-        {fontsLoaded || fontError ? <RootNavigatorSlot /> : null}
-      </QueryProvider>
+          every screen shares the same cache. In mock mode the Supabase session
+          sync stays inert. */}
+      {fontsLoaded || fontError ? (
+        <DataProvider>
+          <RootNavigatorSlot />
+        </DataProvider>
+      ) : null}
     </ThemeProvider>
   );
 }

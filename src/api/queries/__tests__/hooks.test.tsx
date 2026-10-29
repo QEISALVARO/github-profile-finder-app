@@ -1,10 +1,17 @@
 import mockAsyncStorage from '@react-native-async-storage/async-storage/jest/async-storage-mock';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
-import { createQueryClient } from '@/api/queries/client';
-import { useAnalysis, useAnalyze, useConversations, useFeed, useDiscover, useMessages, useSendMessage } from '@/api/queries';
+import {
+  useAnalysis,
+  useAnalyze,
+  useConversations,
+  useDiscover,
+  useFeed,
+  useMessages,
+  useSendMessage,
+} from '@/api/queries';
 import { resetChat } from '@/api/chat/mock';
 import { resetPipeline } from '@/api/talent/mock';
 import { useAppStore } from '@/store/useAppStore';
@@ -24,7 +31,7 @@ const DEFAULT_FEED_FILTERS = {
 };
 
 /** Let the microtask queue and react-query's effects settle. */
-async function flush(rounds = 6): Promise<void> {
+async function flush(rounds = 8): Promise<void> {
   for (let index = 0; index < rounds; index += 1) {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -39,7 +46,9 @@ type HookHandle<T, P> = {
 };
 
 async function renderHook<T, P>(useHook: (props: P) => T, initialProps: P): Promise<HookHandle<T, P>> {
-  const client = createQueryClient();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const props = { current: initialProps };
   const ref: { current: T } = { current: undefined as unknown as T };
 
@@ -48,8 +57,7 @@ async function renderHook<T, P>(useHook: (props: P) => T, initialProps: P): Prom
     return null;
   }
 
-  const element = () =>
-    createElement(QueryClientProvider, { client }, createElement(Probe));
+  const element = () => createElement(QueryClientProvider, { client }, createElement(Probe));
 
   let root!: ReactTestRenderer;
   await act(async () => {
@@ -77,7 +85,7 @@ async function renderHook<T, P>(useHook: (props: P) => T, initialProps: P): Prom
 beforeEach(() => {
   resetChat();
   resetPipeline();
-  useAppStore.setState({ loadingId: null, analysisTarget: { login: null } });
+  useAppStore.setState({ loadingId: null, error: '' });
 });
 
 afterEach(() => {
@@ -116,60 +124,95 @@ describe('useFeed', () => {
     const feed = await renderHook(useFeed, DEFAULT_FEED_FILTERS);
 
     expect(feed.current.isError).toBe(true);
-    expect(feed.current.error).toBeInstanceOf(Error);
-    expect((feed.current.error as Error).message).toMatch(/belum diimplementasikan/);
+    expect((feed.current.error as Error).message).toMatch(/belum tersedia di backend/);
 
     feed.unmount();
   });
 });
 
 describe('useAnalysis', () => {
-  it('returns the octocat VM by default (PRD §7.2 AC)', async () => {
-    const analysis = await renderHook(useAnalysis, { login: null });
+  it('returns the octocat VM for a null login (PRD §7.2 AC)', async () => {
+    const analysis = await renderHook(useAnalysis, null);
 
     expect(analysis.current.isLoading).toBe(false);
     expect(analysis.current.error).toBeNull();
-    expect(analysis.current.vm?.user.login).toBe('octocat');
-    expect(analysis.current.vm?.authenticity).toBe(73);
+    expect(analysis.current.data?.user.login).toBe('octocat');
+    expect(analysis.current.data?.authenticity).toBe(73);
+    expect(analysis.current.source).toBe('fresh');
     expect(analysis.current.isStale).toBe(false);
+
+    analysis.unmount();
+  });
+
+  it('exposes stale data with staleSince', async () => {
+    const analysis = await renderHook(useAnalysis, '__stale__');
+
+    expect(analysis.current.isStale).toBe(true);
+    expect(analysis.current.source).toBe('stale');
+    expect(typeof analysis.current.staleSince).toBe('string');
+
+    analysis.unmount();
+  });
+
+  it('does not retry NOT_FOUND and exposes the AppError', async () => {
+    const analysis = await renderHook(useAnalysis, '__notfound__');
+
+    expect(analysis.current.data).toBeNull();
+    expect(analysis.current.error).toMatchObject({ code: 'NOT_FOUND', status: 404 });
 
     analysis.unmount();
   });
 
   it('shows an error instead of crashing in api mode', async () => {
     process.env.EXPO_PUBLIC_DS_ANALYSIS = 'api';
-    const analysis = await renderHook(useAnalysis, { login: null });
+    const analysis = await renderHook(useAnalysis, 'octocat');
 
-    expect(analysis.current.vm).toBeNull();
-    expect(analysis.current.error?.message).toMatch(/belum diimplementasikan/);
+    expect(analysis.current.data).toBeNull();
+    expect(analysis.current.error).not.toBeNull();
 
     analysis.unmount();
   });
 });
 
 describe('useAnalyze (D2 — card spinner, cached target)', () => {
-  it('warms the cache for the tapped developer', async () => {
+  it('warms the cache for the tapped developer without touching global state', async () => {
     const feed = await renderHook(useFeed, DEFAULT_FEED_FILTERS);
     const item = feed.current.data!.items[0];
     feed.unmount();
 
-    const analysis = await renderHook(useAnalyze, undefined as never);
+    const analyze = await renderHook(useAnalyze, undefined as never);
+    let result: { ok: boolean } | null = null;
     await act(async () => {
-      await analysis.current({ login: item.developer.login, person: null, project: item }, item.id);
+      result = await analyze.current.analyze(item);
     });
-    analysis.unmount();
+    analyze.unmount();
 
-    expect(useAppStore.getState().analysisTarget.project?.id).toBe(item.id);
+    expect(result).toMatchObject({ ok: true });
     expect(useAppStore.getState().loadingId).toBeNull();
+    expect(useAppStore.getState().error).toBe('');
 
-    const screen = await renderHook(useAnalysis, {
-      login: item.developer.login,
-      person: null,
-      project: item,
-    });
-    expect(screen.current.vm?.user.login).toBe(item.developer.login);
-    expect(screen.current.vm?.repos[0].name).toBe(item.name);
+    const screen = await renderHook(useAnalysis, item.developer.login);
+    expect(screen.current.data?.user.login).toBe(item.developer.login);
     screen.unmount();
+  });
+
+  it('reports failures through the FR-E9 slot and never opens the screen', async () => {
+    const feed = await renderHook(useFeed, DEFAULT_FEED_FILTERS);
+    const item = feed.current.data!.items[0];
+    feed.unmount();
+
+    const analyze = await renderHook(useAnalyze, undefined as never);
+    let result: { ok: boolean; error: unknown } | null = null;
+    await act(async () => {
+      result = await analyze.current.analyze({
+        ...item,
+        developer: { ...item.developer, login: '__notfound__' },
+      });
+    });
+    analyze.unmount();
+
+    expect(result).toMatchObject({ ok: false });
+    expect(useAppStore.getState().error).toContain('Profil tidak ditemukan');
   });
 });
 

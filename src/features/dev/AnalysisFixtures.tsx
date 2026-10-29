@@ -1,71 +1,39 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
-import { fallbackRepos, fallbackUser, feedProjects } from '@/data/seed';
-import type { GithubRepo, GithubUser } from '@/types';
+import { SCENARIO_LOGINS } from '@/api/analysis';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
-import { buildFallback } from '@/lib/github';
-import { useAppStore } from '@/store/useAppStore';
 import { useTheme } from '@/theme/useTheme';
 
 /**
- * §5.1 — dev-only fixtures so the Analysis screen can be opened without the
- * M2 feed. Each button seeds `user`/`repos` and pushes /explore/analysis.
- * This block is thrown away in M6.
+ * §5.1 — dev-only analysis fixtures.
+ *
+ * FE-2 routes every state through the data layer: each row opens the Analysis
+ * screen with a special login the mock adapter understands, so the real
+ * loading / stale / error / empty / all-forks states can be inspected without
+ * a backend and without any store injection.
  */
+const FIXTURES: { login: string; label: string; hint: string }[] = [
+  { login: 'octocat', label: '1 · octocat (default)', hint: 'authenticity 73 · PRD §7.2' },
+  { login: 'sindresorhus', label: '2 · kandidat seed', hint: '184 repo · high tier' },
+  { login: 'gaearon', label: '3 · kandidat seed', hint: '72 repo · medium tier' },
+  { login: SCENARIO_LOGINS.empty, label: '4 · repos kosong', hint: '__empty__' },
+  { login: SCENARIO_LOGINS.allForks, label: '5 · semua fork', hint: '__allforks__' },
+  { login: SCENARIO_LOGINS.stale, label: '6 · data stale', hint: '__stale__ · banner' },
+  { login: SCENARIO_LOGINS.notFound, label: '7 · tidak ditemukan', hint: '__notfound__ · 404' },
+  {
+    login: SCENARIO_LOGINS.rateLimited,
+    label: '8 · rate limited',
+    hint: '__ratelimited__ · 429',
+  },
+  { login: SCENARIO_LOGINS.error, label: '9 · upstream error', hint: '__error__ · 502' },
+];
+
 export function AnalysisFixtures() {
   const theme = useTheme();
-  const setUser = useAppStore((s) => s.setUser);
-  const setRepos = useAppStore((s) => s.setRepos);
-
-  const openFixture = (user: GithubUser, repos: GithubRepo[]) => {
-    setUser(user);
-    setRepos(repos);
-    router.push('/explore/analysis');
-  };
-
-  const forkedRepos: GithubRepo[] = fallbackRepos.map((repo) => ({
-    ...repo,
-    fork: true,
-    homepage: null,
-  }));
-
-  const originalWithDemos: GithubRepo[] = fallbackRepos.map((repo) => ({
-    ...repo,
-    fork: false,
-    homepage: 'https://octocat.github.io',
-  }));
-
-  const longBioUser: GithubUser = {
-    ...fallbackUser,
-    name: null,
-    bio: 'Engineer with a decade of experience across distributed systems, developer tooling, and the occasional game jam. I write long bios on purpose so the ProfileCard ellipsis behaviour can be verified on small screens.',
-  };
-
-  const manyLanguages: GithubRepo[] = [
-    { ...fallbackRepos[0], id: 11, language: 'TypeScript' },
-    { ...fallbackRepos[0], id: 12, language: 'TypeScript' },
-    { ...fallbackRepos[0], id: 13, language: 'TypeScript' },
-    { ...fallbackRepos[0], id: 14, language: 'Go' },
-    { ...fallbackRepos[0], id: 15, language: 'Go' },
-    { ...fallbackRepos[0], id: 16, language: 'Rust' },
-    { ...fallbackRepos[0], id: 17, language: null },
-  ];
-
-  const fallbackProject = buildFallback(feedProjects[0]);
-
-  const fixtures: { label: string; hint: string; user: GithubUser; repos: GithubRepo[] }[] = [
-    { label: '1 · octocat (default)', hint: 'authenticity 73 · TS/Go 50/50', user: fallbackUser, repos: fallbackRepos },
-    { label: '2 · repos kosong', hint: 'public_repos 8 · authenticity 8', user: { ...fallbackUser, public_repos: 8 }, repos: [] },
-    { label: '3 · semua fork', hint: 'original 0 · pill skor 64', user: fallbackUser, repos: forkedRepos },
-    { label: '4 · original + demo', hint: 'authenticity ter-cap 98', user: { ...fallbackUser, public_repos: 25 }, repos: originalWithDemos },
-    { label: '5 · bio panjang + nama kosong', hint: 'uji ellipsis & fallback nama', user: longBioUser, repos: fallbackRepos },
-    { label: '6 · bahasa > 3 + null', hint: 'top-3 + "Other"', user: fallbackUser, repos: manyLanguages },
-    { label: '7 · fallback proyek', hint: 'buildFallback(feedProjects[0])', user: fallbackProject.user, repos: fallbackProject.repos },
-  ];
 
   return (
     <View style={styles.block}>
@@ -73,13 +41,18 @@ export function AnalysisFixtures() {
         ANALYSIS FIXTURES · DEV ONLY (BUANG DI M6)
       </T>
       <Card variant="base" padding={13} style={styles.card}>
-        {fixtures.map((fixture) => (
+        {FIXTURES.map((fixture) => (
           <Pressable
-            key={fixture.label}
+            key={fixture.login}
             accessibilityRole="button"
             accessibilityLabel={`Buka fixture ${fixture.label}`}
             hitSlop={hitSlopFor(200, 16)}
-            onPress={() => openFixture(fixture.user, fixture.repos)}
+            onPress={() =>
+              router.push({
+                pathname: '/explore/analysis',
+                params: { login: fixture.login },
+              })
+            }
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
             <Icon name="arrow" size={14} color={theme.colors.greenText} />
             <T size={8} weight="700">

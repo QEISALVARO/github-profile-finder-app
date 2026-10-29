@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "login": "topdev",
+      "name": "Top Developer",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/777777",
+      "role": "Back-End",
+      "primaryLanguage": "TypeScript",
+      "countryCode": "SG",
+      "city": "Singapore",
+      "score": 91,
+      "availability": "open_to_work"
+    },
+    {
+      "login": "nodev",
+      "name": "Norway Developer",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/555555",
+      "role": "Front-End",
+      "primaryLanguage": "JavaScript",
+      "countryCode": "NO",
+      "city": "Oslo",
+      "score": 82,
+      "availability": "freelance"
+    }
+  ],
+  "nextCursor": null,
+  "totalCount": 2
+}

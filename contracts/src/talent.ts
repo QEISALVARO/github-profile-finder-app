@@ -1,5 +1,7 @@
+// contracts/src/talent.ts
+// SP-0 — Kontrak FE-BE
 import { z } from "zod";
-import { Availability, CountryCode, PipelineStage } from "./common";
+import { CountryCode, Availability, PipelineStage } from "./common";
 
 export const DiscoverQuery = z.object({
   role: z.string().optional(), minScore: z.number().int().min(70).max(95).optional(),
@@ -14,3 +16,4 @@ export const DiscoverPage = z.object({ items: z.array(DiscoverItem), nextCursor:
 export const PipelineEntry = z.object({
   id: z.string(), githubLogin: z.string(), stage: PipelineStage, note: z.string().nullable(), updatedAt: z.string(),
 });
+

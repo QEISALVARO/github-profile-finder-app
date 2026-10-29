@@ -61,4 +61,8 @@ export type FeedProject = {
   demo: string;
   developer: Candidate;
   stars: number;
+  /** PRD v2 §11A — declared country of the project's developer (mock feed). */
+  countryCode?: string | null;
+  /** City of the project; defaults to `location` when unset. */
+  city?: string | null;
 };

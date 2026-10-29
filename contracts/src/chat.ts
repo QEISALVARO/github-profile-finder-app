@@ -1,3 +1,5 @@
+// contracts/src/chat.ts
+// SP-0 — Kontrak FE-BE
 import { z } from "zod";
 
 export const StartConversationInput = z.object({

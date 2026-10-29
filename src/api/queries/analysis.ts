@@ -1,98 +1,110 @@
 // ---------------------------------------------------------------------------
-// FE-2 — analysis hook. Returns an `AnalysisVM` plus the loading / error /
-// stale flags the screen renders (skeleton, ErrorState, StaleBanner).
+// FE-2 — analysis hooks.
+//
+// `useAnalysis(login)` returns the contract VM plus everything the screen
+// needs to render its states: loading → skeleton, stale → banner, error →
+// ErrorState. The login comes from the route param, so deep links and refresh
+// work without any global "last analysis" state.
 // ---------------------------------------------------------------------------
 
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-import {
-  analysisAdapter,
-  analysisKey,
-  type AnalysisTarget,
-  type AnalysisVM,
-} from '@/api/analysis';
+import type { AnalysisVM, FeedItem } from '@/api/contracts';
+
+import { analysisAdapter } from '@/api/analysis';
+import { errorMessage, shouldRetry, type AppError, toAppError } from '@/api/errors';
+import { queryKeys } from '@/api/queryKeys';
 import { useAppStore } from '@/store/useAppStore';
 
-export const ANALYSIS_QUERY_KEY = 'analysis';
+const ANALYSIS_STALE_TIME = 5 * 60_000;
 
 export type AnalysisState = {
-  vm: AnalysisVM | null;
+  data: AnalysisVM | null;
+  /** `fresh` | `cache` | `stale` — straight from the VM. */
+  source: AnalysisVM['source'] | null;
   isLoading: boolean;
-  error: Error | null;
-  /** `source === 'stale'` → render the StaleBanner with a reload action. */
   isStale: boolean;
   staleSince: string | undefined;
+  error: AppError | null;
   refetch: () => void;
 };
 
-export function useAnalysis(target: AnalysisTarget): AnalysisState {
-  // /dev fixtures inject a prebuilt VM; normal navigation always goes through
-  // the adapter.
-  const override = useAppStore((s) => s.analysisOverride);
+export function useAnalysis(login: string | null): AnalysisState {
+  const normalized = login?.trim() || 'octocat';
 
   const query = useQuery({
-    queryKey: [ANALYSIS_QUERY_KEY, analysisKey(target)],
-    queryFn: (): Promise<AnalysisVM> => analysisAdapter.fetchAnalysis(target),
-    staleTime: 5 * 60_000,
-    enabled: override === null,
+    queryKey: queryKeys.analysis(normalized),
+    queryFn: (): Promise<AnalysisVM> => analysisAdapter.fetchAnalysis({ login: normalized }),
+    staleTime: ANALYSIS_STALE_TIME,
+    retry: shouldRetry,
   });
 
-  if (override !== null) {
-    return {
-      vm: override,
-      isLoading: false,
-      error: null,
-      isStale: override.source === 'stale',
-      staleSince: override.staleSince,
-      refetch: () => {},
-    };
-  }
-
   return {
-    vm: query.data ?? null,
+    data: query.data ?? null,
+    source: query.data?.source ?? null,
     isLoading: query.isPending,
-    error: query.error instanceof Error ? query.error : null,
     isStale: query.data?.source === 'stale',
     staleSince: query.data?.staleSince,
+    error: query.error ? toAppError(query.error) : null,
     refetch: () => {
       void query.refetch();
     },
   };
 }
 
+export type AnalyzeResult = {
+  ok: boolean;
+  error: AppError | null;
+};
+
 /**
- * FR-E7 / D1 — "Analyze" flow.
+ * FR-E7 / D1 + D2 — the feed's "Analyze" action.
  *
- * Warms the query cache for the tapped developer while the card shows its
- * spinner (D2), then records the target. Navigation is left to the caller, so
- * this hook stays free of router concerns. Failures are swallowed on purpose:
- * the Analysis screen renders the same `ErrorState` either way.
+ * Warms the query cache for the tapped developer while *only that card* shows
+ * a spinner, then reports success so the screen can navigate. Failures are
+ * surfaced in the FR-E9 error slot (friendly per `ErrorBody.code`), never by
+ * opening an empty Analysis screen.
  */
 export function useAnalyze() {
   const queryClient = useQueryClient();
-  const openAnalysis = useAppStore((s) => s.openAnalysis);
+  const loadingId = useAppStore((s) => s.loadingId);
   const setLoadingId = useAppStore((s) => s.setLoadingId);
+  const setError = useAppStore((s) => s.setError);
 
-  return useCallback(
-    async (target: AnalysisTarget, cardId?: string): Promise<void> => {
+  const analyze = useCallback(
+    async (item: FeedItem): Promise<AnalyzeResult> => {
       // Guard against double taps / taps on other cards while one is running.
-      if (useAppStore.getState().loadingId !== null) return;
+      if (useAppStore.getState().loadingId !== null) return { ok: false, error: null };
 
-      setLoadingId(cardId ?? '__analysis__');
+      const login = item.developer.login;
+      setLoadingId(item.id);
+      setError('');
       try {
+        // The cached entry is keyed by login; passing the project lets the mock
+        // adapter describe exactly the developer that was tapped.
         await queryClient.fetchQuery({
-          queryKey: [ANALYSIS_QUERY_KEY, analysisKey(target)],
-          queryFn: () => analysisAdapter.fetchAnalysis(target),
-          staleTime: 5 * 60_000,
+          queryKey: queryKeys.analysis(login),
+          queryFn: () => analysisAdapter.fetchAnalysis({ login, project: item }),
+          staleTime: ANALYSIS_STALE_TIME,
+          retry: shouldRetry,
         });
-      } catch {
-        // Handled by the Analysis screen's error state.
+        return { ok: true, error: null };
+      } catch (error) {
+        const app = toAppError(error);
+        setError(errorMessage(app));
+        return { ok: false, error: app };
       } finally {
-        openAnalysis(target);
         setLoadingId(null);
       }
     },
-    [queryClient, openAnalysis, setLoadingId],
+    [queryClient, setError, setLoadingId],
   );
+
+  return {
+    analyze,
+    /** D2 — only the tapped card may show a spinner. */
+    loadingId,
+    isLoading: loadingId !== null,
+  };
 }

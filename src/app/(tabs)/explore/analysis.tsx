@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { PageContainer } from '@/components/PageContainer';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -11,7 +11,8 @@ import { StaleBanner } from '@/components/ui/StaleBanner';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { useAnalysis, useExportReport } from '@/api/queries';
-import { vmToGithubUser } from '@/api/analysis';
+import { describeError } from '@/api/errors';
+import { vmToGithubUser } from '@/lib/analyze';
 import { openGithubUrl } from '@/lib/links';
 import { MetricGrid } from '@/features/analysis/MetricGrid';
 import { Heatmap } from '@/features/analysis/Heatmap';
@@ -25,26 +26,27 @@ import { useTheme } from '@/theme/useTheme';
 /**
  * FR-A1…A8 — Developer Intelligence screen.
  *
- * FE-2: the screen reads an `AnalysisVM` through `useAnalysis` (mock/api
- * adapter chosen by `EXPO_PUBLIC_DS_ANALYSIS`), rendering a skeleton while it
- * loads, `ErrorState` when the adapter fails and `StaleBanner` when the VM
- * reports cached-but-aged data.
+ * FE-2: the VM is fetched through `useAnalysis(login)` where `login` comes from
+ * the route (`/explore/analysis?login=octocat`), so deep links and refresh both
+ * work without any global analysis state. The screen renders a skeleton while
+ * loading, `ErrorState` per `ErrorBody.code` on failure, and `StaleBanner`
+ * whenever the VM reports cached-but-aged data.
  */
 export default function AnalysisScreen() {
   const theme = useTheme();
+  const params = useLocalSearchParams<{ login?: string | string[] }>();
+  const login = Array.isArray(params.login) ? params.login[0] : (params.login ?? null);
 
-  const target = useAppStore((s) => s.analysisTarget);
   const saved = useAppStore((s) => s.saved);
   const setSaved = useAppStore((s) => s.setSaved);
   const openChat = useAppStore((s) => s.openChat);
   const showNotice = useAppStore((s) => s.showNotice);
 
-  const { vm, isLoading, error, isStale, staleSince, refetch } = useAnalysis(target);
+  const { data: vm, isLoading, error, isStale, staleSince, refetch } = useAnalysis(login);
   const exportReport = useExportReport();
+  const errorCopy = error ? describeError(error) : null;
 
   // FR-A1 — view-in: 250 ms ease, translateX 12 → 0 + opacity 0 → 1.
-  // `useState` (not `useRef`) keeps the Animated.Value stable across renders
-  // without reading a ref during render.
   const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -121,19 +123,16 @@ export default function AnalysisScreen() {
 
         {isLoading ? <AnalysisSkeleton /> : null}
 
-        {!isLoading && vm === null ? (
+        {!isLoading && vm === null && errorCopy ? (
           <ErrorState
-            title="Analisis gagal dimuat"
-            message={
-              error?.message ??
-              'Terjadi kesalahan saat mengambil data analisis. Coba lagi.'
-            }
+            title={errorCopy.title}
+            message={errorCopy.message}
             onRetry={refetch}
-            retryLabel="Coba lagi"
+            githubUrl={errorCopy.showGithub && login ? `https://github.com/${login}` : undefined}
           />
         ) : null}
 
-        {vm ? (
+        {!isLoading && vm !== null ? (
           <>
             {isStale ? <StaleBanner since={staleSince} onReload={refetch} /> : null}
 
@@ -162,7 +161,11 @@ export default function AnalysisScreen() {
             <ScoreCard vm={vm} />
             <MetricGrid vm={vm} />
 
-            <Heatmap values={vm.heatmap} contributions={vm.metrics.contributions12m} />
+            <Heatmap
+              values={vm.heatmap}
+              contributions={vm.metrics.contributions12m}
+              yoyPct={vm.metrics.yoyPct}
+            />
 
             <SectionHeading
               eyebrow="VERIFIED PROJECTS"

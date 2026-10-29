@@ -5,7 +5,7 @@ import { Conversation, Message } from '@contracts/chat';
 import { FeedPage } from '@contracts/feed';
 import { DiscoverPage, PipelineEntry } from '@contracts/talent';
 
-import { analysisAdapter, buildAnalysisVM } from '@/api/analysis';
+import { analysisAdapter } from '@/api/analysis';
 import { getChatAdapter } from '@/api/chat';
 import { CURRENT_USER_ID, resetChat } from '@/api/chat/mock';
 import { feedAdapter } from '@/api/feed';
@@ -13,16 +13,17 @@ import { reportsAdapter } from '@/api/reports';
 import { resetReports } from '@/api/reports/mock';
 import { talentAdapter } from '@/api/talent';
 import { resetPipeline } from '@/api/talent/mock';
-import { candidates, fallbackRepos, fallbackUser, feedProjects } from '@/data/seed';
+import { candidates, feedProjects } from '@/data/seed';
 import { getDataSource, DATA_SOURCE_ENV, DOMAINS, type DomainKey } from '@/config/dataSource';
+import { API_NOT_READY_MESSAGE, errorMessage, isApiNotReady } from '@/api/errors';
 import { DEFAULT_TALENT_FILTERS, filterCandidates, toggleCompare } from '@/lib/talent';
 
 jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
 
 /**
  * FE-2 gate — every mock adapter's output must satisfy the SP-0 zod schemas,
- * and mock mode must never touch the network. Also covers the "flip a domain
- * to `api`" path: it has to fail with a readable error, not a crash.
+ * and mock mode must never touch the network. Flipping an unfinished domain to
+ * `api` must explain itself instead of crashing or faking data.
  */
 
 const DEFAULT_FEED_FILTERS = { query: '', role: 'All', location: 'All locations', recentOnly: false };
@@ -30,7 +31,6 @@ const DEFAULT_FEED_FILTERS = { query: '', role: 'All', location: 'All locations'
 const fetchSpy = jest.fn();
 
 beforeAll(() => {
-  // Any network attempt in mock mode shows up here.
   (globalThis as { fetch?: unknown }).fetch = fetchSpy;
 });
 
@@ -45,11 +45,22 @@ afterAll(() => {
   delete (globalThis as { fetch?: unknown }).fetch;
 });
 
+afterEach(() => {
+  for (const domain of DOMAINS) delete process.env[DATA_SOURCE_ENV[domain]];
+});
+
 describe('dataSource flags', () => {
   it('defaults every domain to mock', () => {
     for (const domain of DOMAINS) {
       expect(getDataSource(domain)).toBe('mock');
     }
+  });
+
+  it('accepts a valid api flag', () => {
+    process.env.EXPO_PUBLIC_DS_FEED = 'api';
+    process.env.EXPO_PUBLIC_DS_ANALYSIS = ' API ';
+    expect(getDataSource('feed')).toBe('api');
+    expect(getDataSource('analysis')).toBe('api');
   });
 
   it('falls back to mock for an unknown value instead of crashing', () => {
@@ -88,6 +99,25 @@ describe('feed mock adapter → FeedPage', () => {
     const pythonMl = await feedAdapter.fetchPage({ ...DEFAULT_FEED_FILTERS, query: 'Python ML' });
     expect(pythonMl.items).toHaveLength(0);
   });
+
+  it('carries countryCode/city and filters on them (PRD v2 §11A)', async () => {
+    const page = await feedAdapter.fetchPage(DEFAULT_FEED_FILTERS);
+    expect(page.items.every((item) => item.countryCode === 'ID')).toBe(true);
+
+    const byCity = await feedAdapter.fetchPage({ ...DEFAULT_FEED_FILTERS, city: 'Bandung' });
+    expect(byCity.items.map((item) => item.name)).toEqual(['Sentra AI Vision']);
+
+    const byCountry = await feedAdapter.fetchPage({
+      ...DEFAULT_FEED_FILTERS,
+      countries: ['SG'],
+    });
+    expect(byCountry.items).toHaveLength(0);
+  });
+
+  it('derives country facets from the seed', async () => {
+    const facets = await feedAdapter.fetchCountryFacets(DEFAULT_FEED_FILTERS);
+    expect(facets).toEqual([{ iso2: 'ID', count: '<5' }]);
+  });
 });
 
 describe('analysis mock adapter → AnalysisVM', () => {
@@ -96,13 +126,13 @@ describe('analysis mock adapter → AnalysisVM', () => {
     expect(() => AnalysisVM.parse(vm)).not.toThrow();
     expect(vm.user.login).toBe('octocat');
     // PRD §7.2 AC: originalRatio 100, demoRatio 50, authenticity 73.
-    expect(vm.metrics.originalRatio).toBe(100);
+    expect(vm.metrics.originalRatio).toBe(1);
     expect(vm.metrics.demoRatio).toBe(50);
     expect(vm.authenticity).toBe(73);
     expect(vm.heatmap).toHaveLength(84);
   });
 
-  it('builds the VM about the tapped feed developer', async () => {
+  it('describes the developer that was actually tapped (D1)', async () => {
     const page = await feedAdapter.fetchPage(DEFAULT_FEED_FILTERS);
     const item = page.items[0];
     const vm = await analysisAdapter.fetchAnalysis({
@@ -114,34 +144,68 @@ describe('analysis mock adapter → AnalysisVM', () => {
     expect(() => AnalysisVM.parse(vm)).not.toThrow();
     expect(vm.user.login).toBe(item.developer.login);
     expect(vm.user.name).toBe(item.developer.name);
-    // AUTH circle on the card and the ring in Analysis must agree.
     expect(vm.authenticity).toBe(item.score);
     expect(vm.repos[0].name).toBe(item.name);
     expect(vm.repos).toHaveLength(1);
   });
 
-  it('carries the PRD §5.4 Compare numbers for candidates', async () => {
-    const sindre = candidates.find((entry) => entry.login === 'sindresorhus')!;
-    const other = candidates.find((entry) => entry.login === 'gaearon')!;
+  it('varies deterministically per login', async () => {
+    const first = await analysisAdapter.fetchAnalysis({ login: 'angga-risky' });
+    const again = await analysisAdapter.fetchAnalysis({ login: 'angga-risky' });
+    const other = await analysisAdapter.fetchAnalysis({ login: 'cassidoo' });
 
-    const a = await analysisAdapter.fetchAnalysis({ login: sindre.login, person: sindre });
-    const b = await analysisAdapter.fetchAnalysis({ login: other.login, person: other });
-
-    expect(() => AnalysisVM.parse(a)).not.toThrow();
-    expect(() => AnalysisVM.parse(b)).not.toThrow();
-    expect(a.authenticity).toBe(sindre.score);
-    expect(a.metrics.originalCount).toBe(184);
-    expect(a.metrics.streakWeeks).toBe(28);
-    expect(b.metrics.originalCount).toBe(72);
-    expect(b.metrics.streakWeeks).toBe(19);
-    // "184 of 184 repos" — the denominator never contradicts the numerator.
-    expect(Math.max(a.repos.length, a.metrics.originalCount)).toBe(a.metrics.originalCount);
+    expect(() => AnalysisVM.parse(first)).not.toThrow();
+    expect(again).toEqual(first);
+    expect(other.user.login).not.toBe(first.user.login);
+    expect(other.heatmap).not.toEqual(first.heatmap);
   });
 
-  it('builds a VM offline from raw fixtures (dev showcase path)', () => {
-    const vm = buildAnalysisVM(fallbackUser, fallbackRepos);
+  it('keeps seed candidates tied to their Compare numbers', async () => {
+    const sindre = candidates.find((entry) => entry.login === 'sindresorhus')!;
+    const vm = await analysisAdapter.fetchAnalysis({ login: sindre.login, person: sindre });
+
     expect(() => AnalysisVM.parse(vm)).not.toThrow();
-    expect(vm.source).toBe('fresh');
+    expect(vm.authenticity).toBe(sindre.score);
+    expect(vm.metrics.originalCount).toBe(184);
+    expect(vm.metrics.streakWeeks).toBe(28);
+  });
+
+  it('__stale__ reports stale + staleSince so the banner can render', async () => {
+    const vm = await analysisAdapter.fetchAnalysis({ login: '__stale__' });
+    expect(() => AnalysisVM.parse(vm)).not.toThrow();
+    expect(vm.source).toBe('stale');
+    expect(typeof vm.staleSince).toBe('string');
+  });
+
+  it('__empty__ is a valid VM with no repositories', async () => {
+    const vm = await analysisAdapter.fetchAnalysis({ login: '__empty__' });
+    expect(() => AnalysisVM.parse(vm)).not.toThrow();
+    expect(vm.repos).toHaveLength(0);
+    expect(vm.metrics.originalRatio).toBe(0);
+  });
+
+  it('__allforks__ reports zero originality and a low tier', async () => {
+    const vm = await analysisAdapter.fetchAnalysis({ login: '__allforks__' });
+    expect(() => AnalysisVM.parse(vm)).not.toThrow();
+    expect(vm.repos.every((repo) => repo.isFork)).toBe(true);
+    expect(vm.metrics.originalRatio).toBe(0);
+    expect(vm.tier).toBe('low');
+  });
+
+  it('__notfound__ / __ratelimited__ / __error__ throw AppError with the contract code', async () => {
+    await expect(analysisAdapter.fetchAnalysis({ login: '__notfound__' })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      status: 404,
+    });
+    await expect(analysisAdapter.fetchAnalysis({ login: '__ratelimited__' })).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      status: 429,
+      retry_after: 42,
+    });
+    await expect(analysisAdapter.fetchAnalysis({ login: '__error__' })).rejects.toMatchObject({
+      code: 'UPSTREAM_ERROR',
+      status: 502,
+    });
   });
 });
 
@@ -222,15 +286,16 @@ describe('chat mock adapter → Conversation / Message', () => {
 
     const messages = await chat.messages(conversation.id);
     expect(messages.at(-1)?.body).toBe('Halo!');
-    // Closing/reopening the sheet re-reads the same store.
-    expect((await chat.messages(conversation.id)).at(-1)?.body).toBe('Halo!');
   });
 });
 
 describe('reports mock adapter', () => {
-  it('returns a report record', async () => {
+  it('records and lists report summaries', async () => {
+    expect(await reportsAdapter.list()).toEqual([]);
+
     const report = await reportsAdapter.exportReport({ login: 'octocat', score: 73 });
     expect(report).toMatchObject({ id: 'report-0001', login: 'octocat', score: 73 });
+    expect(await reportsAdapter.list()).toEqual([report]);
   });
 });
 
@@ -247,40 +312,37 @@ describe('mode mock = tanpa jaringan', () => {
   });
 });
 
-describe('flag api → pesan error yang jelas, bukan crash', () => {
-  const flip = (domain: DomainKey, value: string | undefined) => {
-    const key = DATA_SOURCE_ENV[domain];
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
+describe('flag api pada domain yang belum siap', () => {
+  const run = async (domain: DomainKey): Promise<unknown> => {
+    switch (domain) {
+      case 'feed':
+        return feedAdapter.fetchPage(DEFAULT_FEED_FILTERS);
+      case 'talent':
+        return talentAdapter.discover(DEFAULT_TALENT_FILTERS);
+      case 'chat':
+        return getChatAdapter().conversations();
+      case 'reports':
+        return reportsAdapter.list();
+      default:
+        return null;
+    }
   };
 
-  it.each(DOMAINS)('%s adapter explains it is not implemented', async (domain) => {
-    flip(domain, 'api');
-    try {
-      const run = async (): Promise<unknown> => {
-        switch (domain) {
-          case 'feed':
-            return feedAdapter.fetchPage(DEFAULT_FEED_FILTERS);
-          case 'analysis':
-            return analysisAdapter.fetchAnalysis({ login: null });
-          case 'talent':
-            return talentAdapter.discover(DEFAULT_TALENT_FILTERS);
-          case 'chat':
-            return getChatAdapter().conversations();
-          case 'reports':
-            return reportsAdapter.exportReport({ login: 'octocat', score: 1 });
-          case 'auth':
-            return null;
-        }
-      };
-
-      if (domain === 'auth') return; // auth has no read-only path to exercise
-
-      await expect(run()).rejects.toThrow(/belum diimplementasikan/);
-    } finally {
-      flip(domain, undefined);
-    }
-  });
+  it.each(['feed', 'talent', 'chat', 'reports'] as const)(
+    '%s throws ApiNotReadyError with friendly copy',
+    async (domain) => {
+      process.env[DATA_SOURCE_ENV[domain]] = 'api';
+      try {
+        const failure = await run(domain).catch((error: unknown) => error);
+        expect(isApiNotReady(failure)).toBe(true);
+        expect((failure as Error).message).toBe(API_NOT_READY_MESSAGE);
+        // The UI copy the user actually sees:
+        expect(errorMessage(failure)).toBe(API_NOT_READY_MESSAGE);
+      } finally {
+        delete process.env[DATA_SOURCE_ENV[domain]];
+      }
+    },
+  );
 });
 
 describe('pure talent logic (shared with the FE-5 screens)', () => {

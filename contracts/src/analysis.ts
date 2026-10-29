@@ -1,3 +1,5 @@
+// contracts/src/analysis.ts
+// SP-0 — Kontrak FE-BE
 import { z } from "zod";
 import { CountryCode } from "./common";
 
@@ -31,3 +33,4 @@ export const AnalysisVM = z.object({
   heatmap: z.array(z.number().int().min(0).max(4)).length(84),
 });
 export const AnalyzeRequest = z.object({ login: z.string().min(1), force: z.boolean().optional() });
+

@@ -6,31 +6,34 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { shouldRetry } from '@/api/errors';
+import { queryKeys } from '@/api/queryKeys';
 import { getChatAdapter, type Conversation, type Message, type StartConversationArgs } from '@/api/chat';
-
-export const CHAT_QUERY_KEY = 'chat';
 
 export function useConversations() {
   return useQuery({
-    queryKey: [CHAT_QUERY_KEY, 'conversations'],
+    queryKey: queryKeys.conversations(),
     queryFn: (): Promise<Conversation[]> => getChatAdapter().conversations(),
+    retry: shouldRetry,
   });
 }
 
 export function useFindConversation(developerLogin: string | null) {
   return useQuery({
-    queryKey: [CHAT_QUERY_KEY, 'conversation', developerLogin ?? ''],
+    queryKey: [...queryKeys.conversations(), 'developer', developerLogin ?? ''] as const,
     queryFn: (): Promise<Conversation | null> =>
       getChatAdapter().findConversation(developerLogin ?? ''),
     enabled: developerLogin !== null && developerLogin !== '',
+    retry: shouldRetry,
   });
 }
 
 export function useMessages(conversationId: string | null) {
   return useQuery({
-    queryKey: [CHAT_QUERY_KEY, 'messages', conversationId ?? ''],
+    queryKey: queryKeys.messages(conversationId ?? ''),
     queryFn: (): Promise<Message[]> => getChatAdapter().messages(conversationId ?? ''),
     enabled: conversationId !== null && conversationId !== '',
+    retry: shouldRetry,
   });
 }
 
@@ -42,9 +45,9 @@ export function useSendMessage() {
       getChatAdapter().sendMessage(input.conversationId, input.body),
     onSuccess: (_message, input) => {
       void queryClient.invalidateQueries({
-        queryKey: [CHAT_QUERY_KEY, 'messages', input.conversationId],
+        queryKey: queryKeys.messages(input.conversationId),
       });
-      void queryClient.invalidateQueries({ queryKey: [CHAT_QUERY_KEY, 'conversations'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations() });
     },
   });
 }
@@ -56,7 +59,7 @@ export function useStartConversation() {
     mutationFn: (input: StartConversationArgs) =>
       getChatAdapter().startConversation(input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [CHAT_QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: ['chat'] });
     },
   });
 }

@@ -16,30 +16,33 @@ const LEVELS = 5;
 /** heat0…heat4 in level order — avoids a computed index into the token map. */
 const HEAT_TOKENS = ['heat0', 'heat1', 'heat2', 'heat3', 'heat4'] as const;
 
-/** Deterministic cell level from design.md §3.13: `(i*7 + (i%5)) % 5`. */
+/** Fallback cell level (design.md §3.13) only used when the VM has no values. */
 function levelFor(index: number): number {
   return (index * 7 + (index % 5)) % LEVELS;
 }
 
 export type HeatmapProps = {
-  /** Section title — design.md §3.13 default is "12 month momentum". */
+  /** Section title — Q4 default is "12 week momentum". */
   label?: string;
   /** 84 cells (12 columns × 7 rows) from `AnalysisVM.heatmap`. */
   values?: number[];
-  /** Note beside the heading: PRD §5.3 keeps 642 static in v1. */
+  /** Note beside the heading: `AnalysisVM.metrics.contributions12m`. */
   contributions?: number;
+  /** `AnalysisVM.metrics.yoyPct` — footer comparison. */
+  yoyPct?: number;
 };
 
 /**
  * FR-A7 + D8 — 12×7 contribution heatmap (design.md §3.13).
  *
- * FE-2: the section heading moved inside the component so its title is a real
- * prop with the documented default.
+ * FE-2: the values, contribution count, year-over-year figure and the section
+ * title are all props, so the screen only forwards the VM.
  */
 export function Heatmap({
-  label = '12 month momentum',
+  label = '12 week momentum',
   values,
   contributions = 642,
+  yoyPct,
 }: HeatmapProps) {
   const theme = useTheme();
   const [innerWidth, setInnerWidth] = useState(0);
@@ -49,6 +52,21 @@ export function Heatmap({
   const cell = HEATMAP_FULL_WIDTH && innerWidth > 0 ? (innerWidth - 11 * GAP) / COLUMNS : CELL;
 
   const columns = Array.from({ length: COLUMNS }, (_, col) => col);
+
+  // R2: real data from AnalysisVM.heatmap (84 numbers 0–4); fall back to the
+  // deterministic design.md pattern when the VM carries no values.
+  const levelAt = (index: number): number => {
+    if (values && values.length === COLUMNS * ROWS) {
+      const value = values[index];
+      return typeof value === 'number' && value >= 0 && value <= 4 ? Math.round(value) : 0;
+    }
+    return levelFor(index);
+  };
+
+  const yoyLabel =
+    typeof yoyPct === 'number'
+      ? `${yoyPct >= 0 ? '+' : ''}${Math.round(yoyPct * 10) / 10}% vs last year`
+      : '+18% vs last year';
 
   return (
     <>
@@ -66,8 +84,7 @@ export function Heatmap({
               <View key={col} style={styles.column}>
                 {Array.from({ length: ROWS }, (_, row) => {
                   const index = col * ROWS + row;
-                  const level = levelFor(index);
-                  const value = values?.[index] ?? level;
+                  const level = levelAt(index);
                   return (
                     <View
                       key={row}
@@ -76,8 +93,7 @@ export function Heatmap({
                         {
                           width: cell,
                           height: cell,
-                          backgroundColor:
-                            theme.colors[HEAT_TOKENS[Math.max(0, Math.min(LEVELS - 1, value))]],
+                          backgroundColor: theme.colors[HEAT_TOKENS[level]],
                         },
                       ]}
                     />
@@ -96,7 +112,11 @@ export function Heatmap({
             {[0, 2, 4].map((level) => (
               <View
                 key={level}
-                style={[styles.cell, styles.legendCell, { backgroundColor: theme.colors[HEAT_TOKENS[level]] }]}
+                style={[
+                  styles.cell,
+                  styles.legendCell,
+                  { backgroundColor: theme.colors[HEAT_TOKENS[level]] },
+                ]}
               />
             ))}
             <T size={7} color="muted">
@@ -104,7 +124,7 @@ export function Heatmap({
             </T>
           </View>
           <T size={7} weight="700" color="greenText">
-            +18% vs last year
+            {yoyLabel}
           </T>
         </View>
       </Card>

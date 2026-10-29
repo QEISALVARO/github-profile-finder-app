@@ -287,25 +287,29 @@ export const feedProjects: FeedProject[] = [
     id: 101, name: 'Nusa Commerce',
     description: 'Aplikasi marketplace mobile dengan payment gateway, live tracking, dan seller analytics.',
     role: 'Mobile', stack: ['Flutter 65%', 'Dart 35%'], location: 'Jakarta', score: 96, active: true, demo: 'Play Store', stars: 1280,
-    developer: { login: 'angga-risky', name: 'Angga Risky', role: 'Mobile', language: 'Dart', location: 'Jakarta', score: 96, avatar: 'https://github.com/angga-risky.png', stage: 'Saved', availability: 'Open to work' },
+    countryCode: 'ID', city: 'Jakarta',
+    developer: { login: 'angga-risky', name: 'Angga Risky', role: 'Mobile', language: 'Dart', location: 'Jakarta', score: 96, avatar: 'https://github.com/angga-risky.png', stage: 'Saved', availability: 'Open to work', countryCode: 'ID', city: 'Jakarta' },
   },
   {
     id: 102, name: 'Sentra AI Vision',
     description: 'Computer vision pipeline untuk inspeksi kualitas manufaktur secara real-time.',
     role: 'Data', stack: ['Python 72%', 'PyTorch 28%'], location: 'Bandung', score: 94, active: true, demo: 'Live Web', stars: 842,
-    developer: { login: 'alishobeiri', name: 'Ali Shobeiri', role: 'AI / Data', language: 'Python', location: 'Bandung', score: 94, avatar: 'https://github.com/alishobeiri.png', stage: 'Interviewing', availability: 'Open to work' },
+    countryCode: 'ID', city: 'Bandung',
+    developer: { login: 'alishobeiri', name: 'Ali Shobeiri', role: 'AI / Data', language: 'Python', location: 'Bandung', score: 94, avatar: 'https://github.com/alishobeiri.png', stage: 'Interviewing', availability: 'Open to work', countryCode: 'ID', city: 'Bandung' },
   },
   {
     id: 103, name: 'Karsa Microservices',
     description: 'High-performance commerce API dengan event-driven architecture dan observability.',
     role: 'Back-End', stack: ['Go 78%', 'Docker 22%'], location: 'Indonesia', score: 92, active: true, demo: 'API Docs', stars: 634,
-    developer: { login: 'mgechev', name: 'Minko Gechev', role: 'Back-End', language: 'Go', location: 'Indonesia', score: 92, avatar: 'https://github.com/mgechev.png', stage: 'Saved', availability: 'Freelance' },
+    countryCode: 'ID', city: 'Yogyakarta',
+    developer: { login: 'mgechev', name: 'Minko Gechev', role: 'Back-End', language: 'Go', location: 'Indonesia', score: 92, avatar: 'https://github.com/mgechev.png', stage: 'Saved', availability: 'Freelance', countryCode: 'ID', city: 'Yogyakarta' },
   },
   {
     id: 104, name: 'Ruang Dashboard',
     description: 'Accessible analytics dashboard dengan collaborative workspace dan modular charts.',
     role: 'Front-End', stack: ['React 58%', 'TypeScript 42%'], location: 'Surabaya', score: 90, active: false, demo: 'Vercel', stars: 471,
-    developer: { login: 'cassidoo', name: 'Cassidy Williams', role: 'Front-End', language: 'TypeScript', location: 'Surabaya', score: 90, avatar: 'https://github.com/cassidoo.png', stage: 'Saved', availability: 'Open to work' },
+    countryCode: 'ID', city: 'Surabaya',
+    developer: { login: 'cassidoo', name: 'Cassidy Williams', role: 'Front-End', language: 'TypeScript', location: 'Surabaya', score: 90, avatar: 'https://github.com/cassidoo.png', stage: 'Saved', availability: 'Open to work', countryCode: 'ID', city: 'Surabaya' },
   },
 ];
 

@@ -1,5 +1,7 @@
+// contracts/src/feed.ts
+// SP-0 — Kontrak FE-BE
 import { z } from "zod";
-import { Availability, CountryCode } from "./common";
+import { CountryCode, Availability } from "./common";
 
 export const FeedQuery = z.object({
   q: z.string().optional(), role: z.string().optional(), countries: z.array(CountryCode).optional(),
@@ -19,3 +21,4 @@ export const FeedItem = z.object({
 });
 export const FeedPage = z.object({ items: z.array(FeedItem), nextCursor: z.string().nullable(), totalCount: z.number().int() });
 export const CountryFacet = z.object({ iso2: CountryCode, count: z.union([z.number().int(), z.literal("<5")]) });
+

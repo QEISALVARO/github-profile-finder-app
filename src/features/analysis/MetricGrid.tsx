@@ -16,8 +16,7 @@ export type MetricGridProps = {
  *
  * The denominator never drops below the numerator: PRD §5.4 candidates report
  * 184 original projects while the VM only carries the top 8 repositories, so
- * `max(repos, originalCount)` keeps "184 of 184" honest — and leaves every
- * existing fixture ("2 of 2", "0 of 2") untouched.
+ * `max(repos, originalCount)` keeps "184 of 184" honest.
  */
 export function MetricGrid({ vm }: MetricGridProps) {
   const theme = useTheme();
@@ -28,7 +27,8 @@ export function MetricGrid({ vm }: MetricGridProps) {
     {
       icon: 'check',
       label: 'Original work',
-      value: `${metrics.originalRatio}%`,
+      // SP-0 stores the ratio as 0…1 (BE `derive.ts`); render it as a percent.
+      value: `${Math.round(metrics.originalRatio * 100)}%`,
       sub: `${metrics.originalCount} of ${repoCount} repos`,
     },
     {
@@ -41,7 +41,7 @@ export function MetricGrid({ vm }: MetricGridProps) {
       icon: 'arrow',
       label: 'Live demos',
       value: `${metrics.demoRatio}%`,
-      sub: 'Links detected',
+      sub: 'Links verified',
     },
     {
       icon: 'users',

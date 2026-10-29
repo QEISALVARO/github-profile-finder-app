@@ -1,27 +1,27 @@
 // ---------------------------------------------------------------------------
-// FE-2 — chat `api` adapter (stub). Realtime lands with R5.
+// FE-2 — chat `api` adapter. Realtime chat lands with BE-5.
 // ---------------------------------------------------------------------------
 
 import type { Conversation, Message } from '@/api/contracts';
 
-import { NotImplementedError } from '@/api/errors';
+import { apiNotReady } from '@/api/errors';
 
 import type { ChatAdapter, StartConversationArgs } from './types';
 
 export const chatApi: ChatAdapter = {
   conversations(): Promise<Conversation[]> {
-    throw new NotImplementedError('chat', 'GET /conversations');
+    throw apiNotReady('chat', 'GET /conversations (menunggu BE-5)');
   },
   messages(_conversationId: string): Promise<Message[]> {
-    throw new NotImplementedError('chat', 'GET /messages');
+    throw apiNotReady('chat', 'GET /messages (menunggu BE-5)');
   },
   findConversation(_developerLogin: string): Promise<Conversation | null> {
-    throw new NotImplementedError('chat', 'GET /conversations?developer=');
+    throw apiNotReady('chat', 'GET /conversations?developer= (menunggu BE-5)');
   },
   sendMessage(_conversationId: string, _body: string): Promise<Message> {
-    throw new NotImplementedError('chat', 'POST /messages');
+    throw apiNotReady('chat', 'POST /messages (menunggu BE-5)');
   },
   startConversation(_input: StartConversationArgs): Promise<Message> {
-    throw new NotImplementedError('chat', 'POST /conversations');
+    throw apiNotReady('chat', 'POST /conversations (menunggu BE-5)');
   },
 };

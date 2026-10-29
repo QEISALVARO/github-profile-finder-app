@@ -12,11 +12,11 @@ export type { AnalysisVM, AnalyzeRequest, Evidence };
 
 /**
  * What the UI knows when it asks for an analysis:
- *  - `project` — the feed card that was tapped; its developer is analysed (D1).
+ *  - `login` — route param, deep link, or the tapped card's developer.
+ *  - `project` — the feed card that was tapped (mock adapters reuse it).
  *  - `person` — a Talent candidate tapped from Discover/Pipeline/Compare.
- *  - `login` alone — cold start, deep link, or a plain username lookup.
  *
- * `null` everywhere means "the octocat default" (PRD §7.2 AC).
+ * `login: null` means "the octocat default" in mock mode (PRD §7.2 AC).
  */
 export type AnalysisTarget = {
   login: string | null;
@@ -24,11 +24,19 @@ export type AnalysisTarget = {
   project?: FeedItem | null;
 };
 
+/** Resolve the login the adapter will analyse (octocat when unset). */
+export function analysisLogin(target: AnalysisTarget): string {
+  return (
+    target.project?.developer.login ??
+    target.person?.login ??
+    target.login ??
+    'octocat'
+  );
+}
+
 /** Stable cache key — one entry per developer. */
 export function analysisKey(target: AnalysisTarget): string {
-  return (
-    target.person?.login ?? target.project?.developer.login ?? target.login ?? 'octocat'
-  );
+  return analysisLogin(target);
 }
 
 export interface AnalysisAdapter {

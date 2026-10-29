@@ -11,6 +11,9 @@ import type { ExportReportInput, ReportsAdapter, ReportSummary } from './types';
 export * from './types';
 
 export const reportsAdapter: ReportsAdapter = {
+  list: (): Promise<ReportSummary[]> =>
+    getDataSource('reports') === 'api' ? api.list() : mock.list(),
+
   exportReport: (input: ExportReportInput): Promise<ReportSummary> =>
     getDataSource('reports') === 'api' ? api.exportReport(input) : mock.exportReport(input),
 };

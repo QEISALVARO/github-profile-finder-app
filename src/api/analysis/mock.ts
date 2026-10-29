@@ -1,276 +1,381 @@
 // ---------------------------------------------------------------------------
 // FE-2 — mock analysis adapter: a deterministic `AnalysisVM` built offline
-// from the seed, with no network call.
+// from the seed and the SP-0 fixtures, with no network call.
 //
-// The v1 scoring rules (`lib/scoring.ts`) are used *only inside this file*
-// (transition period): the UI reads the VM, never the raw repos.
+// The v1 scoring library is gone; every number is derived here from a stable
+// hash of the login, so the same developer always produces the same VM while
+// different developers differ visibly (name, language, role, country, repos,
+// score, tier, heatmap).
+//
+// Special logins let the UI exercise every state without a backend:
+//   __stale__ __notfound__ __ratelimited__ __error__ __empty__ __allforks__
 // ---------------------------------------------------------------------------
 
+import fixture from '../../../contracts/fixtures/analysis_vm.json';
+
 import type { AnalysisVM, FeedItem } from '@/api/contracts';
+import type { AppError } from '@/api/errors';
+import type { Candidate } from '@/types';
 
-import { fallbackRepos, fallbackUser } from '@/data/seed';
-import { deriveAnalysis, repoScore, type LanguageStat } from '@/lib/scoring';
-import type { AnalysisTarget } from './types';
-import type { GithubRepo, GithubUser, Candidate } from '@/types';
+import { analysisLogin, type AnalysisTarget } from './types';
 
-/** PRD §5.3 — values the prototype shows statically (not computed in v1). */
-const SCORE_VERSION = 1;
-const CONFIDENCE = 94;
-const CONTRIBUTIONS_12M = 642;
-const YOY_PCT = 18;
-const DEFAULT_STREAK_WEEKS = 28;
-const FRAMEWORKS = ['React', 'Vite', 'Node.js', 'Expo', 'Metro', 'Hermes'];
+type FixtureVM = AnalysisVM & { _description?: string };
 
-/** PRD §5.4 — static Compare values: 184 for sindresorhus, 72 otherwise. */
-const ORIGINAL_PROJECTS = 184;
-const OTHER_ORIGINAL_PROJECTS = 72;
-const LONG_STREAK_WEEKS = 28;
-const SHORT_STREAK_WEEKS = 19;
+/** SP-0 fixtures (BE-owned). `_description` is stripped before returning. */
+const FIXTURES = fixture as unknown as FixtureVM[];
 
-/** design.md §3.13 — deterministic 84-cell heatmap. */
-function buildHeatmap(): number[] {
-  return Array.from({ length: 84 }, (_, i) => (i * 7 + (i % 5)) % 5);
+const OCTOCAT_BASE = FIXTURES[0];
+
+export const SCENARIO_LOGINS = {
+  stale: '__stale__',
+  notFound: '__notfound__',
+  rateLimited: '__ratelimited__',
+  error: '__error__',
+  empty: '__empty__',
+  allForks: '__allforks__',
+} as const;
+
+export type ScenarioLogin = (typeof SCENARIO_LOGINS)[keyof typeof SCENARIO_LOGINS];
+
+const STALE_SINCE = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+const RATE_LIMIT_RETRY_AFTER = 42;
+
+// --- deterministic helpers --------------------------------------------------
+
+function hashLogin(login: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < login.length; index += 1) {
+    hash ^= login.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash);
 }
 
-export type BuildAnalysisVMOptions = {
-  /** AUTH circle shown on the feed/candidate card (overrides the v1 formula). */
-  authenticity?: number;
-  /** PRD §5.4 "Original projects" for the Compare card. */
-  originalCount?: number;
-  /** PRD §5.4 "Commit streak" for the Compare card. */
-  streakWeeks?: number;
-  /** `profiles.public_repos` override (mock candidates carry PRD §5.4 counts). */
-  publicRepos?: number;
+function titleCaseLogin(login: string): string {
+  return login
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+const LANGUAGES = ['TypeScript', 'Go', 'Python', 'Rust', 'JavaScript', 'Dart', 'Swift'] as const;
+
+const ROLE_BY_LANGUAGE: Record<string, string> = {
+  TypeScript: 'Front-End',
+  JavaScript: 'Front-End',
+  Go: 'Back-End',
+  Rust: 'Systems',
+  Python: 'AI / Data',
+  Dart: 'Mobile',
+  Swift: 'Mobile',
 };
 
-function toLanguageStat(stats: LanguageStat[]): AnalysisVM['languageStats'] {
-  return stats.slice(0, 3).map((stat) => ({ name: stat.name, value: stat.value }));
+const FRAMEWORKS_BY_LANGUAGE: Record<string, string[]> = {
+  TypeScript: ['React', 'Vite', 'Node.js', 'Expo', 'tRPC'],
+  JavaScript: ['React', 'Next.js', 'Node.js'],
+  Go: ['Gin', 'Postgres', 'Docker'],
+  Rust: ['Tokio', 'Serde', 'WASM'],
+  Python: ['PyTorch', 'FastAPI', 'Ray'],
+  Dart: ['Flutter', 'Riverpod', 'Firebase'],
+  Swift: ['SwiftUI', 'Combine', 'CoreData'],
+};
+
+const LOCATIONS: { countryCode: string; city: string }[] = [
+  { countryCode: 'ID', city: 'Jakarta' },
+  { countryCode: 'SG', city: 'Singapore' },
+  { countryCode: 'US', city: 'Austin' },
+  { countryCode: 'DE', city: 'Berlin' },
+  { countryCode: 'GB', city: 'London' },
+  { countryCode: 'NO', city: 'Oslo' },
+];
+
+const REPO_STEMS = ['core', 'toolkit', 'starter-template', 'cli', 'dashboard', 'utils'];
+
+function heatmapFor(seed: number): number[] {
+  return Array.from({ length: 84 }, (_, index) => (index * 7 + (index % 5) + seed) % 5);
+}
+
+function tierFor(authenticity: number): AnalysisVM['tier'] {
+  if (authenticity >= 85) return 'high';
+  if (authenticity >= 70) return 'medium';
+  return 'low';
+}
+
+function languageStats(language: string, seed: number): AnalysisVM['languageStats'] {
+  const rest = LANGUAGES.filter((entry) => entry !== language).slice(seed % 3, (seed % 3) + 2);
+  const values = seed % 2 === 0 ? [55, 27, 18] : [62, 22, 16];
+  return [language, ...rest].slice(0, 3).map((name, index) => ({
+    name,
+    value: values[index],
+  }));
+}
+
+type Identity = {
+  login: string;
+  name: string;
+  avatarUrl: string;
+  bio: string | null;
+  htmlUrl: string;
+  publicRepos: number;
+  locationText: string | null;
+  countryCode: string | null;
+  city: string | null;
+  score: number | null;
+  role: string | null;
+  language: string | null;
+};
+
+function identityFor(target: AnalysisTarget): Identity {
+  const login = analysisLogin(target);
+  const project: FeedItem | null = target.project ?? null;
+  const person: Candidate | null = target.person ?? null;
+  const seed = hashLogin(login);
+
+  if (project) {
+    const stackName = project.stack[0]?.name ?? 'TypeScript';
+    return {
+      login: project.developer.login,
+      name: project.developer.name,
+      avatarUrl: project.developer.avatarUrl,
+      bio: project.description,
+      htmlUrl: `https://github.com/${project.developer.login}`,
+      publicRepos: 18,
+      locationText: project.city,
+      countryCode: project.countryCode,
+      city: project.city,
+      score: project.score,
+      role: project.role,
+      language: stackName,
+    };
+  }
+
+  if (person) {
+    return {
+      login: person.login,
+      name: person.name,
+      avatarUrl: person.avatar,
+      bio: null,
+      htmlUrl: `https://github.com/${person.login}`,
+      publicRepos: person.login === 'sindresorhus' ? 184 : 72,
+      locationText: person.city ?? person.location,
+      countryCode: person.countryCode ?? null,
+      city: person.city ?? person.location,
+      score: person.score,
+      role: person.role,
+      language: person.language,
+    };
+  }
+
+  if (login === 'octocat') {
+    return {
+      login,
+      name: OCTOCAT_BASE.user.name ?? 'The Octocat',
+      avatarUrl: OCTOCAT_BASE.user.avatarUrl,
+      bio: OCTOCAT_BASE.user.bio,
+      htmlUrl: OCTOCAT_BASE.user.htmlUrl,
+      publicRepos: OCTOCAT_BASE.user.publicRepos,
+      locationText: OCTOCAT_BASE.user.locationText,
+      countryCode: OCTOCAT_BASE.user.countryCode,
+      city: OCTOCAT_BASE.user.city,
+      // PRD §7.2 AC — the default analysis reads authenticity 73.
+      score: 73,
+      role: null,
+      language: 'TypeScript',
+    };
+  }
+
+  const language = LANGUAGES[seed % LANGUAGES.length];
+  const location = LOCATIONS[seed % LOCATIONS.length];
+  return {
+    login,
+    name: titleCaseLogin(login),
+    avatarUrl: `https://github.com/${login}.png?size=200`,
+    bio: `Open-source developer working in ${language}.`,
+    htmlUrl: `https://github.com/${login}`,
+    publicRepos: 12 + (seed % 60),
+    locationText: location.city,
+    countryCode: location.countryCode,
+    city: location.city,
+    score: null,
+    role: ROLE_BY_LANGUAGE[language] ?? 'Full-Stack',
+    language,
+  };
+}
+
+function reposFor(
+  identity: Identity,
+  seed: number,
+  options: { empty?: boolean; allForks?: boolean } = {},
+): AnalysisVM['repos'] {
+  if (options.empty) return [];
+
+  // Octocat keeps the PRD §7.2 AC shape: two originals, one with a demo.
+  const count = identity.login === 'octocat' ? 2 : 3;
+  return Array.from({ length: count }, (_, index) => {
+    const isFork = options.allForks
+      ? true
+      : index === count - 1 && seed % 3 === 0 && identity.login !== 'octocat';
+    const hasVerifiedDemo = !isFork && index % 2 === 0;
+    return {
+      id: (seed % 900_000) + index + 1,
+      name: `${identity.login.split(/[-_.]/)[0]}-${REPO_STEMS[index]}`,
+      description: `Open-source ${REPO_STEMS[index]} maintained by ${identity.login}.`,
+      language: index === 2 ? identity.language : (LANGUAGES[(seed + index) % LANGUAGES.length] ?? null),
+      htmlUrl: `https://github.com/${identity.login}/${REPO_STEMS[index]}`,
+      isFork,
+      hasVerifiedDemo,
+      score: isFork ? 64 : Math.min(98, 40 + (seed + index * 13) % 59),
+    };
+  });
+}
+
+/** The tapped feed card becomes the evidence list (D1). */
+function reposFromProject(project: FeedItem): AnalysisVM['repos'] {
+  return [
+    {
+      id: Number(project.id) || 1,
+      name: project.name,
+      description: project.description,
+      language: project.stack[0]?.name ?? null,
+      htmlUrl: `https://github.com/${project.developer.login}`,
+      isFork: false,
+      hasVerifiedDemo: project.demoVerified,
+      score: Math.max(0, Math.min(100, project.score)),
+    },
+  ];
 }
 
 /**
- * Pure VM builder shared by the mock adapter and the /dev fixtures, so the
- * Analysis screen always renders the exact same shape the API will return.
+ * Build a deterministic, contract-valid VM for whatever the user asked for.
+ * Pure and synchronous — the mock adapter and the /dev panel share it.
  */
 export function buildAnalysisVM(
-  user: GithubUser,
-  repos: GithubRepo[],
-  options: BuildAnalysisVMOptions = {},
+  target: AnalysisTarget,
+  options: { empty?: boolean; allForks?: boolean; stale?: boolean } = {},
 ): AnalysisVM {
-  const derived = deriveAnalysis(user, repos);
-  const derivedAuthenticity = derived.authenticity;
-  const authenticity = options.authenticity ?? derivedAuthenticity;
-  const originalCount = options.originalCount ?? derived.originalCount;
-  const streakWeeks = options.streakWeeks ?? DEFAULT_STREAK_WEEKS;
-  const sliced = repos.slice(0, 8);
+  const identity = identityFor(target);
+  const seed = hashLogin(identity.login);
+  const repos =
+    target.project && !options.empty ? reposFromProject(target.project) : reposFor(identity, seed, options);
 
-  const repoItems: AnalysisVM['repos'] = sliced.map((repo) => ({
-    id: repo.id,
-    name: repo.name,
-    description: repo.description,
-    language: repo.language,
-    htmlUrl: repo.html_url,
-    isFork: Boolean(repo.fork),
-    hasVerifiedDemo: Boolean(repo.homepage),
-    // v1 pill rule: forks are pinned at 64, originals cap at authenticity + 3.
-    score: repoScore(repo, derivedAuthenticity),
-  }));
+  const nonFork = repos.filter((repo) => !repo.isFork);
+  const withDemo = nonFork.filter((repo) => repo.hasVerifiedDemo);
 
-  const metrics: AnalysisVM['metrics'] = {
-    originalRatio: derived.originalRatio,
-    originalCount,
-    demoRatio: derived.demoRatio,
-    commitHealth: 'Consistent',
-    contributionDepth: 'Deep',
-    streakWeeks,
-    contributions12m: CONTRIBUTIONS_12M,
-    yoyPct: YOY_PCT,
-  };
+  const authenticity = options.empty
+    ? 8
+    : options.allForks
+      ? 15
+      : (identity.score ?? 40 + (seed % 59));
+
+  const originalRatio = repos.length === 0 ? 0 : Math.round((nonFork.length / repos.length) * 100) / 100;
+  const demoRatio = nonFork.length === 0 ? 0 : Math.round((withDemo.length / nonFork.length) * 100);
+  const originalCount =
+    target.person && !options.empty
+      ? identity.publicRepos
+      : nonFork.length;
+
+  const contributions12m = identity.login === 'octocat' ? 642 : 320 + (seed % 480);
+  const streakWeeks =
+    identity.login === 'sindresorhus' ? 28 : identity.login === 'gaearon' ? 19 : 8 + (seed % 20);
+  const yoyPct = 8 + (seed % 15);
+
+  const language = identity.language ?? 'TypeScript';
 
   return {
-    source: 'fresh',
+    source: options.stale ? 'stale' : 'fresh',
+    ...(options.stale ? { staleSince: STALE_SINCE } : {}),
     user: {
-      login: user.login,
-      name: user.name,
-      avatarUrl: user.avatar_url,
-      bio: user.bio,
-      htmlUrl: user.html_url,
-      publicRepos: options.publicRepos ?? user.public_repos,
-      locationText: user.location,
-      countryCode: null,
-      city: user.location,
+      login: identity.login,
+      name: identity.name,
+      avatarUrl: identity.avatarUrl,
+      bio: identity.bio,
+      htmlUrl: identity.htmlUrl,
+      publicRepos: identity.publicRepos,
+      locationText: identity.locationText,
+      countryCode: identity.countryCode,
+      city: identity.city,
     },
-    repos: repoItems,
+    repos,
     authenticity,
-    confidence: CONFIDENCE,
-    tier: authenticity >= 85 ? 'high' : authenticity >= 70 ? 'medium' : 'low',
-    scoreVersion: SCORE_VERSION,
+    confidence: options.empty ? 34 : 60 + (seed % 35),
+    tier: tierFor(authenticity),
+    scoreVersion: 2,
     breakdown: {
-      originality: derived.originalRatio,
-      activity: Math.min(100, Math.round(CONTRIBUTIONS_12M / 8)),
-      proof: derived.demoRatio,
-      substance: Math.min(100, Math.round((originalCount / Math.max(sliced.length, 1)) * 100)),
+      originality: Math.round(originalRatio * 100),
+      activity: Math.min(100, Math.round(contributions12m / 9)),
+      proof: demoRatio,
+      substance: Math.min(100, originalCount * (repos.length === 0 ? 0 : 4)),
       depth: Math.min(100, streakWeeks * 3),
       evidence: [
         {
-          label: `${derived.originalCount} original repositories`,
-          url: `https://github.com/${user.login}?tab=repositories`,
+          label: `${nonFork.length} original repositories in the top ${repos.length || 0}`,
+          url: `https://github.com/${identity.login}?tab=repositories`,
           reason: 'Mayoritas repository bukan hasil fork.',
         },
         {
-          label: `${derived.demoRatio}% repositories with a live demo`,
-          url: `https://github.com/${user.login}?tab=repositories`,
+          label: `${demoRatio}% repositories with a verified demo`,
+          url: `https://github.com/${identity.login}?tab=repositories`,
           reason: 'Terdeteksi homepage/tautan demo pada repository.',
         },
       ],
     },
-    inferredRole: derived.role,
-    primaryLanguage: derived.primary,
-    languageStats: toLanguageStat(derived.stats),
-    frameworks: FRAMEWORKS,
-    metrics,
-    heatmap: buildHeatmap(),
-  };
-}
-
-/**
- * Synthetic but stable repo list for a Talent candidate (the seed carries no
- * repositories for them). All original — one with a verified demo — so
- * `originalRatio` stays consistent with the PRD §5.4 `originalCount` shown on
- * the Compare card.
- */
-function candidateRepos(candidate: Candidate): GithubRepo[] {
-  const htmlUrl = `https://github.com/${candidate.login}`;
-  const base = {
-    language: candidate.language,
-    fork: false,
-    html_url: htmlUrl,
-    pushed_at: '2026-10-12',
-  } as const;
-  return [
-    {
-      ...base,
-      id: 1,
-      name: 'toolkit',
-      description: 'Open-source project by this developer.',
-      stargazers_count: candidate.score * 14,
-      forks_count: 128,
-      homepage: htmlUrl,
-    },
-    {
-      ...base,
-      id: 2,
-      name: 'starter-template',
-      description: 'Open-source project by this developer.',
-      stargazers_count: candidate.score * 6,
-      forks_count: 54,
-      homepage: null,
-    },
-    {
-      ...base,
-      id: 3,
-      name: 'dotfiles',
-      description: 'Open-source project by this developer.',
-      stargazers_count: candidate.score * 2,
-      forks_count: 17,
-      homepage: null,
-    },
-  ];
-}
-
-function candidateUser(candidate: Candidate, publicRepos: number): GithubUser {
-  return {
-    login: candidate.login,
-    name: candidate.name,
-    avatar_url: candidate.avatar,
-    bio: null,
-    followers: candidate.score * 31,
-    following: 42,
-    public_repos: publicRepos,
-    location: candidate.location,
-    html_url: `https://github.com/${candidate.login}`,
-  };
-}
-
-/**
- * Adapt the VM's user block back into the `GithubUser` shape the chat slot
- * (`useAppStore.chat.person`) expects — the only bridge between the two
- * representations in the app.
- */
-export function vmToGithubUser(vm: AnalysisVM): GithubUser {
-  return {
-    login: vm.user.login,
-    name: vm.user.name,
-    avatar_url: vm.user.avatarUrl,
-    bio: vm.user.bio,
-    followers: 0,
-    following: 0,
-    public_repos: vm.user.publicRepos,
-    location: vm.user.locationText,
-    html_url: vm.user.htmlUrl,
-  };
-}
-
-/**
- * PRD §5.2 fallback, rebuilt from a contract `FeedItem` instead of the legacy
- * `FeedProject`: same values the prototype produced (followers = stars,
- * following 42, 18 public repos, homepage = demo, pushed_at = now).
- */
-function analysisFromFeedItem(item: FeedItem): AnalysisVM {
-  const login = item.developer.login;
-  const user: GithubUser = {
-    login,
-    name: item.developer.name,
-    avatar_url: item.developer.avatarUrl,
-    bio: item.description,
-    followers: item.stars,
-    following: 42,
-    public_repos: 18,
-    location: item.city,
-    html_url: `https://github.com/${login}`,
-  };
-
-  const repos: GithubRepo[] = [
-    {
-      id: Number(item.id) || 0,
-      name: item.name,
-      description: item.description,
-      language: item.stack[0]?.name ?? null,
-      stargazers_count: item.stars,
-      forks_count: 42,
-      fork: false,
-      homepage: item.demoUrl,
-      pushed_at: new Date().toISOString(),
-      html_url: `https://github.com/${login}`,
-    },
-  ];
-
-  // The AUTH circle on the card and the ring in Analysis must agree.
-  return buildAnalysisVM(user, repos, { authenticity: item.score });
-}
-
-/**
- * Offline analysis for whatever developer the user tapped:
- *  - feed card → its own developer + repository (D1),
- *  - talent candidate → the candidate with PRD §5.4 Compare numbers,
- *  - no context → the octocat default (authenticity 73, PRD §7.2 AC).
- */
-export async function fetchAnalysis(target: AnalysisTarget): Promise<AnalysisVM> {
-  const person = target.person ?? null;
-  const project = target.project ?? null;
-
-  if (project) {
-    return analysisFromFeedItem(project);
-  }
-
-  if (person) {
-    const isLongTrack = person.login === 'sindresorhus';
-    const originalCount = isLongTrack ? ORIGINAL_PROJECTS : OTHER_ORIGINAL_PROJECTS;
-    return buildAnalysisVM(candidateUser(person, originalCount), candidateRepos(person), {
-      authenticity: person.score,
+    inferredRole: identity.role ?? ROLE_BY_LANGUAGE[language] ?? 'Full-Stack',
+    primaryLanguage: options.empty ? 'Other' : language,
+    languageStats: options.empty ? [{ name: 'Other', value: 100 }] : languageStats(language, seed),
+    frameworks: options.empty ? [] : (FRAMEWORKS_BY_LANGUAGE[language] ?? ['React', 'Node.js']),
+    metrics: {
+      originalRatio,
       originalCount,
-      streakWeeks: isLongTrack ? LONG_STREAK_WEEKS : SHORT_STREAK_WEEKS,
-    });
-  }
+      demoRatio,
+      commitHealth: streaksHealth(streakWeeks),
+      contributionDepth: contributions12m > 600 ? 'Deep' : contributions12m > 420 ? 'Moderate' : 'Light',
+      streakWeeks,
+      contributions12m,
+      yoyPct,
+    },
+    heatmap: heatmapFor(seed),
+  };
+}
 
-  return buildAnalysisVM(fallbackUser, fallbackRepos);
+function streaksHealth(weeks: number): AnalysisVM['metrics']['commitHealth'] {
+  if (weeks >= 20) return 'Consistent';
+  if (weeks >= 12) return 'Irregular';
+  return 'Sporadic';
+}
+
+function scenarioError(login: string): AppError | null {
+  switch (login) {
+    case SCENARIO_LOGINS.notFound:
+      return { code: 'NOT_FOUND', message: 'Profil tidak ditemukan.', status: 404 };
+    case SCENARIO_LOGINS.rateLimited:
+      return {
+        code: 'RATE_LIMITED',
+        message: 'Batas analisis tercapai.',
+        retry_after: RATE_LIMIT_RETRY_AFTER,
+        status: 429,
+      };
+    case SCENARIO_LOGINS.error:
+      return {
+        code: 'UPSTREAM_ERROR',
+        message: 'Layanan GitHub sedang gangguan. Coba lagi nanti.',
+        status: 502,
+      };
+    default:
+      return null;
+  }
+}
+
+/** Offline analysis; throws `AppError` for the failure scenarios. */
+export async function fetchAnalysis(target: AnalysisTarget): Promise<AnalysisVM> {
+  const login = analysisLogin(target);
+
+  const failure = scenarioError(login);
+  if (failure) throw failure;
+
+  return buildAnalysisVM(target, {
+    empty: login === SCENARIO_LOGINS.empty,
+    allForks: login === SCENARIO_LOGINS.allForks,
+    stale: login === SCENARIO_LOGINS.stale,
+  });
 }

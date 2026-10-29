@@ -11,7 +11,7 @@ import * as mock from './mock';
 import type { AnalysisAdapter, AnalysisTarget } from './types';
 
 export * from './types';
-export { buildAnalysisVM, vmToGithubUser } from './mock';
+export { buildAnalysisVM, SCENARIO_LOGINS, type ScenarioLogin } from './mock';
 
 export const analysisAdapter: AnalysisAdapter = {
   fetchAnalysis: (target: AnalysisTarget): Promise<AnalysisVM> =>

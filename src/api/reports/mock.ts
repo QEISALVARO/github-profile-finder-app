@@ -5,19 +5,24 @@
 
 import type { ExportReportInput, ReportSummary } from './types';
 
-let exportCount = 0;
+let reports: ReportSummary[] = [];
 
 /** Test seam. */
 export function resetReports(): void {
-  exportCount = 0;
+  reports = [];
+}
+
+export async function list(): Promise<ReportSummary[]> {
+  return reports.map((report) => ({ ...report }));
 }
 
 export async function exportReport(input: ExportReportInput): Promise<ReportSummary> {
-  exportCount += 1;
-  return {
-    id: `report-${String(exportCount).padStart(4, '0')}`,
+  const summary: ReportSummary = {
+    id: `report-${String(reports.length + 1).padStart(4, '0')}`,
     login: input.login,
     score: input.score,
     createdAt: new Date().toISOString(),
   };
+  reports = [summary, ...reports];
+  return { ...summary };
 }

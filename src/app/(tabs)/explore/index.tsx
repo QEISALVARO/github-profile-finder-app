@@ -9,6 +9,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { T } from '@/components/ui/T';
 import { useAnalyze, useFeed } from '@/api/queries';
+import { describeError } from '@/api/errors';
 import { FeedEmpty } from '@/features/feed/FeedEmpty';
 import { FeedFilters } from '@/features/feed/FeedFilters';
 import { FeedHeading } from '@/features/feed/FeedHeading';
@@ -35,22 +36,20 @@ export default function ExploreScreen() {
   const feedLocation = useAppStore((s) => s.feedLocation);
   const recentOnly = useAppStore((s) => s.recentOnly);
   const error = useAppStore((s) => s.error);
-  const loadingId = useAppStore((s) => s.loadingId);
 
   const feed = useFeed({ query, role: feedRole, location: feedLocation, recentOnly });
   const items = feed.data?.items ?? [];
+  const feedError = feed.error ? describeError(feed.error) : null;
 
-  const analyze = useAnalyze();
+  const { analyze, loadingId } = useAnalyze();
 
-  // FR-E7 + D1 — the Analysis screen shows *the tapped developer's* data.
-  // `useAnalyze` warms the cache while the card shows its spinner (D2).
+  // FR-E7 + D1 + D2 — prefetch *this* developer while only this card spins;
+  // on success open Analysis with the login in the route (deep-link friendly).
   const onAnalyze = useCallback(
     async (item: FeedItem) => {
-      await analyze(
-        { login: item.developer.login, person: null, project: item },
-        item.id,
-      );
-      router.push('/explore/analysis');
+      const result = await analyze(item);
+      if (!result.ok) return;
+      router.push({ pathname: '/explore/analysis', params: { login: item.developer.login } });
     },
     [analyze, router],
   );
@@ -59,7 +58,7 @@ export default function ExploreScreen() {
     <PageContainer paddingTop={30} keyboardShouldPersistTaps="handled">
       <FeedIntro />
       <SearchBox />
-      {/* FR-E9 — error slot under the search box (store-level validation). */}
+      {/* FR-E9 — error slot under the search box (validation + Analyze errors). */}
       {error !== '' ? (
         <T size={12} color="error" style={styles.error}>
           {error}
@@ -69,10 +68,10 @@ export default function ExploreScreen() {
       <FeedFilters />
       <FeedHeading count={items.length} />
 
-      {feed.isError ? (
+      {feed.isError && feedError ? (
         <ErrorState
           title="Feed gagal dimuat"
-          message={feed.error instanceof Error ? feed.error.message : undefined}
+          message={feedError.message}
           onRetry={() => feed.refetch()}
         />
       ) : feed.isPending ? (
@@ -91,6 +90,7 @@ export default function ExploreScreen() {
                 key={item.id}
                 item={item}
                 index={index}
+                // D2 — spinner only on the tapped card, others disabled.
                 loading={loadingId === cardId}
                 disabled={loadingId !== null && loadingId !== cardId}
                 onAnalyze={onAnalyze}

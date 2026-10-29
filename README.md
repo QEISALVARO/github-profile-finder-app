@@ -54,3 +54,28 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Sumber data: mock vs api (FE-2)
+
+Setiap domain punya flag sendiri di `.env` (lihat `.env.example`):
+
+```
+EXPO_PUBLIC_DS_AUTH=mock      # auth   → GitHub OAuth via Supabase
+EXPO_PUBLIC_DS_FEED=mock      # feed   → menunggu BE-3
+EXPO_PUBLIC_DS_ANALYSIS=mock  # analysis → Edge Function analyze-developer
+EXPO_PUBLIC_DS_TALENT=mock    # talent → menunggu BE-4
+EXPO_PUBLIC_DS_CHAT=mock      # chat   → menunggu BE-5
+EXPO_PUBLIC_DS_REPORTS=mock   # reports → menunggu BE-6
+```
+
+- **Default `mock`**: aplikasi berjalan penuh tanpa backend, tanpa jaringan, dan
+  tanpa variabel Supabase. Nilai flag yang tidak dikenal jatuh ke `mock` dengan
+  peringatan di konsol.
+- **Mode `api`** butuh stack lokal hidup (`make up`), Edge Functions berjalan,
+  dan `EXPO_PUBLIC_SUPABASE_URL` + `EXPO_PUBLIC_SUPABASE_ANON_KEY` terisi.
+  Klien Supabase dibuat malas — hanya saat minimal satu domain berflag `api`.
+- Domain yang backend-nya belum siap akan menampilkan pesan
+  "Fitur ini belum tersedia di backend", bukan data palsu.
+- Skenario uji Analysis tanpa backend: buka `/explore/analysis?login=__stale__`
+  (juga `__notfound__`, `__ratelimited__`, `__error__`, `__empty__`,
+  `__allforks__`).
