@@ -120,7 +120,7 @@ jobs:
       - name: Check Database Types Drift
         run: |
           set -x
-          supabase gen types typescript --local > generated.types.ts
+          supabase gen types typescript --local --schema public > generated.types.ts
           echo "gen types exit: $?, size: $(wc -c < generated.types.ts)"
           head -c 300 generated.types.ts
           # Perbandingan semantik: abaikan komentar/header dan whitespace
