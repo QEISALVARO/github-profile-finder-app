@@ -1,0 +1,17 @@
+{
+  "_description": "PublishProjectResult: fresh publish, listed ID, demo terverifikasi",
+  "projectId": "a0000000-0000-0000-0000-000000000001",
+  "name": "tokoonline-core",
+  "role": "Back-End",
+  "stack": [
+    { "name": "Go", "percent": 80 },
+    { "name": "React", "percent": 20 }
+  ],
+  "active": true,
+  "demoUrl": "https://demo.tokoonline.id",
+  "demoVerified": true,
+  "score": 88,
+  "published": true,
+  "visible": true,
+  "countryCode": "ID"
+}

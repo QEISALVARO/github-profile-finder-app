@@ -1,0 +1,36 @@
+{
+  "_description": "MyReposPage: satu eligible, satu fork",
+  "items": [
+    {
+      "githubRepoId": 1296269,
+      "fullName": "octocat/Hello-World",
+      "name": "Hello-World",
+      "description": "My first repository on GitHub!",
+      "language": "JavaScript",
+      "stars": 150,
+      "pushedAt": "2026-10-20T10:00:00Z",
+      "isFork": false,
+      "isArchived": false,
+      "homepageUrl": "https://example.com/demo",
+      "alreadyPublished": false,
+      "eligible": true,
+      "ineligibleReason": null
+    },
+    {
+      "githubRepoId": 1296270,
+      "fullName": "octocat/Spoon-Knife",
+      "name": "Spoon-Knife",
+      "description": "Fork demo",
+      "language": null,
+      "stars": 3,
+      "pushedAt": "2024-01-01T00:00:00Z",
+      "isFork": true,
+      "isArchived": false,
+      "homepageUrl": null,
+      "alreadyPublished": false,
+      "eligible": false,
+      "ineligibleReason": "FORK"
+    }
+  ],
+  "nextCursor": null
+}

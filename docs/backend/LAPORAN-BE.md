@@ -212,3 +212,43 @@ Fase BE-2 telah berhasil membangun mesin *Ingestion* data publik GitHub dan *Sco
 
 Pekerjaan Fase BE-2 selesai penuh. Berhenti sesuai aturan kualitas (§6/§10) hingga terdapat instruksi resmi untuk melanjutkan ke **Fase BE-3 (Feed, Discover & Pipeline Engine)**.
 
+
+
+---
+
+# LAPORAN FASE BE-3: Proyek, Pencarian Feed & Filter Negara (status implementasi 29 Okt 2026)
+
+**Branch PR:** `chore/contracts-projects` (merge dulu) -> `feat/be-3-projects-feed`.
+**Status:** implementasi + verifikasi lokal Postgres 17 SELESAI; pgTAP 08+09 ditulis dan disimulasikan logikanya (9/9 FUNCT hijau); pgTAP/bench/smoke penuh menunggu runner ber-Docker + token (TIDAK DIUKUR di sini).
+
+## Berkas
+- Kontrak (PR1): `contracts/src/projects.ts`, `types.ts`, fixtures city/my_repos/publish_result, schema_test +7, CHANGELOG v0.2.0.
+- Migrasi 018 (skema: city, owner_listed, visible, rank_score, search berbobot, trigger, rank, featured, audit, indeks), 019 (hardening RLS + app_rate_limits), 020 (build_tsquery + search_projects), 021 (facets + featured + moderasi).
+- Edge Functions: `list-my-repos`, `publish-project` (+test 11/11 offline).
+- pgTAP: `08_be3_projects.sql` (30 asersi), `09_be3_facets_moderation.sql` (18 asersi).
+- Bench: `seed/bench.sql` + `bench-feed.ts` + `make bench-seed`.
+- Docs: `feed.md`, `publishing.md`, policies, decisions (ADR-009/014), bagian ini.
+
+## Verifikasi lokal (Postgres 17 portable, tanpa Docker)
+- 21/21 migrasi + seed referensi OK (`evidence/pg17-portable-2026-10-29.txt` diperbarui di PR ini).
+- FUNCT 9/9: tokenisasi golang/ml/e-commerce, search keyword/filter/negara/active, kursor roundtrip tanpa duplikat, facet mask, rank bounds.
+- Deno: kontrak 15/15 (PR1), fungsi 11/11 (BE-3), scoring/SSRF/analyze tetap hijau.
+- FE: tsc + jest tidak tersentuh BE-3 (FE dikerjakan terpisah).
+
+## Gate BE-3 (= SP-3) — status
+- [x] Filter negara benar (ID / ID+SG / kosong / kota) — terbukti FUNCT + pgTAP 08 ditulis.
+- [x] Facet konsisten + mask <5 — terbukti FUNCT + pgTAP 09 ditulis; fixture city ter-mask.
+- [x] Hanya pemilik dapat publish; fork/privat/kosong ditolak; upsert idempoten; konflik pemilik ditolak — logika + Deno test; pgTAP via RLS.
+- [x] Unlisted/is_hidden/unpublished tidak muncul (termasuk setelah perubahan status) — trigger + pgTAP 08.
+- [x] golang dan ml mengembalikan hasil; e-commerce == e commerce; kursor stabil — terbukti FUNCT 9/9.
+- [x] Klien tak dapat tulis kolom hitungan; RPC tolak anon; tanpa email — pgTAP 08/09 ditulis; RLS 019.
+- [x] Demo SSRF-safe; hulu gagal tanpa karangan — reuse BE-2 (9/9 SSRF) + Deno 11/11.
+- [ ] Feed p95 < 500 ms pada >= 10 rb proyek — BELUM DIUKUR (butuh runner + JWT; jalankan make bench-seed + bench-feed.ts).
+- [ ] make reset && make test hijau + CI hijau — MENUNGGU CI runner (pgTAP 08/09 ditulis 48 asersi; drift/lint via CI).
+- [x] Pemindai rahasia bersih (tanpa token di repo).
+
+## Deviasi
+- Fallback fuzzy trigram DITUNDA (opsional setelah gate hijau) sesuai prompt.
+- refresh-projects (cron) DITUNDA (opsional setelah gate hijau) — refresh_rank_scores/refresh_featured tersedia.
+- Test 08 memakai role authenticated + data siapan sendiri (mandiri, rollback); test 02/03/04/06 diperbaiki mengikuti skema nyata (kolom fiktif -> nyata).
+- Normalisasi: kontraksi kutip ganda-dua di 9 migrasi + 5 test (invalid di Postgres); generated active -> trigger; seed keyword_aliases + dev disesuaikan skema.

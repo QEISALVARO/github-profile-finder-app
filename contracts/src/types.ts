@@ -34,6 +34,14 @@ import {
   DiscoverQuery as DiscoverQuerySchema,
   PipelineEntry as PipelineEntrySchema,
 } from "./talent.ts";
+import {
+  CityFacet as CityFacetSchema,
+  FeedRole as FeedRoleSchema,
+  MyRepoItem as MyRepoItemSchema,
+  MyReposPage as MyReposPageSchema,
+  PublishProjectInput as PublishProjectInputSchema,
+  PublishProjectResult as PublishProjectResultSchema,
+} from "./projects.ts";
 
 export type AnalysisVM = z.infer<typeof AnalysisVMSchema>;
 export type AnalyzeRequest = z.infer<typeof AnalyzeRequestSchema>;
@@ -41,6 +49,12 @@ export type Availability = z.infer<typeof AvailabilitySchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;
 export type CountryCode = z.infer<typeof CountryCodeSchema>;
 export type CountryFacet = z.infer<typeof CountryFacetSchema>;
+export type CityFacet = z.infer<typeof CityFacetSchema>;
+export type FeedRole = z.infer<typeof FeedRoleSchema>;
+export type MyRepoItem = z.infer<typeof MyRepoItemSchema>;
+export type MyReposPage = z.infer<typeof MyReposPageSchema>;
+export type PublishProjectInput = z.infer<typeof PublishProjectInputSchema>;
+export type PublishProjectResult = z.infer<typeof PublishProjectResultSchema>;
 export type DeveloperRef = z.infer<typeof DeveloperRefSchema>;
 export type DiscoverItem = z.infer<typeof DiscoverItemSchema>;
 export type DiscoverPage = z.infer<typeof DiscoverPageSchema>;

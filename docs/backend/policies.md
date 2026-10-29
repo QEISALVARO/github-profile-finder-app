@@ -40,6 +40,12 @@ Setiap tabel di skema `public` menerapkan RLS aktif dengan prinsip **DEFAULT DEN
 | **POL-5** | Retensi Lookup & Anti-Pelecehan | Pesan tidak bisa dikirim jika diblokir. Snapshot non-terdaftar kedaluwarsa dalam 24 jam dan analisis dalam 7 hari (`expires_at`), (Retensi snapshot/analisis + `purge_expired_lookups()` menyusul di BE-2.) | `supabase/tests/03_rls_policies.sql` |
 | **POL-6** | Akses Data Resmi Tanpa Scraping | Seluruh ingestion data GitHub wajib memakai API resmi (tanpa scraping HTML). (Implementasi GraphQL/REST menyusul di BE-2.) | - |
 | **POL-8** | Hak Penghapusan Akun (Right to Erasure) | Penghapusan akun berjenjang + pencabutan sesi (menyusul di BE-1, `delete-account`). | - |
+| **POL-1 (BE-3)** | Feed/featured/facet hanya visible; tulis langsung dicabut (D3) | 019_hardening, RPC definer | pgTAP 08 |
+| **POL-3 (BE-3)** | lim clamp 1-50, rate limit per endpoint, tanpa bulk | app_rate_limits + RPC | pgTAP 08 |
+| **POL-6 (BE-3)** | Ingestion repo via GraphQL resmi; demo SSRF-safe | github/*, ssrf, publish-project | Deno 11/11 |
+| **POL-8 (BE-3)** | Moderasi: report unik + rate limit; admin klaim JWT; audit_log default-deny | admin_set_project_hidden | pgTAP 09 |
+| **POL-9 (BE-3)** | Publish butuh negara (listed); kosongkan -> auto-unlist -> hilang | trigger sync + visible | pgTAP 08 |
+| **AIR-5 (BE-3)** | Tanpa atribut sensitif; role dari bahasa/manifest; facet = domisili | role.ts, FeedRole | kontrak + Deno |
 | **POL-9** | Keharusan Negara sebelum Terdaftar (Listed) | Trigger `BEFORE INSERT/UPDATE ON developer_settings` menolak `listed=true` jika `country_code` null (`POL9_COUNTRY_REQUIRED`). Trigger `AFTER UPDATE ON profiles` mematikan `listed=false` jika negara dihapus. Sinkronisasi `projects.country_code`. (Menyusul di BE-1: `pol9_triggers` + pgTAP `04_pol9_enforcement`.) | - |
 
 ---

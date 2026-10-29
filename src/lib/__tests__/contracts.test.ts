@@ -9,6 +9,7 @@ import { ErrorBody } from '../../../contracts/src/common';
 import { FeedPage, CountryFacet } from '../../../contracts/src/feed';
 import { DiscoverPage, PipelineEntry } from '../../../contracts/src/talent';
 import { Message, StartConversationInput } from '../../../contracts/src/chat';
+import { CityFacet, MyReposPage, PublishProjectResult } from '../../../contracts/src/projects';
 
 import analysisFixtures from '../../../contracts/fixtures/analysis_vm.json';
 import feedFixture from '../../../contracts/fixtures/feed_page.json';
@@ -17,6 +18,9 @@ import facetsFixture from '../../../contracts/fixtures/country_facets.json';
 import errorFixtures from '../../../contracts/fixtures/error_body.json';
 import startConversationFixture from '../../../contracts/fixtures/start_conversation.json';
 import messageFixture from '../../../contracts/fixtures/message.json';
+import cityFacetsFixture from '../../../contracts/fixtures/city_facets.json';
+import myReposFixture from '../../../contracts/fixtures/my_repos.json';
+import publishResultFixture from '../../../contracts/fixtures/publish_result.json';
 
 describe('contracts drift guard', () => {
   it('semua varian AnalysisVM lolos skema', () => {
@@ -66,5 +70,24 @@ describe('contracts drift guard', () => {
         updatedAt: new Date().toISOString(),
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('contracts BE-3 (projects)', () => {
+  it('CityFacet fixture lolos termasuk masker <5', () => {
+    for (const item of cityFacetsFixture as unknown[]) {
+      expect(CityFacet.safeParse(item).success).toBe(true);
+    }
+  });
+  it('MyReposPage fixture lolos (eligible + FORK)', () => {
+    const parsed = MyReposPage.safeParse(myReposFixture);
+    expect(parsed.success).toBe(true);
+  });
+  it('PublishProjectResult fixture lolos, stack = 100', () => {
+    const parsed = PublishProjectResult.safeParse(publishResultFixture);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.stack.reduce((s, x) => s + x.percent, 0)).toBe(100);
+    }
   });
 });
