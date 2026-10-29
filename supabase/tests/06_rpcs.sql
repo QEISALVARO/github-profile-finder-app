@@ -10,9 +10,9 @@ insert into auth.users (id, aud, role, email) values
   ('88888888-8888-4888-a888-888888888888', 'authenticated', 'authenticated', 'onboarding_rec@test.com')
 on conflict (id) do nothing;
 
-insert into public.profiles (id, github_login, roles) values
-  ('77777777-7777-4777-a777-777777777777', 'onboard_dev', '{}'),
-  ('88888888-8888-4888-a888-888888888888', 'onboard_rec', '{}')
+insert into public.profiles (id, github_id, login, github_login, roles) values
+  ('77777777-7777-4777-a777-777777777777', 999771, 'onboard_dev', 'onboard_dev', '{}'),
+  ('88888888-8888-4888-a888-888888888888', 999881, 'onboard_rec', 'onboard_rec', '{}')
 on conflict (id) do nothing;
 
 -- 1. Test onboarding sebagai developer

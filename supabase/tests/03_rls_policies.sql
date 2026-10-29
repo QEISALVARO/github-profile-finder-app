@@ -25,9 +25,9 @@ insert into public.developer_settings (user_id, listed, open_to_messages) values
   ('b2222222-2222-4222-a222-222222222222', false, false)
 on conflict (user_id) do nothing;
 
-insert into public.projects (id, owner_id, repo_id, repo_name, published, is_hidden, country_code) values
-  ('d1111111-1111-4111-a111-111111111111', 'a1111111-1111-4111-a111-111111111111', 101, 'user_a/repo-a', true, false, 'ID'),
-  ('d2222222-2222-4222-a222-222222222222', 'b2222222-2222-4222-a222-222222222222', 102, 'user_b/repo-b', true, false, 'SG')
+insert into public.projects (id, owner_id, github_repo_id, name, role, published, is_hidden, country_code) values
+  ('d1111111-1111-4111-a111-111111111111', 'a1111111-1111-4111-a111-111111111111', 101, 'repo-a', 'Back-End', true, false, 'ID'),
+  ('d2222222-2222-4222-a222-222222222222', 'b2222222-2222-4222-a222-222222222222', 102, 'repo-b', 'Back-End', true, false, 'SG')
 on conflict (id) do nothing;
 
 -- 1. Switch ke User C (Recruiter)
@@ -49,14 +49,14 @@ select is_empty(
 
 -- Test 3: User C bisa melihat project User A (karena listed & published & not hidden)
 select results_eq(
-  'select repo_name from public.projects where id = 'd1111111-1111-4111-a111-111111111111'',
-  array['user_a/repo-a'],
+  'select name from public.projects where id = 'd1111111-1111-4111-a111-111111111111'',
+  array['repo-a'],
   'Proyek milik developer listed dapat dilihat di feed'
 );
 
 -- Test 4: User C TIDAK bisa melihat project User B (karena owner listed=false)
 select is_empty(
-  'select repo_name from public.projects where id = 'd2222222-2222-4222-a222-222222222222'',
+  'select name from public.projects where id = 'd2222222-2222-4222-a222-222222222222'',
   'Proyek milik developer unlisted TIDAK DAPAT dilihat di feed'
 );
 

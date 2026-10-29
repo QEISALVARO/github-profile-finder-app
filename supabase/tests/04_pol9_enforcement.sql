@@ -13,8 +13,8 @@ insert into auth.users (id, aud, role, email) values
   ('f1111111-1111-4111-a111-111111111111', 'authenticated', 'authenticated', 'userf@test.com')
 on conflict (id) do nothing;
 
-insert into public.profiles (id, github_login, roles, country_code) values
-  ('f1111111-1111-4111-a111-111111111111', 'user_f', '{developer}', null)
+insert into public.profiles (id, github_id, login, github_login, roles, country_code) values
+  ('f1111111-1111-4111-a111-111111111111', 999001, 'user_f', 'user_f', '{developer}', null)
 on conflict (id) do update set country_code = null;
 
 -- Test 1: Mencoba set listed = true pada developer tanpa country_code WAJIB ditolak dengan POL9_COUNTRY_REQUIRED
@@ -42,9 +42,9 @@ select lives_ok(
   'Menyetel listed=true setelah country_code terisi harus berhasil'
 );
 
--- Siapkan proyek untuk user F
-insert into public.projects (id, owner_id, repo_id, repo_name, country_code) values
-  ('f2222222-2222-4222-a222-222222222222', 'f1111111-1111-4111-a111-111111111111', 201, 'user_f/my-project', 'ID')
+-- Siapkan proyek untuk user F (kolom mengikuti skema 006 nyata)
+insert into public.projects (id, owner_id, github_repo_id, name, role, country_code) values
+  ('f2222222-2222-4222-a222-222222222222', 'f1111111-1111-4111-a111-111111111111', 201, 'my-project', 'Back-End', 'ID')
 on conflict (id) do nothing;
 
 -- 3. Kosongkan country_code di profiles

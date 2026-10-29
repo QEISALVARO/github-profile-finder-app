@@ -22,16 +22,18 @@ select is_empty(
   'Anon tidak bisa membaca messages (default-deny)'
 );
 
--- 2. Peran authenticated biasa tidak boleh menulis ke tabel analyses (hanya service_role)
+-- 2. Peran authenticated biasa tidak boleh menulis ke tabel analyses (hanya service_role).
+-- Kolom memakai skema nyata (005+014): insert valid secara kolom sehingga
+-- penolakan yang terjadi benar-benar dari RLS, bukan dari kolom tak dikenal.
 set local role authenticated;
 set local "request.jwt.claim.sub" to '99999999-9999-4999-a999-999999999999';
 
 select throws_ok(
   $$
   insert into public.analyses (
-    github_login, score, authenticity, confidence, breakdown_json, metrics_json, heatmap_arr, repos_json
+    github_login, score_version, authenticity, confidence, breakdown, facts
   ) values (
-    'testuser', 85, 90, 95, '{}', '{}', array[1], '[]'
+    'testuser', 2, 85, 90, '{}', '{}'
   )
   $$,
   null,
