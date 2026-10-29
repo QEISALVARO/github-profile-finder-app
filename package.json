@@ -71,7 +71,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm test -- --ci"
   },
   "jest": {
     "preset": "jest-expo"

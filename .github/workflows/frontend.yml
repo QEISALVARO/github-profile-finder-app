@@ -1,0 +1,75 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, "feat/*", "chore/*", "fix/*"]
+    paths:
+      - "src/**"
+      - "package*.json"
+      - "tsconfig.json"
+      - "contracts/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "package*.json"
+      - "tsconfig.json"
+      - "contracts/**"
+      - ".github/workflows/frontend.yml"
+
+jobs:
+  frontend-check:
+    name: Typecheck, Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Secret Scan — no service role key in src/
+        run: |
+          echo "Memeriksa service_role key di direktori klien (src/)..."
+          if grep -rn "service_role" src/; then
+            echo "ERROR: Ditemukan referensi service_role di direktori klien!"
+            exit 1
+          fi
+          echo "Direktori klien bersih dari service_role key."
+
+      - name: Encoding check — no BOM, no stray Cyrillic in code
+        run: |
+          echo "Memeriksa BOM dan karakter Cyrillic nyasar..."
+          BOM_FILES=$(grep -rlP '^\xEF\xBB\xBF' src contracts supabase --include='*.ts' --include='*.tsx' --include='*.sql' --include='*.json' --include='*.toml' --include='*.md' 2>/dev/null || true)
+          if [ -n "$BOM_FILES" ]; then
+            echo "ERROR: berkas dengan BOM ditemukan:"
+            echo "$BOM_FILES"
+            exit 1
+          fi
+          if command -v rg >/dev/null 2>&1; then
+            CYR_FILES=$(rg -l -P '\p{Cyrillic}' src contracts supabase --glob '*.ts' --glob '*.tsx' --glob '*.sql' --glob '!*.md' 2>/dev/null || true)
+          else
+            CYR_FILES=$(grep -rlP '\p{Cyrillic}' src contracts supabase --include='*.ts' --include='*.tsx' --include='*.sql' 2>/dev/null || true)
+          fi
+          if [ -n "$CYR_FILES" ]; then
+            echo "ERROR: karakter Cyrillic nyasar di kode:"
+            echo "$CYR_FILES"
+            exit 1
+          fi
+          echo "Encoding bersih: tanpa BOM, tanpa Cyrillic nyasar."
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npx expo lint
+
+      - name: Test
+        run: npm test -- --ci
