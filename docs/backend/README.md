@@ -51,7 +51,7 @@ make down
 npx supabase start
 npx supabase db reset
 npx supabase test db
-npx supabase gen types typescript --local --schema public -o contracts/src/database.types.ts
+npx supabase gen types typescript --local --schema public > contracts/src/database.types.ts
 npx supabase stop
 ```
 
