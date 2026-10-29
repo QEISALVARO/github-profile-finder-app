@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { fallbackRepos, fallbackUser } from '@/data/seed';
+import type { AnalysisVM } from '../../contracts/src/types.ts';
 import type { Candidate, GithubRepo, GithubUser } from '@/types';
 import type { ThemeMode } from '@/theme/tokens';
 
@@ -82,8 +83,13 @@ interface AppState {
   user: GithubUser;
   repos: GithubRepo[];
   saved: boolean;
-  /** TODO(M3): replace with the real fetch + fallback flow (PRD §5.2). */
+  /** R2: target lama (adapter VM) + VM penuh dari BE untuk komponen nyata. */
   setAnalysisTarget: (user: GithubUser, repos: GithubRepo[]) => void;
+  /** AnalysisVM penuh dari Edge Function; null = belum ada analisis BE. */
+  analysisVm: AnalysisVM | null;
+  /** Banner stale (POL-5) — null berarti data fresh/cache tanpa peringatan. */
+  staleNotice: string | null;
+  setAnalysisVm: (vm: AnalysisVM | null, staleNotice?: string | null) => void;
   analysis: AnalysisProgress;
   setAnalysis: (patch: Partial<AnalysisProgress>) => void;
   resetAnalysis: () => void;
@@ -150,6 +156,9 @@ export const useAppStore = create<AppState>()(
       repos: fallbackRepos,
       saved: false,
       setAnalysisTarget: (user, repos) => set({ user, repos, saved: false }),
+      analysisVm: null,
+      staleNotice: null,
+      setAnalysisVm: (analysisVm, staleNotice = null) => set({ analysisVm, staleNotice }),
 
       analysis: { status: 'idle', step: null, progress: 0 },
       setAnalysis: (patch) =>

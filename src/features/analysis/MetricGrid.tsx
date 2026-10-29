@@ -10,17 +10,27 @@ export type MetricGridProps = {
   originalCount: number;
   repoCount: number;
   demoRatio: number;
+  /** Nilai BE (opsional — default = label v1 agar fixture lama tetap jalan). */
+  commitHealth?: 'Consistent' | 'Irregular' | 'Sporadic';
+  contributionDepth?: 'Deep' | 'Moderate' | 'Light';
 };
 
-/** FR-A6 — 2×2 metric grid (design.md §3.12). */
-export function MetricGrid({ originalRatio, originalCount, repoCount, demoRatio }: MetricGridProps) {
+/** FR-A6 — 2×2 metric grid (design.md §3.12). Nilai BE bila VM tersedia (PRD v2 §9.2). */
+export function MetricGrid({
+  originalRatio,
+  originalCount,
+  repoCount,
+  demoRatio,
+  commitHealth = 'Consistent',
+  contributionDepth = 'Deep',
+}: MetricGridProps) {
   const theme = useTheme();
 
   const metrics: { icon: IconName; label: string; value: string; sub: string }[] = [
     { icon: 'check', label: 'Original work', value: `${originalRatio}%`, sub: `${originalCount} of ${repoCount} repos` },
-    { icon: 'history', label: 'Commit health', value: 'Consistent', sub: 'Active this month' },
-    { icon: 'arrow', label: 'Live demos', value: `${demoRatio}%`, sub: 'Links detected' },
-    { icon: 'users', label: 'Contribution', value: 'Deep', sub: 'PRs & issues active' },
+    { icon: 'history', label: 'Commit health', value: commitHealth, sub: 'Active this month' },
+    { icon: 'arrow', label: 'Live demos', value: `${demoRatio}%`, sub: 'Links verified' },
+    { icon: 'users', label: 'Contribution', value: contributionDepth, sub: 'PRs & issues active' },
   ];
 
   return (

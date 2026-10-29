@@ -13,6 +13,7 @@ import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 
 import { useAuthStore } from '@/store/useAuthStore';
+import { DataProvider } from '@/providers/DataProvider';
 import { useTheme } from '@/theme/useTheme';
 
 // Keep the splash visible until fonts are loaded and the app is ready.
@@ -55,7 +56,9 @@ export default function RootLayout() {
       {/* Children render only after fonts resolve to avoid font flash;
           keep the splash up in the meantime. */}
       {fontsLoaded || fontError ? (
-        <RootNavigatorSlot />
+        <DataProvider>
+          <RootNavigatorSlot />
+        </DataProvider>
       ) : null}
     </ThemeProvider>
   );

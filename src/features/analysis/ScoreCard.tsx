@@ -6,22 +6,34 @@ import { T } from '@/components/ui/T';
 
 export type ScoreCardProps = {
   authenticity: number;
+  /** Confidence BE (0–100). Default 94 = label v1 sebelum R2. */
+  confidence?: number;
+  /** Tier BE — menentukan copy, bukan angka statis. */
+  tier?: 'high' | 'medium' | 'low';
 };
 
-/** FR-A5 — green authenticity card (design.md §3.11). */
-export function ScoreCard({ authenticity }: ScoreCardProps) {
+/** FR-A5 — green authenticity card (design.md §3.11). Copy mengikuti tier BE (PRD v2 §9.2). */
+export function ScoreCard({ authenticity, confidence = 94, tier = 'high' }: ScoreCardProps) {
+  const copy =
+    tier === 'high'
+      ? 'Original, active work'
+      : tier === 'medium'
+        ? 'Promising signals, verify evidence'
+        : 'Limited verifiable evidence';
   return (
     <Card variant="score" style={styles.card}>
       <ScoreRing value={authenticity} accessibilityLabel={`Skor keaslian ${authenticity} dari 100`} />
       <View style={styles.copy}>
         <T size={7} mono ls={1} color="onAccent">
-          HIGH CONFIDENCE
+          {`${confidence}% CONFIDENCE`}
         </T>
         <T size={14} weight="700" color="onAccent" style={styles.title}>
-          Original, active work
+          {copy}
         </T>
         <T size={8} lh={1.5} color="onAccent">
-          Aktivitas konsisten dan mayoritas repository bukan hasil fork.
+          {tier === 'high'
+            ? 'Aktivitas konsisten dan mayoritas repository bukan hasil fork.'
+            : 'Periksa evidence di bawah sebelum menghubungi kandidat.'}
         </T>
       </View>
     </Card>

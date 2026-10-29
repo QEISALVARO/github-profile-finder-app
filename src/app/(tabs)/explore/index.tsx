@@ -4,12 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { PageContainer } from '@/components/PageContainer';
 import { T } from '@/components/ui/T';
-import {
-  fallbackRepos,
-  feedProjects,
-  type FeedProject,
-  type GithubUser,
-} from '@/data/seed';
+import { feedProjects, type FeedProject } from '@/data/seed';
 import { FeedEmpty } from '@/features/feed/FeedEmpty';
 import { FeedFilters } from '@/features/feed/FeedFilters';
 import { FeedHeading } from '@/features/feed/FeedHeading';
@@ -18,26 +13,14 @@ import { ProjectCard } from '@/features/feed/ProjectCard';
 import { SearchBox } from '@/features/feed/SearchBox';
 import { SearchExamples } from '@/features/feed/SearchExamples';
 import { filterProjects } from '@/lib/feed';
+import {
+  ANALYZE_STALE_MESSAGE,
+  analyzeDeveloper,
+  analyzeErrorMessage,
+  vmToGithubRepos,
+  vmToGithubUser,
+} from '@/lib/analyze';
 import { useAppStore } from '@/store/useAppStore';
-
-/**
- * TODO(M3): replace with the fallback builder from PRD §5.2 (lib/github.ts).
- * Until the real fetch exists this keeps the Analysis screen fed with the
- * project's own developer data.
- */
-function fallbackUserFromProject(project: FeedProject): GithubUser {
-  return {
-    login: project.developer.login,
-    name: project.developer.name,
-    avatar_url: project.developer.avatar,
-    bio: project.description,
-    followers: project.stars,
-    following: 42,
-    public_repos: 18,
-    location: project.location,
-    html_url: `https://github.com/${project.developer.login}`,
-  };
-}
 
 /**
  * FR-E1…E9 — Project Discovery Feed. Order per design.md §4:
@@ -54,7 +37,9 @@ export default function ExploreScreen() {
   const error = useAppStore((s) => s.error);
   const loadingId = useAppStore((s) => s.loadingId);
   const setLoadingId = useAppStore((s) => s.setLoadingId);
+  const setError = useAppStore((s) => s.setError);
   const setAnalysisTarget = useAppStore((s) => s.setAnalysisTarget);
+  const setAnalysisVm = useAppStore((s) => s.setAnalysisVm);
 
   const filteredProjects = useMemo(
     () =>
@@ -67,23 +52,30 @@ export default function ExploreScreen() {
     [query, feedRole, feedLocation, recentOnly],
   );
 
-  // FR-E7 stub — M3 replaces the simulation with the real GitHub flow (§5.2).
+  // FR-E7 — Analyze via BE Edge Function (PRD v2 §8). Tanpa data palsu
+  // (POL-5): error upstream ditampilkan di slot FR-E9, Analysis tidak dibuka.
+  // Hasil stale tetap dibuka + banner stale di layar Analysis.
   const onAnalyze = useCallback(
     async (project: FeedProject) => {
       // Guard against double taps / taps on other cards while one is running.
       if (useAppStore.getState().loadingId !== null) return;
       setLoadingId(project.id);
+      setError('');
       try {
-        // TODO(M3): ganti dengan analyzeDeveloper (PRD §5.2).
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        // TODO(M3): ganti dengan hasil fetch user/repos + fallback (PRD §5.2).
-        setAnalysisTarget(fallbackUserFromProject(project), fallbackRepos);
+        const result = await analyzeDeveloper(project.developer.login);
+        if (result.error) {
+          setError(analyzeErrorMessage(result.error));
+          return;
+        }
+        const vm = result.data;
+        setAnalysisVm(vm, result.stale ? ANALYZE_STALE_MESSAGE : null);
+        setAnalysisTarget(vmToGithubUser(vm), vmToGithubRepos(vm));
         router.push('/explore/analysis');
       } finally {
         setLoadingId(null);
       }
     },
-    [router, setLoadingId, setAnalysisTarget],
+    [router, setLoadingId, setError, setAnalysisTarget, setAnalysisVm],
   );
 
   return (

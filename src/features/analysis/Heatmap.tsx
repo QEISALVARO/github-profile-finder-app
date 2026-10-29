@@ -21,7 +21,7 @@ function levelFor(index: number): number {
 }
 
 /** FR-A7 + D8 — 12×7 contribution heatmap (design.md §3.13). */
-export function Heatmap() {
+export function Heatmap({ values, yoyPct }: { values?: number[]; yoyPct?: number }) {
   const theme = useTheme();
   const [innerWidth, setInnerWidth] = useState(0);
 
@@ -31,6 +31,21 @@ export function Heatmap() {
 
   const columns = Array.from({ length: COLUMNS }, (_, col) => col);
 
+  // R2: data nyata dari AnalysisVM.heatmap (84 angka 0–4); fallback ke pola
+  // deterministik lama bila VM belum ada (belum dianalisis via BE).
+  const levelAt = (index: number): number => {
+    if (values && values.length === COLUMNS * ROWS) {
+      const v = values[index];
+      return typeof v === 'number' && v >= 0 && v <= 4 ? Math.round(v) : 0;
+    }
+    return levelFor(index);
+  };
+
+  const yoyLabel =
+    typeof yoyPct === 'number'
+      ? `${yoyPct >= 0 ? '+' : ''}${Math.round(yoyPct * 10) / 10}% vs last year`
+      : '+18% vs last year';
+
   return (
     <Card variant="heatmap">
       <View style={styles.gridWrap} onLayout={(e) => setInnerWidth(e.nativeEvent.layout.width)}>
@@ -39,7 +54,7 @@ export function Heatmap() {
             <View key={col} style={styles.column}>
               {Array.from({ length: ROWS }, (_, row) => {
                 const index = col * ROWS + row;
-                const level = levelFor(index);
+                const level = levelAt(index);
                 return (
                   <View
                     key={row}
@@ -74,9 +89,9 @@ export function Heatmap() {
             More
           </T>
         </View>
-        <T size={7} weight="700" color="greenText">
-          +18% vs last year
-        </T>
+          <T size={7} weight="700" color="greenText">
+            {yoyLabel}
+          </T>
       </View>
     </Card>
   );
