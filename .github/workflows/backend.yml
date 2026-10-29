@@ -95,9 +95,15 @@ jobs:
         with:
           version: 2.122.0
 
-      - name: Start Supabase Local Stack
+      - name: Diagnose Docker
         run: |
-          supabase start
+          docker info
+          df -h / | tail -n 1
+
+      - name: Start Supabase Local Stack
+        timeout-minutes: 25
+        run: |
+          supabase start 2>&1 | tail -n 40
 
       - name: Run Database Migrations & Seeds from scratch
         run: |
