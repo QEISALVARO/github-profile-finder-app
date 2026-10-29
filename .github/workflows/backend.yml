@@ -18,8 +18,8 @@ on:
       - "Makefile"
 
 jobs:
-  backend-test:
-    name: Database & Contracts Verification
+  backend-static:
+    name: Static Checks (no Docker)
     runs-on: ubuntu-latest
 
     steps:
@@ -29,14 +29,8 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
-          # Dikunci ke versi yang terverifikasi lokal (bukan v2.x mengambang)
-          # agar hasil CI deterministik dan dapat direproduksi.
+          # Dikunci agar deterministik (bukan v2.x mengambang).
           deno-version: v2.9.8
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: 2.122.0
 
       - name: Secret Scan — no service role key in src/
         run: |
@@ -71,12 +65,35 @@ jobs:
       - name: Deno check contracts
         run: |
           deno check --frozen --config contracts/deno.json contracts/src/*.ts
+
       - name: Deno check functions
         run: |
           # Workspace backend: supabase/deno.json + supabase/deno.lock
-          # (tanpa dependensi Expo dari package.json root). Dijalankan dari
-          # root agar path sama dengan langkah lain; --config menunjuk workspace.
+          # (tanpa dependensi Expo dari package.json root).
           deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts
+
+      - name: Run Deno Contract & Function Tests
+        run: |
+          deno test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/
+          deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/
+
+  backend-db:
+    name: Database & Contracts Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
 
       - name: Start Supabase Local Stack
         run: |
@@ -89,11 +106,6 @@ jobs:
       - name: Run pgTAP Database Tests (RLS, POL-9, RPCs)
         run: |
           supabase test db
-
-      - name: Run Deno Contract & Function Tests
-        run: |
-          deno test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/
-          deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/
 
       - name: Check Database Types Drift
         run: |
