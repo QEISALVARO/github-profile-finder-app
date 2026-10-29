@@ -1,6 +1,20 @@
 # contracts/CHANGELOG.md
 
 
+## v0.2.0 — 2026-10-29 (BE-3, PR chore/contracts-projects)
+
+### Projects contracts (FE–BE agreement, ditinjau FE + BE)
+
+- Baru: `contracts/src/projects.ts` — `FeedRole`, `MyRepoItem`, `MyReposPage`,
+  `PublishProjectInput`, `PublishProjectResult`, `CityFacet` (persis Lampiran A
+  prompt BE-3; impor `.ts` eksplisit mengikuti keputusan stabilisasi).
+- `contracts/src/types.ts`: ekspor z.infer untuk keenam skema baru.
+- Fixture baru: `city_facets.json` (CityFacet incl. `"<5"`), `my_repos.json`
+  (eligible + FORK), `publish_result.json` (stack jumlah 100).
+- Test: 7 kasus baru di `schema_test.ts` (parse fixture + penolakan input
+  buruk: repoId negatif, demoUrl bukan URL, role/ineligibleReason di luar enum).
+- Kode error memakai `ErrorCode` yang ada (tanpa enum baru).
+
 ## v0.1.1 — 2026-10-29 (PR #1 fix)
 
 ### Explicit `.ts` relative imports (Deno-strict)

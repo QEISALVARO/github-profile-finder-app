@@ -1,0 +1,17 @@
+[
+  {
+    "_description": "Jakarta, count besar",
+    "city": "Jakarta",
+    "count": 18
+  },
+  {
+    "_description": "Bandung, count kecil (masking)",
+    "city": "Bandung",
+    "count": "<5"
+  },
+  {
+    "_description": "Surabaya",
+    "city": "Surabaya",
+    "count": 7
+  }
+]
