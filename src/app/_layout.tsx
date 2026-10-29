@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 
+import { QueryProvider } from '@/api/queries/client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTheme } from '@/theme/useTheme';
 
@@ -52,11 +53,13 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={themedNav}>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-      {/* Children render only after fonts resolve to avoid font flash;
-          keep the splash up in the meantime. */}
-      {fontsLoaded || fontError ? (
-        <RootNavigatorSlot />
-      ) : null}
+      {/* FE-2 — one QueryClient for the whole app; sits above the router so
+          every screen shares the same cache. */}
+      <QueryProvider>
+        {/* Children render only after fonts resolve to avoid font flash;
+            keep the splash up in the meantime. */}
+        {fontsLoaded || fontError ? <RootNavigatorSlot /> : null}
+      </QueryProvider>
     </ThemeProvider>
   );
 }

@@ -18,8 +18,11 @@ import { createJSONStorage, persist } from 'zustand/middleware';
  * - §11A   `targetCountries` recruiter; kosong = semua negara.
  */
 
+import { AVAILABILITY_LABELS, type Availability } from '@/lib/availability';
+
 export type UserRole = 'developer' | 'recruiter';
-export type Availability = 'open_to_work' | 'freelance' | 'not_available';
+export type { Availability };
+export { AVAILABILITY_LABELS };
 export type CountrySource = 'self' | 'inferred';
 
 export interface AuthSession {
@@ -30,12 +33,6 @@ export interface AuthSession {
   bio: string | null;
   locationText: string | null;
 }
-
-export const AVAILABILITY_LABELS: Record<Availability, string> = {
-  open_to_work: 'Open to work',
-  freelance: 'Open for freelance',
-  not_available: 'Not available',
-};
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   developer: 'Developer',

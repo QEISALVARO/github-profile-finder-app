@@ -1,6 +1,12 @@
 // ---------------------------------------------------------------------------
 // PRD §5.2 — GitHub REST fetching + fallback. Pure data layer: it never touches
-// the store, router or UI state (that wiring is M3c). No auth token (PRD §10).
+// the store, router or UI state. No auth token (PRD §10).
+//
+// @deprecated — dihapus di R2. Everything that talks to `api.github.com` from
+// the client (`API_BASE`, `fetchProfile`, `fetchRepos`, `analyzeDeveloper`)
+// is replaced by the `analysis` adapter (src/api/analysis) + the
+// `analyze-developer` Edge Function (PRD v2 §8.1). The UI must not call these.
+// `buildFallback` stays: it is a pure, offline helper.
 // ---------------------------------------------------------------------------
 
 import type { FeedProject, GithubRepo, GithubUser } from '@/types';
@@ -21,6 +27,7 @@ export type AnalyzeDeps = {
   timeoutMs?: number;
 };
 
+/** @deprecated — dihapus di R2 (lihat catatan modul di atas). */
 const API_BASE = 'https://api.github.com';
 const REPOS_PER_PAGE = 12;
 const MAX_REPOS = 8;
@@ -30,6 +37,7 @@ const HEADERS = { Accept: 'application/vnd.github+json' } as const;
 
 export const PROFILE_NOT_FOUND_MESSAGE = 'Profil tidak ditemukan. Periksa kembali username.';
 
+/** @deprecated — dihapus di R2; pakai adapter `analysis`. */
 export async function fetchProfile(login: string, deps: FetchDeps = {}): Promise<GithubUser> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const response = await fetchImpl(`${API_BASE}/users/${encodeURIComponent(login)}`, {
@@ -42,7 +50,8 @@ export async function fetchProfile(login: string, deps: FetchDeps = {}): Promise
   return (await response.json()) as GithubUser;
 }
 
-/** Non-ok repos response → `[]`, never a throw (PRD §5.2 step 4). */
+/** Non-ok repos response → `[]`, never a throw (PRD §5.2 step 4).
+ *  @deprecated — dihapus di R2; pakai adapter `analysis`. */
 export async function fetchRepos(login: string, deps: FetchDeps = {}): Promise<GithubRepo[]> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const response = await fetchImpl(
@@ -89,6 +98,8 @@ export function buildFallback(project: FeedProject): { user: GithubUser; repos: 
  * Fetch profile + repos in parallel with a shared AbortController. NEVER
  * throws — any failure (network, timeout, 403, 404, bad JSON) resolves to
  * the project fallback (PRD §5.2 step 5).
+ *
+ * @deprecated — dihapus di R2; pakai adapter `analysis`.
  */
 export async function analyzeDeveloper(
   project: FeedProject,

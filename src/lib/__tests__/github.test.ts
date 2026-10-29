@@ -1,3 +1,7 @@
+// Coverage for the @deprecated GitHub fetch helpers in src/lib/github.ts.
+// `api.github.com` appears in the source tree only inside that @deprecated
+// module and in this file, where `fetch` is mocked — no request ever leaves
+// the test process.
 import { feedProjects } from '@/data/seed';
 import type { GithubRepo, GithubUser } from '@/types';
 import {

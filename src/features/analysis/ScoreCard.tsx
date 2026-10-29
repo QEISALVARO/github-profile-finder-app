@@ -3,13 +3,19 @@ import { StyleSheet, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { ScoreRing } from '@/components/ui/ScoreRing';
 import { T } from '@/components/ui/T';
+import type { AnalysisVM } from '@/api/analysis';
 
 export type ScoreCardProps = {
-  authenticity: number;
+  /** FE-2 — the card renders the AnalysisVM, never a raw GitHub payload. */
+  vm: AnalysisVM;
 };
 
-/** FR-A5 — green authenticity card (design.md §3.11). */
-export function ScoreCard({ authenticity }: ScoreCardProps) {
+/**
+ * FR-A5 — green authenticity card (design.md §3.11).
+ * The copy below it stays verbatim from PRD §5.3 (static in v1).
+ */
+export function ScoreCard({ vm }: ScoreCardProps) {
+  const authenticity = vm.authenticity;
   return (
     <Card variant="score" style={styles.card}>
       <ScoreRing value={authenticity} accessibilityLabel={`Skor keaslian ${authenticity} dari 100`} />

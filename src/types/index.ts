@@ -38,6 +38,15 @@ export type Candidate = {
   avatar: string;
   stage: 'Saved' | 'Interviewing' | 'Hired';
   availability: string;
+  /**
+   * PRD v2 §11A — ISO 3166-1 alpha-2 of the declared country of residence.
+   * `null` = unknown; such candidates never pass an active country filter
+   * (POL-9). Added compatibly: existing fixtures without the field behave as
+   * "no country declared".
+   */
+  countryCode?: string | null;
+  /** City within `countryCode`, shown next to the flag on cards. */
+  city?: string | null;
 };
 
 export type FeedProject = {

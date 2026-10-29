@@ -3,11 +3,15 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { PageContainer } from '@/components/PageContainer';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Icon } from '@/components/ui/Icon';
 import { SectionHeading } from '@/components/ui/SectionHeading';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { StaleBanner } from '@/components/ui/StaleBanner';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
-import { deriveAnalysis } from '@/lib/scoring';
+import { useAnalysis, useExportReport } from '@/api/queries';
+import { vmToGithubUser } from '@/api/analysis';
 import { openGithubUrl } from '@/lib/links';
 import { MetricGrid } from '@/features/analysis/MetricGrid';
 import { Heatmap } from '@/features/analysis/Heatmap';
@@ -19,22 +23,24 @@ import { useAppStore } from '@/store/useAppStore';
 import { useTheme } from '@/theme/useTheme';
 
 /**
- * FR-A1…A8 — Developer Intelligence screen. Reads `user`/`repos`/`saved`
- * from the store (filled by M3c's analyze flow or the /dev fixtures) and
- * derives every displayed value through the pure `deriveAnalysis` helper.
+ * FR-A1…A8 — Developer Intelligence screen.
+ *
+ * FE-2: the screen reads an `AnalysisVM` through `useAnalysis` (mock/api
+ * adapter chosen by `EXPO_PUBLIC_DS_ANALYSIS`), rendering a skeleton while it
+ * loads, `ErrorState` when the adapter fails and `StaleBanner` when the VM
+ * reports cached-but-aged data.
  */
 export default function AnalysisScreen() {
   const theme = useTheme();
 
-  // Granular selectors — the screen re-renders only when these change.
-  const user = useAppStore((s) => s.user);
-  const repos = useAppStore((s) => s.repos);
+  const target = useAppStore((s) => s.analysisTarget);
   const saved = useAppStore((s) => s.saved);
   const setSaved = useAppStore((s) => s.setSaved);
   const openChat = useAppStore((s) => s.openChat);
   const showNotice = useAppStore((s) => s.showNotice);
 
-  const analysis = useMemo(() => deriveAnalysis(user, repos), [user, repos]);
+  const { vm, isLoading, error, isStale, staleSince, refetch } = useAnalysis(target);
+  const exportReport = useExportReport();
 
   // FR-A1 — view-in: 250 ms ease, translateX 12 → 0 + opacity 0 → 1.
   // `useState` (not `useRef`) keeps the Animated.Value stable across renders
@@ -72,6 +78,18 @@ export default function AnalysisScreen() {
     }
   };
 
+  const handleExport = () => {
+    if (!vm) return;
+    exportReport.mutate(
+      { login: vm.user.login, score: vm.authenticity },
+      {
+        onSuccess: () => showNotice('PDF report berhasil dibuat'),
+        onError: (exportError) =>
+          showNotice(exportError instanceof Error ? exportError.message : 'Export gagal'),
+      },
+    );
+  };
+
   return (
     <PageContainer paddingTop={27}>
       <Animated.View style={animatedStyle}>
@@ -101,65 +119,87 @@ export default function AnalysisScreen() {
           </T>
         </View>
 
-        <ProfileCard
-          user={user}
-          role={analysis.role}
-          primary={analysis.primary}
-          saved={saved}
-          onToggleSaved={() => setSaved(!saved)}
-          // TODO(M5) — ChatSheet UI lands in M5; openChat only sets state now.
-          onMessage={() => openChat('', user)}
-          onExport={() => showNotice('PDF report berhasil dibuat')}
-        />
+        {isLoading ? <AnalysisSkeleton /> : null}
 
-        <SectionHeading
-          eyebrow="ROLE INTELLIGENCE"
-          title="Skill fingerprint"
-          rightVariant="mono-note"
-          note="94% CONFIDENCE"
-        />
-        <SkillCard role={analysis.role} stats={analysis.stats} />
-
-        <SectionHeading
-          eyebrow="PROJECT VALIDATION"
-          title="Authenticity analysis"
-          rightVariant="verified-label"
-          verifiedLabel="VERIFIED"
-        />
-        <ScoreCard authenticity={analysis.authenticity} />
-        <MetricGrid
-          originalRatio={analysis.originalRatio}
-          originalCount={analysis.originalCount}
-          repoCount={repos.length}
-          demoRatio={analysis.demoRatio}
-        />
-
-        <SectionHeading
-          eyebrow="CONTRIBUTION ACTIVITY"
-          title="12 month momentum"
-          rightVariant="mono-note"
-          note="642 contributions"
-        />
-        <Heatmap />
-
-        <SectionHeading
-          eyebrow="VERIFIED PROJECTS"
-          title="Evidence, not claims"
-          rightVariant="view-all"
-          viewAllLabel="View all"
-          onPressViewAll={() => openGithubUrl(`${user.html_url}?tab=repositories`)}
-        />
-        {repos.slice(0, 3).map((repo) => (
-          <VerifiedRepoCard
-            key={repo.id}
-            repo={repo}
-            authenticity={analysis.authenticity}
-            // TODO(M5) — ChatSheet UI lands in M5; openChat only sets state now.
-            onDiscuss={(repoName) => openChat(repoName, user)}
+        {!isLoading && vm === null ? (
+          <ErrorState
+            title="Analisis gagal dimuat"
+            message={
+              error?.message ??
+              'Terjadi kesalahan saat mengambil data analisis. Coba lagi.'
+            }
+            onRetry={refetch}
+            retryLabel="Coba lagi"
           />
-        ))}
+        ) : null}
+
+        {vm ? (
+          <>
+            {isStale ? <StaleBanner since={staleSince} onReload={refetch} /> : null}
+
+            <ProfileCard
+              vm={vm}
+              saved={saved}
+              onToggleSaved={() => setSaved(!saved)}
+              onMessage={() => openChat('', vmToGithubUser(vm))}
+              onExport={handleExport}
+            />
+
+            <SectionHeading
+              eyebrow="ROLE INTELLIGENCE"
+              title="Skill fingerprint"
+              rightVariant="mono-note"
+              note={`${vm.confidence}% CONFIDENCE`}
+            />
+            <SkillCard vm={vm} />
+
+            <SectionHeading
+              eyebrow="PROJECT VALIDATION"
+              title="Authenticity analysis"
+              rightVariant="verified-label"
+              verifiedLabel="VERIFIED"
+            />
+            <ScoreCard vm={vm} />
+            <MetricGrid vm={vm} />
+
+            <Heatmap values={vm.heatmap} contributions={vm.metrics.contributions12m} />
+
+            <SectionHeading
+              eyebrow="VERIFIED PROJECTS"
+              title="Evidence, not claims"
+              rightVariant="view-all"
+              viewAllLabel="View all"
+              onPressViewAll={() => openGithubUrl(`${vm.user.htmlUrl}?tab=repositories`)}
+            />
+            {vm.repos.slice(0, 3).map((repo) => (
+              <VerifiedRepoCard
+                key={repo.id}
+                repo={repo}
+                onDiscuss={(repoName) => openChat(repoName, vmToGithubUser(vm))}
+              />
+            ))}
+          </>
+        ) : null}
       </Animated.View>
     </PageContainer>
+  );
+}
+
+/** Loading state — mirrors the final layout so nothing jumps when data lands. */
+function AnalysisSkeleton() {
+  return (
+    <View style={styles.skeleton}>
+      <Skeleton width="45%" height={10} />
+      <Skeleton width="70%" height={24} />
+      <Skeleton height={168} radius={20} />
+      <Skeleton width="40%" height={12} />
+      <Skeleton height={132} radius={17} />
+      <Skeleton height={132} radius={17} />
+      <Skeleton height={180} radius={17} />
+      <Skeleton width="45%" height={12} />
+      <Skeleton height={92} radius={15} />
+      <Skeleton height={92} radius={15} />
+    </View>
   );
 }
 
@@ -185,5 +225,8 @@ const styles = StyleSheet.create({
   heroTitle: {
     marginTop: 4,
     marginBottom: 4,
+  },
+  skeleton: {
+    gap: 14,
   },
 });

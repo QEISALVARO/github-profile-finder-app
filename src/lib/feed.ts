@@ -35,6 +35,25 @@ export function filterProjects(projects: FeedProject[], f: FeedFilters): FeedPro
 }
 
 // ---------------------------------------------------------------------------
+// Proof-row demo label (FR-E6/E7).
+//
+// The seed stores a display label ("Play Store", "Vercel"), while the API
+// contract carries a URL in `FeedItem.demoUrl`. Both shapes render here: a
+// plain label passes through, a URL is reduced to its host. The link target
+// itself stays `https://github.com/{login}` (FR-E7).
+// ---------------------------------------------------------------------------
+
+export function demoLabel(demoUrl: string | null): string | null {
+  if (!demoUrl) return null;
+  if (!/^https?:\/\//i.test(demoUrl)) return demoUrl;
+  return demoUrl
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .split('/')[0]
+    .split('?')[0];
+}
+
+// ---------------------------------------------------------------------------
 // compactNumber — `Intl.NumberFormat` compact notation, with a verified manual
 // fallback because Hermes builds ship without compact notation support.
 // ---------------------------------------------------------------------------

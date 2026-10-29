@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import type { FeedItem } from '@/api/contracts';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -10,8 +11,8 @@ import { Loader } from '@/components/ui/Loader';
 import { ScoreCircle } from '@/components/ui/ScoreRing';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
-import type { FeedProject } from '@/data/seed';
-import { compactNumber } from '@/lib/feed';
+import { availabilityLabel } from '@/lib/availability';
+import { compactNumber, demoLabel } from '@/lib/feed';
 import { openGithubUrl } from '@/lib/links';
 import { useTheme } from '@/theme/useTheme';
 
@@ -21,13 +22,14 @@ const ANALYZE_MIN_WIDTH = 71;
 const ANALYZE_HEIGHT = 32;
 
 export type ProjectCardProps = {
-  project: FeedProject;
+  /** FE-2 — the card renders a contract `FeedItem` from `useFeed`. */
+  item: FeedItem;
   index: number;
   /** D2 — true only for the card that is running Analyze. */
   loading: boolean;
   /** D2 — true while another card is loading (blocks this one's button). */
   disabled: boolean;
-  onAnalyze: (project: FeedProject) => void;
+  onAnalyze: (item: FeedItem) => void;
 };
 
 /**
@@ -36,14 +38,17 @@ export type ProjectCardProps = {
  * so every prop here is primitive or a stable callback (PRD §10).
  */
 export function ProjectCardComponent({
-  project,
+  item,
   index,
   loading,
   disabled,
   onAnalyze,
 }: ProjectCardProps) {
   const theme = useTheme();
-  const demoUrl = `https://github.com/${project.developer.login}`;
+  const developer = item.developer;
+  const demoUrl = `https://github.com/${developer.login}`;
+  const demo = demoLabel(item.demoUrl);
+  const location = item.city ?? '';
   const analyzeDisabled = disabled || loading;
 
   return (
@@ -62,7 +67,7 @@ export function ProjectCardComponent({
         {/* D7 — badge stays "VERIFIED ACTIVE" even for active:false projects. */}
         <Badge variant="verified">VERIFIED ACTIVE</Badge>
 
-        <ScoreCircle value={project.score} size={35} style={styles.score} />
+        <ScoreCircle value={item.score} size={35} style={styles.score} />
       </View>
 
       <View style={styles.titleRow}>
@@ -75,21 +80,21 @@ export function ProjectCardComponent({
         </View>
         <View style={styles.titleColumn}>
           <T variant="titleCard" style={styles.title} numberOfLines={1}>
-            {project.name}
+            {item.name}
           </T>
           <T size={8} color="muted" lh={1.55}>
-            {project.description}
+            {item.description}
           </T>
         </View>
       </View>
 
       <View style={styles.stackRow}>
         <Chip variant="accent" size={6} weight="700">
-          {project.role}
+          {item.role}
         </Chip>
-        {project.stack.map((tech) => (
-          <Chip key={tech} variant="default" size={6}>
-            {tech}
+        {item.stack.map((tech) => (
+          <Chip key={tech.name} variant="default" size={6}>
+            {tech.percent > 0 ? `${tech.name} ${tech.percent}%` : tech.name}
           </Chip>
         ))}
       </View>
@@ -100,23 +105,25 @@ export function ProjectCardComponent({
           Original work
         </T>
 
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Buka ${demoUrl}`}
-          android_ripple={{ color: 'transparent' }}
-          hitSlop={hitSlopFor(90, 24)}
-          onPress={() => openGithubUrl(demoUrl)}
-          style={({ pressed }) => [styles.demoLink, pressed && styles.pressed]}>
-          <View style={[styles.demoDot, { backgroundColor: theme.colors.accent }]} />
-          <T size={7} color="greenText">
-            {project.demo}
-          </T>
-        </Pressable>
+        {demo ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Buka ${demoUrl}`}
+            android_ripple={{ color: 'transparent' }}
+            hitSlop={hitSlopFor(90, 24)}
+            onPress={() => openGithubUrl(demoUrl)}
+            style={({ pressed }) => [styles.demoLink, pressed && styles.pressed]}>
+            <View style={[styles.demoDot, { backgroundColor: theme.colors.accent }]} />
+            <T size={7} color="greenText">
+              {demo}
+            </T>
+          </Pressable>
+        ) : null}
 
         <View style={styles.stars}>
           <Icon name="star" size={12} color={theme.colors.muted} />
           <T size={7} color="muted">
-            {compactNumber(project.stars)}
+            {compactNumber(item.stars)}
           </T>
         </View>
       </View>
@@ -124,40 +131,40 @@ export function ProjectCardComponent({
       <View style={[styles.devRow, { borderTopColor: theme.colors.line }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Analisis ${project.developer.name}`}
+          accessibilityLabel={`Analisis ${developer.name}`}
           android_ripple={{ color: 'transparent' }}
           disabled={analyzeDisabled}
           hitSlop={hitSlopFor(200, 44)}
-          onPress={() => onAnalyze(project)}
+          onPress={() => onAnalyze(item)}
           style={({ pressed }) => [styles.devInfo, pressed && styles.pressed]}>
           <Avatar
-            uri={project.developer.avatar}
-            name={project.developer.name}
-            login={project.developer.login}
+            uri={developer.avatarUrl}
+            name={developer.name}
+            login={developer.login}
             size={AVATAR_SIZE}
             radius={10}
             dot
           />
           <View style={styles.devColumn}>
             <T size={9} weight="700" numberOfLines={1} style={styles.devName}>
-              {project.developer.name}
+              {developer.name}
             </T>
             <T size={6} color="muted" numberOfLines={1}>
-              {`@${project.developer.login} · ${project.location}`}
+              {`@${developer.login} · ${location}`}
             </T>
             <T size={6} weight="700" color="greenText" style={styles.availability}>
-              {project.developer.availability}
+              {availabilityLabel(developer.availability)}
             </T>
           </View>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Analyze ${project.developer.name}`}
+          accessibilityLabel={`Analyze ${developer.name}`}
           android_ripple={{ color: 'transparent' }}
           disabled={analyzeDisabled}
           hitSlop={hitSlopFor(ANALYZE_MIN_WIDTH, ANALYZE_HEIGHT)}
-          onPress={() => onAnalyze(project)}
+          onPress={() => onAnalyze(item)}
           style={({ pressed }) => [
             styles.analyzeButton,
             { backgroundColor: theme.colors.accent },
@@ -165,7 +172,7 @@ export function ProjectCardComponent({
             pressed && styles.pressed,
           ]}>
           {loading ? (
-            <Loader size={13} accessibilityLabel={`Menganalisis ${project.name}`} />
+            <Loader size={13} accessibilityLabel={`Menganalisis ${item.name}`} />
           ) : (
             <>
               <T size={7} weight="800" color="onAccent">

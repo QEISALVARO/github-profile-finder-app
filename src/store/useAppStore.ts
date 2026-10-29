@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { fallbackRepos, fallbackUser } from '@/data/seed';
 import type { Candidate, GithubRepo, GithubUser } from '@/types';
+import type { AnalysisTarget, AnalysisVM } from '@/api/analysis/types';
 import type { ThemeMode } from '@/theme/tokens';
 
 // ---------------------------------------------------------------------------
@@ -67,8 +68,8 @@ interface AppState {
   error: string;
   setError: (error: string) => void;
   /** D2 — id of the card currently running Analyze, null = none. */
-  loadingId: number | null;
-  setLoadingId: (id: number | null) => void;
+  loadingId: string | null;
+  setLoadingId: (id: string | null) => void;
   /** FR-E8 — resets query/role/location/recentOnly, never error/loadingId. */
   resetFeedFilters: () => void;
 
@@ -111,6 +112,15 @@ interface AppState {
   setSaved: (saved: boolean) => void;
   openChat: (project?: string, person?: ChatPerson | null) => void;
   showNotice: (notice: string) => void;
+
+  // --- FE-2 — analysis data source -----------------------------------------
+  /** Developer the Analysis screen resolves through `useAnalysis`. */
+  analysisTarget: AnalysisTarget;
+  /** Set by the tapped card (feed Analyze / talent D1). Null → octocat. */
+  openAnalysis: (target: AnalysisTarget) => void;
+  /** /dev fixtures inject a prebuilt VM; normal flow leaves it null. */
+  analysisOverride: AnalysisVM | null;
+  setAnalysisOverride: (vm: AnalysisVM | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -200,6 +210,15 @@ export const useAppStore = create<AppState>()(
       openChat: (project = '', person = null) =>
         set({ chat: { open: true, project, person } }),
       showNotice: (notice) => set({ notice }),
+
+      // FE-2 — Analysis reads `analysisTarget` through `useAnalysis`, which
+      // resolves it against the mock/api adapter instead of a global
+      // user/repos pair.
+      analysisTarget: { login: null, person: null, project: null },
+      openAnalysis: (analysisTarget) =>
+        set({ analysisTarget, analysisOverride: null }),
+      analysisOverride: null,
+      setAnalysisOverride: (analysisOverride) => set({ analysisOverride }),
     }),
     {
       name: 'gitscope',

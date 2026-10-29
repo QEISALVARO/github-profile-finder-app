@@ -276,10 +276,10 @@ export const seedDevelopers: SeedDeveloper[] = [
 ];
 
 export const candidates: Candidate[] = [
-  { login: 'sindresorhus', name: 'Sindre Sorhus', role: 'Front-End', language: 'TypeScript', location: 'Oslo', score: 96, avatar: 'https://github.com/sindresorhus.png', stage: 'Interviewing', availability: 'Open to work' },
-  { login: 'yyx990803', name: 'Evan You', role: 'Front-End', language: 'TypeScript', location: 'Singapore', score: 94, avatar: 'https://github.com/yyx990803.png', stage: 'Saved', availability: 'Freelance' },
-  { login: 'cassidoo', name: 'Cassidy Williams', role: 'Full-Stack', language: 'JavaScript', location: 'Chicago', score: 91, avatar: 'https://github.com/cassidoo.png', stage: 'Saved', availability: 'Open to work' },
-  { login: 'gaearon', name: 'Dan Abramov', role: 'Front-End', language: 'JavaScript', location: 'London', score: 89, avatar: 'https://github.com/gaearon.png', stage: 'Hired', availability: 'Not available' },
+  { login: 'sindresorhus', name: 'Sindre Sorhus', role: 'Front-End', language: 'TypeScript', location: 'Oslo', score: 96, avatar: 'https://github.com/sindresorhus.png', stage: 'Interviewing', availability: 'Open to work', countryCode: 'NO', city: 'Oslo' },
+  { login: 'yyx990803', name: 'Evan You', role: 'Front-End', language: 'TypeScript', location: 'Singapore', score: 94, avatar: 'https://github.com/yyx990803.png', stage: 'Saved', availability: 'Freelance', countryCode: 'SG', city: 'Singapore' },
+  { login: 'cassidoo', name: 'Cassidy Williams', role: 'Full-Stack', language: 'JavaScript', location: 'Chicago', score: 91, avatar: 'https://github.com/cassidoo.png', stage: 'Saved', availability: 'Open to work', countryCode: 'US', city: 'Chicago' },
+  { login: 'gaearon', name: 'Dan Abramov', role: 'Front-End', language: 'JavaScript', location: 'London', score: 89, avatar: 'https://github.com/gaearon.png', stage: 'Hired', availability: 'Not available', countryCode: 'GB', city: 'London' },
 ];
 
 export const feedProjects: FeedProject[] = [
