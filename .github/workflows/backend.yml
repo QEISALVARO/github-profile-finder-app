@@ -1,0 +1,102 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, "feat/be-*"]
+    paths:
+      - "supabase/**"
+      - "contracts/**"
+      - "scripts/backend/**"
+      - ".github/workflows/backend.yml"
+      - "Makefile"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "contracts/**"
+      - "scripts/backend/**"
+      - ".github/workflows/backend.yml"
+      - "Makefile"
+
+jobs:
+  backend-test:
+    name: Database & Contracts Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+
+      - name: Secret Scan — no service role key in src/
+        run: |
+          echo "Memeriksa service_role key di direktori klien (src/)..."
+          if grep -rn "service_role\|SUPABASE_SERVICE_ROLE_KEY\|GITHUB_API_TOKEN" src/ --include='*.ts' --include='*.tsx'; then
+            echo "ERROR: Ditemukan referensi service_role/token di direktori klien!"
+            exit 1
+          fi
+          echo "Direktori klien bersih dari service_role key."
+
+      - name: Encoding check — no BOM, no stray Cyrillic
+        run: |
+          echo "Memeriksa BOM dan karakter Cyrillic nyasar..."
+          BOM_FILES=$(grep -rlP '^\xEF\xBB\xBF' supabase contracts scripts Makefile 2>/dev/null || true)
+          if [ -n "$BOM_FILES" ]; then
+            echo "ERROR: berkas dengan BOM ditemukan:"
+            echo "$BOM_FILES"
+            exit 1
+          fi
+          if command -v rg >/dev/null 2>&1; then
+            CYR_FILES=$(rg -l -P '\p{Cyrillic}' supabase contracts scripts --glob '*.ts' --glob '*.sql' --glob '!*.md' 2>/dev/null || true)
+          else
+            CYR_FILES=$(grep -rlP '\p{Cyrillic}' supabase contracts scripts --include='*.ts' --include='*.sql' 2>/dev/null || true)
+          fi
+          if [ -n "$CYR_FILES" ]; then
+            echo "ERROR: karakter Cyrillic nyasar di kode backend:"
+            echo "$CYR_FILES"
+            exit 1
+          fi
+          echo "Encoding bersih: tanpa BOM, tanpa Cyrillic nyasar."
+
+      - name: Deno check contracts
+        run: |
+          deno check contracts/src/*.ts
+
+      - name: Start Supabase Local Stack
+        run: |
+          supabase start
+
+      - name: Run Database Migrations & Seeds from scratch
+        run: |
+          supabase db reset
+
+      - name: Run pgTAP Database Tests (RLS, POL-9, RPCs)
+        run: |
+          supabase test db
+
+      - name: Run Deno Contract & Function Tests
+        run: |
+          deno test --allow-read --allow-env contracts/tests/ supabase/functions/
+
+      - name: Check Database Types Drift
+        run: |
+          supabase gen types typescript --local > generated.types.ts
+          if ! git diff --no-index --exit-code -- contracts/src/database.types.ts generated.types.ts; then
+            echo "ERROR: contracts/src/database.types.ts tidak selaras dengan skema migrasi."
+            echo "Jalankan 'make types' dan commit hasilnya."
+            rm -f generated.types.ts
+            exit 1
+          fi
+          rm -f generated.types.ts
+
+      - name: Lint Database
+        run: |
+          supabase db lint
