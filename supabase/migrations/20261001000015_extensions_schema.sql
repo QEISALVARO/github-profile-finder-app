@@ -13,4 +13,10 @@ create schema if not exists extensions;
 create extension if not exists "pgcrypto" schema extensions;
 create extension if not exists "pg_trgm"  schema extensions;
 create extension if not exists "unaccent"  schema extensions;
-create extension if not exists "pgtap"     schema extensions;
+-- pgtap hanya tersedia di stack Supabase (citra DB bawaan); di Postgres
+-- polos lewati agar reset tetap jalan (test pgTAP butuh stack Supabase).
+do $$ begin
+  if exists (select 1 from pg_available_extensions where name = 'pgtap') then
+    create extension if not exists "pgtap" schema extensions;
+  end if;
+end $$;

@@ -1,27 +1,14 @@
-OK: 20261001000001_extensions.sql
-OK: 20261001000002_enums.sql
-OK: 20261001000003_geo_tables.sql
-OK: 20261001000004_profiles.sql
-OK: 20261001000005_github_analysis.sql
-OK: 20261001000006_projects.sql
-OK: 20261001000007_chat_pipeline.sql
-OK: 20261001000008_rls.sql
-OK: 20261001000009_auth_trigger.sql
-OK: 20261001000010_location_normalize.sql
-OK: 20261001000011_pol9_triggers.sql
-OK: 20261001000012_rpcs.sql
-OK: 20261001000013_last_message_trigger.sql
-OK: 20261001000014_be2_ingestion.sql
-FAIL: 20261001000015_extensions_schema.sql - extension "pgtap" is not available
-OK seed: countries.sql
-OK seed: cities.sql
-OK seed: keyword_aliases.sql
-FAIL seed: dev.sql - function gen_salt(unknown) does not exist
-CHECK normalize Jakarta -> [{"country_code":"ID","city":"Jakarta","confidence":80}]
-CHECK normalize Paris-1 -> [{"country_code":"FR","city":"Paris","confidence":60}]
-CHECK FAIL rate_limit - insert or update on table "rate_limits" violates foreign key constraint "rate_limits_user_id_fkey"
-CHECK purge -> [{"deleted_snapshots":0,"deleted_analyses":0,"deleted_rate_limits":0}]
-CHECK countries -> [{"count":"152"}]
-CHECK aliases -> [{"count":"14"}]
-CHECK Paris-ambigu -> [{"country_code":null,"city":null,"confidence":0}]
-GAGAL: 3
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+Error: connect ECONNREFUSED 127.0.0.1:55433
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1706:16) {
+  errno: -4078,
+  code: 'ECONNREFUSED',
+  syscall: 'connect',
+  address: '127.0.0.1',
+  port: 55433
+}
+
+Node.js v24.18.1

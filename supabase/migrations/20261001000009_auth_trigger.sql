@@ -27,11 +27,17 @@ begin
   v_bio        := new.raw_user_meta_data->>'description';
   v_location   := new.raw_user_meta_data->>'location';
 
-  -- Idempoten: gunakan ON CONFLICT
+  -- Lewati bila metadata GitHub belum ada (mis. insert manual di test):
+  -- profiles.login NOT NULL, jadi insert paksa akan selalu gagal.
+  if v_login is null or v_github_id is null then
+    return new;
+  end if;
+
+  -- Idempoten: gunakan ON CONFLICT (isi github_login sekalian, 017).
   insert into public.profiles (
-    id, github_id, login, name, avatar_url, bio, location_text
+    id, github_id, login, github_login, name, avatar_url, bio, location_text
   ) values (
-    new.id, v_github_id, v_login, v_name, v_avatar_url, v_bio, v_location
+    new.id, v_github_id, v_login, lower(v_login), v_name, v_avatar_url, v_bio, v_location
   )
   on conflict (id) do nothing;
 

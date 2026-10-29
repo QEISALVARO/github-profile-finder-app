@@ -1,6 +1,9 @@
 -- supabase/seed/dev.sql
 -- DATA UJI LOKAL / DEV SAJA — JANGAN PERNAH DIJALANKAN DI PRODUKSI
 -- Menyiapkan akun developer dan recruiter lintas negara (ID, SG, US, NO, GB)
+-- Skema mengikuti migrasi 004 (profiles: login + github_login via 017,
+-- location_text bukan location_raw) dan 006 (projects: github_repo_id,
+-- role, stack jsonb — tanpa kolom language/repo_id/repo_name).
 
 do $$
 declare
@@ -24,17 +27,17 @@ begin
     (v_rec_gb_id, 'authenticated', 'authenticated', 'recruiter_gb@co.local', crypt('password123', gen_salt('bf')), now(), '{"provider":"github","providers":["github"]}', '{"user_name":"james_rec","name":"James Hunter","avatar_url":"https://avatars.githubusercontent.com/u/106?v=4"}', now(), now())
   on conflict (id) do nothing;
 
-  -- 2. Update/Insert profiles
+  -- 2. Update/Insert profiles (kolom sesuai migrasi 004 + 017)
   insert into public.profiles (
-    id, github_id, github_login, name, avatar_url, roles,
-    country_code, city, country_source, country_confidence, location_raw
+    id, github_id, login, github_login, name, avatar_url, bio, location_text, roles,
+    country_code, city, country_source, country_confidence
   ) values
-    (v_dev_id_id, 100001, 'budi_id', 'Budi Santoso', 'https://avatars.githubusercontent.com/u/101?v=4', '{developer}', 'ID', 'Jakarta', 'self', 100, 'Jakarta, Indonesia'),
-    (v_dev_sg_id, 100002, 'tan_sg', 'Tan Wei Ming', 'https://avatars.githubusercontent.com/u/102?v=4', '{developer}', 'SG', 'Singapore', 'self', 100, 'Singapore'),
-    (v_dev_us_id, 100003, 'alex_us', 'Alex Rivers', 'https://avatars.githubusercontent.com/u/103?v=4', '{developer}', 'US', 'San Francisco', 'self', 100, 'San Francisco, CA'),
-    (v_dev_no_id, 100004, 'lars_no', 'Lars Olsen', 'https://avatars.githubusercontent.com/u/104?v=4', '{developer}', 'NO', 'Oslo', 'self', 100, 'Oslo, Norway'),
-    (v_rec_id_id, 100005, 'sari_rec', 'Sari Talent Lead', 'https://avatars.githubusercontent.com/u/105?v=4', '{recruiter}', 'ID', 'Jakarta', 'self', 100, 'Jakarta, Indonesia'),
-    (v_rec_gb_id, 100006, 'james_rec', 'James Hunter', 'https://avatars.githubusercontent.com/u/106?v=4', '{recruiter}', 'GB', 'London', 'self', 100, 'London, UK')
+    (v_dev_id_id, 100001, 'budi_id', 'budi_id', 'Budi Santoso', 'https://avatars.githubusercontent.com/u/101?v=4', null, 'Jakarta, Indonesia', '{developer}', 'ID', 'Jakarta', 'self', 100),
+    (v_dev_sg_id, 100002, 'tan_sg', 'tan_sg', 'Tan Wei Ming', 'https://avatars.githubusercontent.com/u/102?v=4', null, 'Singapore', '{developer}', 'SG', 'Singapore', 'self', 100),
+    (v_dev_us_id, 100003, 'alex_us', 'alex_us', 'Alex Rivers', 'https://avatars.githubusercontent.com/u/103?v=4', null, 'San Francisco, CA', '{developer}', 'US', 'San Francisco', 'self', 100),
+    (v_dev_no_id, 100004, 'lars_no', 'lars_no', 'Lars Olsen', 'https://avatars.githubusercontent.com/u/104?v=4', null, 'Oslo, Norway', '{developer}', 'NO', 'Oslo', 'self', 100),
+    (v_rec_id_id, 100005, 'sari_rec', 'sari_rec', 'Sari Talent Lead', 'https://avatars.githubusercontent.com/u/105?v=4', null, 'Jakarta, Indonesia', '{recruiter}', 'ID', 'Jakarta', 'self', 100),
+    (v_rec_gb_id, 100006, 'james_rec', 'james_rec', 'James Hunter', 'https://avatars.githubusercontent.com/u/106?v=4', null, 'London, UK', '{recruiter}', 'GB', 'London', 'self', 100)
   on conflict (id) do update set
     github_login = excluded.github_login,
     name = excluded.name,
@@ -66,14 +69,14 @@ begin
     hiring_status = excluded.hiring_status,
     target_countries = excluded.target_countries;
 
-  -- 5. Contoh Projects
+  -- 5. Contoh Projects (skema 006: github_repo_id, role, stack jsonb)
   insert into public.projects (
-    id, owner_id, repo_id, repo_name, description, language,
-    score, published, is_hidden, country_code, demo_url, demo_verified, stars
+    id, owner_id, github_repo_id, name, description, role, stack,
+    score, published, is_hidden, country_code, demo_url, demo_verified, stars, pushed_at
   ) values
-    ('a0000000-0000-0000-0000-000000000001', v_dev_id_id, 9001, 'budi_id/tokoonline-core', 'High-throughput e-commerce microservices in Go', 'Go', 88, true, false, 'ID', 'https://demo.tokoonline.id', true, 142),
-    ('a0000000-0000-0000-0000-000000000002', v_dev_sg_id, 9002, 'tan_sg/fintech-pipeline', 'Real-time financial transaction processor with Kafka and Rust', 'Rust', 92, true, false, 'SG', 'https://demo.fintech.sg', true, 310),
-    ('a0000000-0000-0000-0000-000000000003', v_dev_no_id, 9003, 'lars_no/nordic-iot', 'Embedded firmware and telemetry for weather sensors', 'C++', 85, true, false, 'NO', null, false, 89)
+    ('a0000000-0000-0000-0000-000000000001', v_dev_id_id, 9001, 'tokoonline-core', 'High-throughput e-commerce microservices in Go', 'Back-End', '[{"name":"Go","percent":80},{"name":"React","percent":20}]', 88, true, false, 'ID', 'https://demo.tokoonline.id', true, 142, now() - interval '5 days'),
+    ('a0000000-0000-0000-0000-000000000002', v_dev_sg_id, 9002, 'fintech-pipeline', 'Real-time financial transaction processor with Kafka and Rust', 'Back-End', '[{"name":"Rust","percent":70},{"name":"Python","percent":30}]', 92, true, false, 'SG', 'https://demo.fintech.sg', true, 310, now() - interval '2 days'),
+    ('a0000000-0000-0000-0000-000000000003', v_dev_no_id, 9003, 'nordic-iot', 'Embedded firmware and telemetry for weather sensors', 'Back-End', '[{"name":"C++","percent":100}]', 85, true, false, 'NO', null, false, 89, now() - interval '40 days')
   on conflict (id) do nothing;
 
 end $$;
