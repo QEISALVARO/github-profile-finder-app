@@ -29,7 +29,9 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          # Dikunci ke versi yang terverifikasi lokal (bukan v2.x mengambang)
+          # agar hasil CI deterministik dan dapat direproduksi.
+          deno-version: v2.9.8
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -68,7 +70,10 @@ jobs:
 
       - name: Deno check contracts
         run: |
-          deno check contracts/src/*.ts
+          deno check --frozen contracts/src/*.ts
+          # Fungsi backend memakai workspace supabase/deno.json + lockfile
+          # (tanpa dependensi Expo dari package.json root).
+          cd supabase && deno check --frozen ./functions/analyze-developer/index.ts ./functions/delete-account/index.ts ./functions/refresh-stale/index.ts ./_shared/ssrf/safe-fetch.ts ./_shared/scoring/score.ts
 
       - name: Start Supabase Local Stack
         run: |
@@ -84,7 +89,7 @@ jobs:
 
       - name: Run Deno Contract & Function Tests
         run: |
-          deno test --allow-read --allow-env contracts/tests/ supabase/functions/
+          cd supabase && deno test --frozen --allow-read --allow-env ../contracts/tests/ ./functions/
 
       - name: Check Database Types Drift
         run: |

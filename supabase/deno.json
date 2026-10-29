@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "zod": "npm:zod@^3.24.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.1",
+    "@std/assert": "jsr:@std/assert@^1.0.19"
+  },
+  "lock": true,
+  "tasks": {
+    "check": "deno check ../contracts/src/*.ts ./functions/analyze-developer/index.ts ./functions/delete-account/index.ts ./functions/refresh-stale/index.ts ./_shared/ssrf/safe-fetch.ts ./_shared/scoring/score.ts",
+    "test": "deno test --allow-read --allow-env ../contracts/tests/ ./functions/ ./_shared/"
+  }
+}

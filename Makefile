@@ -32,7 +32,7 @@ test-db:
 	$(SUPABASE) test db
 
 test-contracts:
-	$(DENO) test --allow-read --allow-env contracts/tests/ supabase/functions/
+	cd supabase && $(DENO) test --frozen --allow-read --allow-env ../contracts/tests/ ./functions/
 
 types:
 	$(SUPABASE) gen types typescript --local > contracts/src/database.types.ts

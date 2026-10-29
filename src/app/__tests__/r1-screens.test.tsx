@@ -22,6 +22,12 @@ jest.mock('react-native-safe-area-context', () => ({
   ).default,
 }));
 
+// supabase-js butuh WebSocket native (Node 22+) sementara CI memakai Node 20:
+// layar welcome merender rantai auth → supabase client, jadi modul client
+// diganti stub global (src/lib/__mocks__/supabase.ts); `jest.mock` eksplisit
+// di sini memastikan mock dipakai sebelum rantai impor dievaluasi.
+jest.mock('@/lib/supabase');
+
 /**
  * R1 (PRD v2 §15) — smoke test render empat layar baru + satu interaksi
  * wizard. Tujuannya menangkap crash runtime (komponen/style tak terdefinisi)
