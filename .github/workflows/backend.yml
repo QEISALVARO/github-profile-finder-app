@@ -119,10 +119,8 @@ jobs:
 
       - name: Check Database Types Drift
         run: |
-          supabase gen types typescript --local --schema public --output json > /tmp/gen.out 2>&1 || true
-          head -c 500 /tmp/gen.out
           supabase gen types typescript --local --schema public > generated.types.ts
-          test -s generated.types.ts && echo "generated OK: $(wc -c < generated.types.ts) bytes"
+          test -s generated.types.ts
           grep -vE '^\s*(//|$)' contracts/src/database.types.ts | tr -d '[:space:]' > /tmp/committed.norm
           grep -vE '^\s*(//|$)' generated.types.ts | tr -d '[:space:]' > /tmp/generated.norm
           diff -q /tmp/committed.norm /tmp/generated.norm && echo "Types selaras (semantik)."
