@@ -120,12 +120,19 @@ jobs:
       - name: Check Database Types Drift
         run: |
           supabase gen types typescript --local > generated.types.ts
-          if ! git diff --no-index --exit-code -- contracts/src/database.types.ts generated.types.ts; then
+          # Perbandingan semantik: abaikan komentar/header dan whitespace
+          # (format CLI boleh berubah antar versi; yang dijaga adalah ISI
+          # skema: tabel, kolom, fungsi). Normalisasi: buang baris komentar,
+          # ciutkan whitespace, lalu bandingkan.
+          norm() { grep -vE '^\s*//' "$1" | tr -d ' \t\r\n' | tr -s '[:space:]'; }
+          if ! diff -u <(norm contracts/src/database.types.ts) <(norm generated.types.ts) > /tmp/drift.diff; then
             echo "ERROR: contracts/src/database.types.ts tidak selaras dengan skema migrasi."
-            echo "Jalankan 'make types' dan commit hasilnya."
+            echo "Jalankan 'make types' dan commit hasilnya. Diff (dinormalisasi):"
+            head -n 40 /tmp/drift.diff
             rm -f generated.types.ts
             exit 1
           fi
+          echo "Types selaras dengan skema (perbandingan semantik)."
           rm -f generated.types.ts
 
       - name: Lint Database
