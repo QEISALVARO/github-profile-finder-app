@@ -1,21 +1,22 @@
 -- supabase/seed/keyword_aliases.sql
 -- Seed alias kata kunci untuk pencarian teknologi / framework
+-- Skema: keyword_aliases(alias text pk, expands text[]).
+-- Contoh kontrak: golang -> {go}; ml -> {pytorch, tensorflow, machine, learning}.
 
-insert into public.keyword_aliases (alias, canonical, confidence) values
-  ('golang', 'go', 1.0),
-  ('reactjs', 'react', 1.0),
-  ('react.js', 'react', 1.0),
-  ('vuejs', 'vue', 1.0),
-  ('nodejs', 'node', 1.0),
-  ('node.js', 'node', 1.0),
-  ('postgres', 'postgresql', 1.0),
-  ('ts', 'typescript', 1.0),
-  ('js', 'javascript', 1.0),
-  ('py', 'python', 1.0),
-  ('ml', 'machine learning', 0.9),
-  ('ai', 'artificial intelligence', 0.8),
-  ('k8s', 'kubernetes', 1.0),
-  ('docker-compose', 'docker', 0.9)
+insert into public.keyword_aliases (alias, expands) values
+  ('golang', '{go}'),
+  ('reactjs', '{react}'),
+  ('react.js', '{react}'),
+  ('vuejs', '{vue}'),
+  ('nodejs', '{node}'),
+  ('node.js', '{node}'),
+  ('postgres', '{postgresql}'),
+  ('ts', '{typescript}'),
+  ('js', '{javascript}'),
+  ('py', '{python}'),
+  ('ml', '{pytorch,tensorflow,machine,learning}'),
+  ('ai', '{"artificial intelligence"}'),
+  ('k8s', '{kubernetes}'),
+  ('docker-compose', '{docker}')
 on conflict (alias) do update set
-  canonical = excluded.canonical,
-  confidence = excluded.confidence;
+  expands = excluded.expands;

@@ -21,8 +21,8 @@ begin
 
     if v_country_code is null then
       raise exception using
-        errcode = ''P0001'',
-        message = ''POL9_COUNTRY_REQUIRED: developer cannot be listed without a confirmed country_code'';
+        errcode = 'P0001',
+        message = 'POL9_COUNTRY_REQUIRED: developer cannot be listed without a confirmed country_code';
     end if;
   end if;
   return new;

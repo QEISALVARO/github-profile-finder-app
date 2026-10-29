@@ -11,7 +11,7 @@ create table public.profiles (
   location_text       text,
   country_code        char(2)  references public.countries,
   city                text,
-  country_source      text     check (country_source in (''self'', ''inferred'')),
+  country_source      text     check (country_source in ('self', 'inferred')),
   country_confidence  smallint check (country_confidence between 0 and 100),
   roles               public.user_role[] not null default '{}',
   created_at          timestamptz not null default now()
@@ -25,7 +25,7 @@ create table public.developer_settings (
   user_id          uuid      primary key references public.profiles on delete cascade,
   listed           boolean   not null default false,   -- opt-in Feed/Discover (POL-1)
   open_to_messages boolean   not null default false,   -- (POL-4)
-  availability     public.availability not null default ''not_available'',
+  availability     public.availability not null default 'not_available',
   headline         text
 );
 comment on table public.developer_settings is 'Pengaturan developer. listed=false default (POL-1, POL-4).';
@@ -35,7 +35,7 @@ create table public.recruiter_profiles (
   company          text      not null,
   title            text,
   verified         boolean   not null default false,
-  hiring_status    text      not null default ''open_for_hiring'',
+  hiring_status    text      not null default 'open_for_hiring',
   target_countries char(2)[] not null default '{}'
 );
 comment on table public.recruiter_profiles is 'Profil recruiter. target_countries kosong = semua negara.';

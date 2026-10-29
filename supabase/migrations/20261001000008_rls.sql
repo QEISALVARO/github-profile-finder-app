@@ -58,7 +58,7 @@ create policy "profiles: conversation participant read"
     and exists (
       select 1 from public.conversations c
       where
-        c.status = ''active''
+        c.status = 'active'
         and (
           (c.recruiter_id = auth.uid() and c.developer_id = profiles.id)
           or
@@ -170,7 +170,7 @@ create policy "participants send"
       select 1 from public.conversations c
       where c.id = conversation_id
         and auth.uid() in (c.recruiter_id, c.developer_id)
-        and c.status = ''active''
+        and c.status = 'active'
     )
   );
 

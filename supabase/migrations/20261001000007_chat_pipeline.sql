@@ -7,7 +7,7 @@ create table public.conversations (
   developer_id     uuid not null references public.profiles,
   project_id       uuid references public.projects,
   context_label    text,
-  status           text not null default ''active'' check (status in (''active'', ''declined'', ''blocked'')),
+  status           text not null default 'active' check (status in ('active', 'declined', 'blocked')),
   last_message_at  timestamptz,
   created_at       timestamptz not null default now(),
   unique (recruiter_id, developer_id, project_id)
@@ -30,7 +30,7 @@ create table public.pipeline_entries (
   id              uuid primary key default gen_random_uuid(),
   recruiter_id    uuid not null references public.profiles on delete cascade,
   github_login    text not null,
-  stage           public.pipeline_stage not null default ''saved'',
+  stage           public.pipeline_stage not null default 'saved',
   note            text,
   updated_at      timestamptz not null default now(),
   unique (recruiter_id, github_login)

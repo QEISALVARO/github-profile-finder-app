@@ -9,12 +9,14 @@ create table public.projects (
   description      text,
   role             text      not null,
   country_code     char(2)   references public.countries,
-  stack            jsonb     not null default ''[]'',
+  stack            jsonb     not null default '[]',
   demo_url         text,
   demo_verified    boolean   not null default false,
   stars            int       not null default 0,
   pushed_at        timestamptz,
-  active           boolean generated always as (pushed_at > now() - interval ''30 days'') stored,
+  -- active dihitung trigger (kolom generated menolak now() yang volatil;
+  -- diperbaiki 29 Okt 2026 setelah verifikasi Postgres nyata).
+  active           boolean   not null default false,
   score            int,
   published        boolean   not null default true,
   is_hidden        boolean   not null default false,
@@ -43,12 +45,12 @@ begin
   select p.name, p.login into owner_name, owner_login
   from public.profiles p where p.id = new.owner_id;
 
-  new.search := to_tsvector(''english'',
-    coalesce(new.name, '''') || '' '' ||
-    coalesce(new.description, '''') || '' '' ||
-    coalesce(new.role, '''') || '' '' ||
-    coalesce(owner_name, '''') || '' '' ||
-    coalesce(owner_login, '''')
+  new.search := to_tsvector('english',
+    coalesce(new.name, '') || ' ' ||
+    coalesce(new.description, '') || ' ' ||
+    coalesce(new.role, '') || ' ' ||
+    coalesce(owner_name, '') || ' ' ||
+    coalesce(owner_login, '')
   );
   return new;
 end;
@@ -57,6 +59,24 @@ $$;
 create trigger projects_search_update_trigger
   before insert or update on public.projects
   for each row execute function public.projects_search_update();
+
+-- active: push dalam 30 hari terakhir (VERIFIED ACTIVE badge).
+create or replace function public.projects_active_update()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  new.active := new.pushed_at is not null
+    and new.pushed_at > now() - interval '30 days';
+  return new;
+end;
+$$;
+
+create trigger projects_active_update_trigger
+  before insert or update of pushed_at on public.projects
+  for each row execute function public.projects_active_update();
 
 create table public.keyword_aliases (
   alias    text    primary key,

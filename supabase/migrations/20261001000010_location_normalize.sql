@@ -22,7 +22,7 @@ declare
   v_country_cnt int;
 begin
   -- Kasus null/kosong
-  if p_location is null or trim(p_location) = '''' then
+  if p_location is null or trim(p_location) = '' then
     return query select null::char(2), null::text, 0::smallint;
     return;
   end if;
@@ -30,7 +30,7 @@ begin
   v_trimmed := trim(p_location);
 
   -- Pisah dengan koma
-  v_parts := string_to_array(v_trimmed, '','');
+  v_parts := string_to_array(v_trimmed, ',');
   v_last_token  := trim(v_parts[array_length(v_parts, 1)]);
   v_first_token := trim(v_parts[1]);
 

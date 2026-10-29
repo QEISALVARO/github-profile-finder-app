@@ -16,16 +16,16 @@ declare
   v_location   text;
 begin
   -- Ambil data dari raw_user_meta_data (diisi Supabase Auth dari GitHub OAuth)
-  v_github_id  := (new.raw_user_meta_data->''provider_id'')::bigint;
+  v_github_id  := (new.raw_user_meta_data->'provider_id')::bigint;
   v_login      := coalesce(
-    new.raw_user_meta_data->>''user_name'',
-    new.raw_user_meta_data->>''preferred_username'',
-    new.raw_user_meta_data->>''login''
+    new.raw_user_meta_data->>'user_name',
+    new.raw_user_meta_data->>'preferred_username',
+    new.raw_user_meta_data->>'login'
   );
-  v_name       := new.raw_user_meta_data->>''full_name'';
-  v_avatar_url := new.raw_user_meta_data->>''avatar_url'';
-  v_bio        := new.raw_user_meta_data->>''description'';
-  v_location   := new.raw_user_meta_data->>''location'';
+  v_name       := new.raw_user_meta_data->>'full_name';
+  v_avatar_url := new.raw_user_meta_data->>'avatar_url';
+  v_bio        := new.raw_user_meta_data->>'description';
+  v_location   := new.raw_user_meta_data->>'location';
 
   -- Idempoten: gunakan ON CONFLICT
   insert into public.profiles (

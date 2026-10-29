@@ -54,14 +54,14 @@ where id = 'f1111111-1111-4111-a111-111111111111';
 
 -- Test 3: Trigger AFTER UPDATE harus otomatis mematikan listed = false
 select results_eq(
-  'select listed from public.developer_settings where user_id = ''f1111111-1111-4111-a111-111111111111''',
+  'select listed from public.developer_settings where user_id = 'f1111111-1111-4111-a111-111111111111'',
   array[false],
   'Mengosongkan profiles.country_code wajib otomatis mematikan developer_settings.listed'
 );
 
 -- Test 4: projects.country_code juga tersinkronisasi menjadi null
 select results_eq(
-  'select country_code from public.projects where owner_id = ''f1111111-1111-4111-a111-111111111111''',
+  'select country_code from public.projects where owner_id = 'f1111111-1111-4111-a111-111111111111'',
   array[null::char(2)],
   'Mengosongkan profiles.country_code wajib menyinkronkan projects.country_code'
 );

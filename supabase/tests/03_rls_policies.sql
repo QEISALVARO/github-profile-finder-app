@@ -36,27 +36,27 @@ set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
 
 -- Test 1: User C bisa melihat profil User A karena User A listed=true
 select results_eq(
-  'select github_login from public.profiles where id = ''a1111111-1111-4111-a111-111111111111''',
+  'select github_login from public.profiles where id = 'a1111111-1111-4111-a111-111111111111'',
   array['user_a'],
   'Recruiter dapat melihat profil developer yang listed=true'
 );
 
 -- Test 2: User C TIDAK bisa melihat profil User B karena User B listed=false
 select is_empty(
-  'select github_login from public.profiles where id = ''b2222222-2222-4222-a222-222222222222''',
+  'select github_login from public.profiles where id = 'b2222222-2222-4222-a222-222222222222'',
   'Recruiter TIDAK DAPAT melihat profil developer yang listed=false'
 );
 
 -- Test 3: User C bisa melihat project User A (karena listed & published & not hidden)
 select results_eq(
-  'select repo_name from public.projects where id = ''d1111111-1111-4111-a111-111111111111''',
+  'select repo_name from public.projects where id = 'd1111111-1111-4111-a111-111111111111'',
   array['user_a/repo-a'],
   'Proyek milik developer listed dapat dilihat di feed'
 );
 
 -- Test 4: User C TIDAK bisa melihat project User B (karena owner listed=false)
 select is_empty(
-  'select repo_name from public.projects where id = ''d2222222-2222-4222-a222-222222222222''',
+  'select repo_name from public.projects where id = 'd2222222-2222-4222-a222-222222222222'',
   'Proyek milik developer unlisted TIDAK DAPAT dilihat di feed'
 );
 
@@ -75,7 +75,7 @@ set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
 
 -- Test 5: Peserta percakapan bisa melihat percakapan
 select results_eq(
-  'select id from public.conversations where id = ''e1111111-1111-4111-a111-111111111111''',
+  'select id from public.conversations where id = 'e1111111-1111-4111-a111-111111111111'',
   array['e1111111-1111-4111-a111-111111111111'::uuid],
   'Peserta percakapan dapat melihat percakapannya'
 );

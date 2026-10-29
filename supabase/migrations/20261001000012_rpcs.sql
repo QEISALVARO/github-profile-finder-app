@@ -19,7 +19,7 @@ as $$
 begin
   -- Validasi: harus login
   if auth.uid() is null then
-    raise exception ''UNAUTHORIZED'' using errcode = ''28000'';
+    raise exception 'UNAUTHORIZED' using errcode = '28000';
   end if;
 
   -- Update roles
@@ -28,12 +28,12 @@ begin
   where id = auth.uid();
 
   -- Developer: set negara (self, confidence 100)
-  if ''developer'' = any(p_roles) then
+  if 'developer' = any(p_roles) then
     update public.profiles
     set
       country_code       = p_country_code,
       city               = p_city,
-      country_source     = case when p_country_code is not null then ''self'' else null end,
+      country_source     = case when p_country_code is not null then 'self' else null end,
       country_confidence = case when p_country_code is not null then 100 else null end
     where id = auth.uid();
 
@@ -44,14 +44,14 @@ begin
   end if;
 
   -- Recruiter: wajib company, buat recruiter_profiles
-  if ''recruiter'' = any(p_roles) then
-    if p_company is null or trim(p_company) = '''' then
-      raise exception ''VALIDATION: company is required for recruiter role''
-        using errcode = ''22000'';
+  if 'recruiter' = any(p_roles) then
+    if p_company is null or trim(p_company) = '' then
+      raise exception 'VALIDATION: company is required for recruiter role'
+        using errcode = '22000';
     end if;
 
     insert into public.recruiter_profiles (user_id, company, title, target_countries)
-    values (auth.uid(), trim(p_company), p_title, coalesce(p_target_countries, ''{}''::char(2)[]))
+    values (auth.uid(), trim(p_company), p_title, coalesce(p_target_countries, '{}'::char(2)[]))
     on conflict (user_id) do update set
       company          = excluded.company,
       title            = excluded.title,
@@ -75,22 +75,22 @@ set search_path = public
 as $$
 begin
   if auth.uid() is null then
-    raise exception ''UNAUTHORIZED'' using errcode = ''28000'';
+    raise exception 'UNAUTHORIZED' using errcode = '28000';
   end if;
 
   -- Validasi negara ada di tabel countries
   if p_country_code is not null and not exists (
     select 1 from public.countries where iso2 = p_country_code
   ) then
-    raise exception ''VALIDATION: invalid country_code %'', p_country_code
-      using errcode = ''22000'';
+    raise exception 'VALIDATION: invalid country_code %', p_country_code
+      using errcode = '22000';
   end if;
 
   update public.profiles
   set
     country_code       = p_country_code,
     city               = p_city,
-    country_source     = case when p_country_code is not null then ''self'' else null end,
+    country_source     = case when p_country_code is not null then 'self' else null end,
     country_confidence = case when p_country_code is not null then 100 else null end
   where id = auth.uid();
 end;
@@ -113,7 +113,7 @@ set search_path = public
 as $$
 begin
   if auth.uid() is null then
-    raise exception ''UNAUTHORIZED'' using errcode = ''28000'';
+    raise exception 'UNAUTHORIZED' using errcode = '28000';
   end if;
 
   insert into public.developer_settings (user_id)
@@ -148,12 +148,12 @@ set search_path = public
 as $$
 begin
   if auth.uid() is null then
-    raise exception ''UNAUTHORIZED'' using errcode = ''28000'';
+    raise exception 'UNAUTHORIZED' using errcode = '28000';
   end if;
 
-  if p_company is not null and trim(p_company) = '''' then
-    raise exception ''VALIDATION: company cannot be empty''
-      using errcode = ''22000'';
+  if p_company is not null and trim(p_company) = '' then
+    raise exception 'VALIDATION: company cannot be empty'
+      using errcode = '22000';
   end if;
 
   update public.recruiter_profiles

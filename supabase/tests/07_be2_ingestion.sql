@@ -72,7 +72,7 @@ select isnt_empty(
 
 -- Test 8: Verifikasi snapshot kedaluwarsa terhapus dan snapshot aktif tetap ada
 select is_empty(
-  'select * from public.github_snapshots where login = ''expired_user''',
+  'select * from public.github_snapshots where login = 'expired_user'',
   'Snapshot yang kedaluwarsa berhasil dihapus oleh purge_expired_lookups'
 );
 
