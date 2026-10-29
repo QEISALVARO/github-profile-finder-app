@@ -107,11 +107,15 @@ jobs:
 
       - name: Run Database Migrations & Seeds from scratch
         run: |
-          supabase db reset
+          supabase db reset --debug 2>&1 | tail -n 60
 
       - name: Run pgTAP Database Tests (RLS, POL-9, RPCs)
         run: |
-          supabase test db
+          supabase test db --debug 2>&1 | tee /tmp/pgtap.log | tail -n 80
+          echo '### pgTAP tail' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 60 /tmp/pgtap.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check Database Types Drift
         run: |
