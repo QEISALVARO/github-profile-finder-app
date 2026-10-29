@@ -6,7 +6,7 @@
   },
   "lock": true,
   "tasks": {
-    "check": "deno check ../contracts/src/*.ts ./functions/analyze-developer/index.ts ./functions/delete-account/index.ts ./functions/refresh-stale/index.ts ./_shared/ssrf/safe-fetch.ts ./_shared/scoring/score.ts",
-    "test": "deno test --allow-read --allow-env ../contracts/tests/ ./functions/ ./_shared/"
+    "check": "deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts",
+    "test": "deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/"
   }
 }

@@ -70,7 +70,7 @@ jobs:
 
       - name: Deno check contracts
         run: |
-          deno check --frozen contracts/src/*.ts
+          deno check --frozen --config contracts/deno.json contracts/src/*.ts
       - name: Deno check functions
         run: |
           # Workspace backend: supabase/deno.json + supabase/deno.lock
@@ -92,7 +92,8 @@ jobs:
 
       - name: Run Deno Contract & Function Tests
         run: |
-          cd supabase && deno test --frozen --allow-read --allow-env ../contracts/tests/ ./functions/
+          deno test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/
+          deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/
 
       - name: Check Database Types Drift
         run: |

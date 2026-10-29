@@ -3,6 +3,7 @@
     "zod": "npm:zod@^3.24.0"
   },
   "tasks": {
-    "test": "deno test --allow-read --allow-env tests/"
+    "check": "deno check --frozen --config contracts/deno.json contracts/src/*.ts",
+    "test": "deno test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/"
   }
 }
