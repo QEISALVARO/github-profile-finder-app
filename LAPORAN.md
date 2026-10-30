@@ -307,3 +307,188 @@ Suite test baru:
 3. **M3c** (v1) tetap relevan — wiring `analyzeDeveloper()` ke tombol Analyze — sebelum R2 menggantinya dengan Edge Function.
 4. Hubungkan CountryPicker ke Feed (R3) dan Discover (R4).
 5. Tulis `design_v2.md` untuk layar baru (PRD §15).
+# Laporan Fase — FE-2 Data-layer per Domain (rebased)
+
+Tanggal: 30 Oktober 2026 · Branch: `feat/fe-2-rebased` (basis `main` @ `dcf8049`)
+
+## 1. Ringkasan
+
+FE-2 selesai dan sekarang berdiri **di atas `main` terbaru** (BE-0…BE-3 sudah
+merge), bukan di atas commit monolit. Setiap layar mengambil data lewat hook di
+`src/api/queries/*`, yang memilih adapter `mock` atau `api` per domain
+berdasarkan flag `EXPO_PUBLIC_DS_*`. Tidak ada layar yang memanggil
+`supabase`/`fetch` langsung, dan hasil analisis tidak lagi disimpan di Zustand.
+
+Cara pindahnya: net-diff FE-2 (`8b42625..feat/fe-2-data-layer`, hanya path FE,
+tanpa `package-lock.json` dan tanpa dokumen) diterapkan ke branch baru dari
+`origin/main`. Enam puluh empat berkas FE-2 yang tidak disentuh `main` diambil
+utuh; sembilan berkas irisan direkonsiliasi manual (bagian 3). Branch lama
+`feat/fe-2-data-layer` **tidak dihapus** dan tetap menjadi cadangan.
+
+## 2. Berkas
+
+### Baru
+- `src/config/dataSource.ts` — flag per domain, default `mock`, nilai tak dikenal → `mock` + peringatan.
+- `src/api/errors.ts` — `AppError = ErrorBody & { status }`, `ApiNotReadyError`, `MissingEnvironmentError`, `describeError`, `errorMessage`, `shouldRetry`.
+- `src/api/queryKeys.ts` — kunci query terpusat.
+- `src/api/contracts.ts` — **mengekspor ulang tipe dari `contracts/src/types.ts`** (satu mekanisme tipe, tanpa salinan field).
+- `src/api/{analysis,auth,feed,talent,chat,reports}/` — `types.ts`, `mock.ts`, `api.ts`, `index.ts`.
+- `src/api/queries/` — `analysis`, `auth`, `chat`, `feed`, `talent`, `reports`, `index`.
+- `src/components/ui/Skeleton.tsx`, `StaleBanner.tsx`, `ErrorState.tsx`.
+- `src/lib/availability.ts`, `src/lib/talent.ts` — logika murni dipakai adapter + layar.
+- Tes: `src/api/__tests__/contracts.test.ts`, `src/api/analysis/__tests__/api.test.ts`, `src/api/queries/__tests__/hooks.test.tsx`, `src/app/__tests__/fe2-screens.test.tsx`.
+
+### Diubah
+- `src/lib/supabase.ts` — **gabungan**: klien malas FE-2 (`getSupabase`, `anyApiDomainEnabled`, `missingSupabaseEnv`, `resetSupabaseClient`) + storage SSR-safe `main` (memori di web/prerender, AsyncStorage di native). Tidak ada lagi ekspor `supabase` eager.
+- `src/lib/__mocks__/supabase.ts` — mock global Jest diperbarui ke permukaan lazy (`getSupabase` + stub client, `anyApiDomainEnabled` default `false`, `missingSupabaseEnv`, `resetSupabaseClient`).
+- `src/app/(tabs)/explore/index.tsx` — `useFeed` + `useAnalyze`; spinner hanya pada kartu yang di-tap, kartu lain `disabled` (D2); error masuk slot FR-E9.
+- `src/app/(tabs)/explore/analysis.tsx` — `AnalysisVM` dari `useAnalysis(login)` via parameter rute (`/explore/analysis?login=…`), skeleton/stale/error states.
+- `src/features/analysis/{ScoreCard,SkillCard,MetricGrid,Heatmap,ProfileCard,VerifiedRepoCard}.tsx` — membaca `AnalysisVM`; teks tier dinamis, `yoyPct`/`heatmap` dari VM, label heatmap prop.
+- `src/app/_layout.tsx` — `DataProvider` (QueryClient + sinkron sesi).
+- `src/features/dev/AnalysisFixtures.tsx` — skenario lewat login khusus, bukan injeksi store.
+- `src/store/useAppStore.ts` — hapus `user/repos/analysisTarget/analysisVm/staleNotice/analysisOverride` dan setter-nya.
+- `src/data/seed.ts`, `src/types/index.ts`, `src/lib/feed.ts` — `countryCode`/`city` + filter negara/kota.
+- `src/lib/{analyze,auth,profile}.ts`, `src/providers/useSyncSupabaseSession.ts` — klien lazily awaited.
+- `.env.example`, `README.md`, `package.json`, `tsconfig.json`.
+
+### Dihapus
+- `src/lib/github.ts`, `src/lib/scoring.ts`, `src/lib/analysis-types.ts` + tes v1-nya (`github.test.ts`, `scoring.test.ts`).
+
+## 3. Rekonsiliasi dengan `main`
+
+Sembilan berkas yang perlu rekonsiliasi — tujuh di antaranya irisan langsung
+dengan `main`, ditambah `package-lock.json` (regenerasi) dan
+`src/api/analysis/__tests__/api.test.ts` (penyesuaian ke mock global) —
+diselesaikan seperti ini:
+
+| Berkas | Penyelesaian |
+|---|---|
+| `package.json` | `zod` tetap **`3.25.76`** (tidak naik ke `^4`); skrip `check` + `jest.moduleNameMapper` `@contracts/*` diambil dari FE-2; sisa berkas versi `main`. |
+| `package-lock.json` | Tidak di-merge manual — diregenerasi `npm install`, lalu diverifikasi `npm ci`. Hasil: identik dengan lock `main`. |
+| `tsconfig.json` | Semua pengaturan `main` (`allowImportingTsExtensions`, `include` src, `exclude` contracts) + path `@contracts/*`. |
+| `.env.example` | Struktur `main` (backend vs frontend) + 6 flag `EXPO_PUBLIC_DS_*=mock` di bagian frontend. |
+| `src/lib/supabase.ts` | Ekspor lazy FE-2 **dan** adapter storage SSR-safe `main` (bagian 2). |
+| `src/lib/analyze.ts` | Versi FE-2 (`getSupabase`), tetapi impor tipe memakai mekanisme `main` (`../../contracts/src/types.ts`); komentar berbahasa Indonesia, sisa kata non-Indonesia diperbaiki. |
+| `src/lib/__tests__/analyze.test.ts` | Versi FE-2 yang memakai **mock global** `jest.mock('@/lib/supabase')` (bukan factory ad-hoc) + impor tipe dari `types.ts`. |
+| `src/api/analysis/__tests__/api.test.ts` | Mock global dipakai; suite hanya meng-override hasil `getSupabase()`. |
+| `src/store/useAppStore.ts` | Versi FE-2 (state analisis dihapus); tidak ada impor `analysis-types`. |
+
+Mekanisme tipe: `src/api/contracts.ts` kini **mengekspor ulang** `AnalysisVM`,
+`ErrorBody`, `FeedItem`, `DeveloperRef`, `DiscoverItem`, dst. dari
+`contracts/src/types.ts` — semuanya sudah tersedia di sana, jadi tidak ada satu
+pun tipe yang perlu diturunkan ulang dengan `z.infer`. Alias `@contracts/*`
+tetap dipakai untuk skema runtime (zod) di tes adapter.
+
+## 4. Perilaku adapter
+
+| Domain | `mock` | `api` |
+|---|---|---|
+| auth | sesi demo via `useAuthStore` | `lib/auth.ts` OAuth GitHub + `delete-account` |
+| analysis | `AnalysisVM` deterministik dari seed + `contracts/fixtures/analysis_vm.json` | Edge Function `analyze-developer` via `lib/analyze.ts`, error → `AppError` |
+| feed | `filterProjects` + `FeedPage` (negara/kota) | `ApiNotReadyError` (BE-3) |
+| talent | `DiscoverPage` + pipeline in-memory | `ApiNotReadyError` (BE-4) |
+| chat | thread in-memory sesuai kontrak | `ApiNotReadyError` (BE-5) |
+| reports | ringkasan in-memory | `ApiNotReadyError` (BE-6) |
+
+Skenario mock Analysis: `__stale__`, `__notfound__`, `__ratelimited__`
+(retry_after 42), `__error__`, `__empty__`, `__allforks__`.
+
+## 5. Hasil Verifikasi
+
+Dijalankan di `feat/fe-2-rebased` setelah `npm install` (tanpa `.env`, tanpa
+`EXPO_PUBLIC_*` di environment):
+
+| Pemeriksaan | Perintah | Hasil |
+|---|---|---|
+| Typecheck | `npm run typecheck` | OK — 0 error |
+| Lint | `npx expo lint` | OK — 0 error, 0 warning |
+| Jest | `npx jest --ci` | OK — **12 suite, 119 test** lulus |
+| Drift kontrak | termasuk jest (`src/lib/__tests__/contracts.test.ts` + `src/api/__tests__/contracts.test.ts`) | hijau |
+| Bundle Android | `npx expo export -p android` | sukses (`entry-*.hbc`, 4.1 MB) |
+| Bundle web (SSR) | `npx expo export -p web` | sukses, 19 route statis ter-generate |
+| Mode `mock` tanpa env Supabase | smoke check sementara (lihat catatan) | impor aman, `getSupabase()` menolak dengan `MissingEnvironmentError` |
+| `grep -rn "api.github.com" src` | — | kosong |
+| `grep -rn "service_role\|GITHUB_API_TOKEN" src` | — | kosong |
+| `grep -n '"zod"' package.json` | — | `3.25.76` |
+| Ownership | `git diff origin/main --stat -- supabase contracts docs/backend .github Makefile scripts` | kosong |
+| `npm ci` | — | lockfile konsisten |
+
+**Rincian jumlah tes (119):** `main` = 91. FE-2 menghapus `github.test.ts` (12)
+dan `scoring.test.ts` (18) — sengaja, modulnya ikut dihapus (−30). FE-2
+menambah suite baru: `src/api/__tests__/contracts.test.ts` (29),
+`src/api/analysis/__tests__/api.test.ts` (8),
+`src/api/queries/__tests__/hooks.test.tsx` (11),
+`src/app/__tests__/fe2-screens.test.tsx` (9) = **+57**, dan
+`analysisState.test.ts` versi FE-2 punya satu tes lebih banyak (**+1**).
+91 − 30 + 57 + 1 = **119**. Terhadap branch lama FE-2 (109 tes), selisihnya
+**+10** — persis suite drift guard `src/lib/__tests__/contracts.test.ts` milik
+`main` (termasuk 3 tes kontrak BE-3 projects) yang belum ada di branch lama.
+
+**Catatan smoke check mode `mock`:** aplikasi tidak boleh butuh env untuk jalan,
+jadi saya menjalankan satu tes sementara yang mengimpor `src/lib/supabase.ts`
+**asli** (bukan mock) tanpa `EXPO_PUBLIC_SUPABASE_*`: modul terimpor tanpa crash,
+`anyApiDomainEnabled()` = `false`, `missingSupabaseEnv()` mengembalikan kedua
+nama variabel, dan `getSupabase()` menolak dengan `MissingEnvironmentError`
+(tidak membuat klien). Berkas tes sementara itu dihapus lagi setelah dijalankan,
+jadi angka 119 di atas tidak termasuk dirinya.
+
+## 6. Gate FE-2
+
+- [x] `npm run check` hijau (typecheck + lint + jest).
+- [x] Mode `mock` identik untuk Feed (AC PRD §7.1) dan Analyze memakai developer yang di-tap; tanpa jaringan (tes memastikan `fetch` tidak dipanggil).
+- [x] Setiap adapter `mock` lolos parse skema kontrak; `analysis.api` teruji `fresh/cache/stale/NOT_FOUND/RATE_LIMITED/UPSTREAM_ERROR` + validasi login.
+- [x] Layar tidak memanggil `supabase`/`fetch` langsung; hasil analisis tidak ada di `useAppStore`; Profile memakai `useAuthStore.session` (tes `r1-screens` hijau).
+- [x] `Skeleton`, `StaleBanner`, `ErrorState` dipakai pada Analysis (light & dark lewat token).
+- [x] `lib/github.ts` & `lib/scoring.ts` dihapus; `grep "api.github.com" src` kosong.
+- [x] Domain `api` yang belum siap → "Fitur ini belum tersedia di backend", bukan crash.
+- [x] Tidak ada rahasia di bundle; export Android & web sukses.
+
+## 7. BELUM DIUJI
+
+- **Mode `api` end-to-end** (`make up`, Edge Functions, OAuth GitHub,
+  `fresh→cache→stale` nyata): Docker/Supabase stack tidak tersedia di
+  lingkungan ini. Yang teruji hanya adapter `analysis.api` dengan
+  `supabase.functions.invoke` dimock; `analysis`/`auth` berflag `api` belum
+  dijalankan terhadap backend sungguhan.
+- **Uji manual di perangkat/emulator** (light & dark, lebar 375/393/430),
+  termasuk tap **Analyze** → spinner hanya di satu kartu, deep link
+  `gitscope://explore/analysis?login=octocat`, dan keenam skenario
+  banner/error/skeleton: tidak dijalankan di sesi ini (tidak ada
+  perangkat/emulator). Perilaku layar diverifikasi lewat
+  `fe2-screens.test.tsx` + `hooks.test.tsx` saja.
+- `deno check` pada `contracts/` — Deno tidak terpasang di lingkungan ini.
+
+## 8. Deviasi + alasan
+
+1. **Net-diff, bukan merge** — `git apply --3way` atas patch 79 berkas gagal
+   atomik di repo ini; berkas FE-2 tanpa perubahan di `main` diambil utuh
+   (`git checkout origin/feat/fe-2-data-layer -- <path>`), sembilan berkas
+   irisan digabung manual (bagian 3).
+2. **`src/api/contracts.ts` jadi re-export** — `main` sudah menyediakan semua
+   tipe yang dibutuhkan FE-2 lewat `contracts/src/types.ts`, jadi `z.infer`
+   hanya akan menduplikasi. Skema runtime tetap diakses lewat `@contracts/*`.
+   Tidak ada perubahan `contracts/**` di PR ini.
+3. **`supabase.ts` tetap tanpa ekspor `supabase` eager** — setelah
+   `lib/analyze.ts` memakai `getSupabase()`, tidak ada pemanggil yang
+   membutuhkannya. Storage SSR-safe `main` dipakai di dalam pembuatan klien.
+4. **`metrics.originalRatio` dinormalisasi 0…1** mengikuti
+   `supabase/functions/_shared/scoring/derive.ts`; `MetricGrid` mengalikannya
+   ×100 untuk tampilan. `demoRatio` tetap 0…100 (sama dengan BE).
+5. **`buildAnalysisVM` tetap mengekspor `vmToGithubRepos`** untuk tes lama
+   `analyze.test.ts`; layar tidak memakainya lagi.
+6. **Welcome masih memanggil `lib/auth.ts`** (bukan `useSignIn`) agar fallback
+   sesi demo FE-8 tidak berubah.
+
+## 9. TODO / masalah terbuka
+
+- Mode `api` baru teruji unit; perlu uji nyata setelah stack Supabase + Edge
+  Functions berjalan.
+- `getSupabase()` memakai `await import('@supabase/supabase-js')`; di Jest,
+  dynamic import menuntut `--experimental-vm-modules`, jadi semua suite memakai
+  mock global. Bila nanti ada tes yang ingin membuat klien asli, impor statis
+  perlu dipertimbangkan ulang.
+- Feed/Discover belum punya UI filter negara (adapter + `FeedFilters.countries/city`
+  sudah siap; UI chip masuk BE-3/BE-4).
+- `ChatSheet` (M5) belum ada, `openChat` hanya mengisi state seperti sebelumnya.
+- Branch lama `feat/fe-2-data-layer` sengaja dibiarkan; pemilik repo dapat
+  menutupnya setelah PR ini diverifikasi.
