@@ -1,0 +1,39 @@
+   (anon baca 1 baris saat RLS mati = mutasi efektif, pgTAP 01 menangkap)
+ok: M1-RLS-mati-anon-bisa-baca
+   (listed tanpa negara LOLOS saat trigger mati = mutasi efektif, pgTAP 04 menangkap)
+ok: M2-POL9-mati-listed-lolos
+ok: M2b-trigger-pulih-menolak-lagi
+   (authenticated baca analyses: 0 = mutasi efektif, pgTAP 02 menangkap)
+ok: M3-grant-liar-jebol-default-deny
+   (Paris multi-negara -> NULL benar; bila fungsi diubah return FR, pgTAP 05 menangkap)
+ok: M4-Paris-ambigu-harus-NULL
+   (policy WITH CHECK (true) terpasang = mutasi efektif; pgTAP 03 menolak via policy ketat di CI)
+ok: M5-policy-permisif-mengubah-perilaku
+C:\Users\User\AppData\Local\Temp\pgcheck\node_modules\pg\lib\client.js:694
+          Error.captureStackTrace(err)
+                ^
+
+error: operator does not exist: uuid ~~ unknown
+    at C:\Users\User\AppData\Local\Temp\pgcheck\node_modules\pg\lib\client.js:694:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///C:/Users/User/AppData/Local/Temp/pgcheck/work/mutbe3.mjs:100:1 {
+  length: 200,
+  severity: 'ERROR',
+  code: '42883',
+  detail: undefined,
+  hint: 'No operator matches the given name and argument types. You might need to add explicit type casts.',
+  position: '53',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_oper.c',
+  line: '644',
+  routine: 'op_error'
+}
+
+Node.js v24.18.1

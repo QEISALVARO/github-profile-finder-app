@@ -203,7 +203,7 @@ Fase BE-2 telah berhasil membangun mesin *Ingestion* data publik GitHub dan *Sco
 - [x] Typecheck, pengujian frontend, dan lint tetap hijau bersih (PR #5: 88/88 jest).
 - [x] Pemindai rahasia bersih 29 Okt 2026 (`sql-drift-secret-2026-10-29.txt`; `src/` + evidence tanpa token).
 - [x] pgTAP `make test-db` — **HIJAU di CI** (41/41 asersi: 2+4+7+4+10+6+8; Backend CI `6545b2f`).
-- [ ] Uji mutasi M1-M5 — **TIDAK DIJALANKAN** (tanpa Docker). Skrip siap: `scripts/backend/mutation-check.sh`.
+- [x] Uji mutasi M1-M5 (BE-3: RLS, POL-9, grant liar, Paris ambigu, policy permisif) — **TERBUKTI di Postgres 17 portable** 30 Okt 2026; tiap mutasi efektif mengubah perilaku dan dikembalikan bersih. Bukti: `evidence/mutasi-be3-2026-10-30.txt`. Skrip CI: `scripts/backend/mutation-check.sh`.
 - [ ] Smoke test S1-S9 — **TIDAK DIUJI** (tanpa Docker). Panduan: `docs/backend/evidence/SMOKE-TEST.md`).
 
 ---
