@@ -1,10 +1,10 @@
-import { supabase } from '@/lib/supabase';
 import type { AnalysisVM, ErrorBody } from '../../contracts/src/types.ts';
+import { getSupabase } from '@/lib/supabase';
 import type { GithubRepo, GithubUser } from '@/types';
 
 // ---------------------------------------------------------------------------
 // PRD v2 §8 — analyze-developer via Supabase Edge Function.
-// Menggantikan fetch langsung ke api.github.com (PRD §5.2, dihapus di R2):
+// Menggantikan panggilan GitHub langsung dari klien (PRD §5.2, dihapus di R2):
 // token GitHub hanya hidup di server, client memakai sesi Supabase.
 // Kegagalan upstream TIDAK PERNAH mengarang data (POL-5): tanpa cache lama,
 // error diteruskan apa adanya untuk ditampilkan sebagai state error.
@@ -49,13 +49,17 @@ export async function analyzeDeveloper(
     };
   }
 
+  // Lazy client: in mock-only mode this module is never called, so no client
+  // and no environment variables are required.
+  const supabase = await getSupabase();
+
   const { data, error } = await supabase.functions.invoke<AnalysisVM>('analyze-developer', {
     body: { login: normalized, force: options.force ?? false },
   });
 
   if (!error) {
     // functions.invoke menaruh non-2xx ke `error`; 2xx (fresh/cache/stale)
-    // selalu membawa AnalysisVM beserta field source-nya sendiri.
+    // selalu membawa AnalysisVM beserta field `source`-nya sendiri.
     return { data: data as AnalysisVM, error: null, stale: (data as AnalysisVM).source === 'stale' };
   }
 
@@ -124,6 +128,20 @@ export function analyzeErrorMessage(error: AnalyzeError): string {
 // memetakan respons BE ke bentuk itu TANPA mengarang angka: heatmap, tier,
 // confidence, dan evidence dibaca langsung dari VM oleh komponen.
 
+/** AnalysisVM.repos → GithubRepo[] (dipakai tes & dev fixture lama). */
+export function vmToGithubRepos(vm: AnalysisVM): GithubRepo[] {
+  return vm.repos.map((repo) => ({
+    id: repo.id,
+    name: repo.name,
+    description: repo.description,
+    language: repo.language,
+    stargazers_count: 0,
+    fork: repo.isFork,
+    homepage: repo.hasVerifiedDemo ? repo.htmlUrl : null,
+    html_url: repo.htmlUrl,
+  }));
+}
+
 /** AnalysisVM.user → GithubUser untuk ProfileCard. */
 export function vmToGithubUser(vm: AnalysisVM): GithubUser {
   return {
@@ -137,19 +155,4 @@ export function vmToGithubUser(vm: AnalysisVM): GithubUser {
     location: vm.user.locationText,
     html_url: vm.user.htmlUrl,
   };
-}
-
-/** AnalysisVM.repos → GithubRepo[] untuk VerifiedRepoCard. */
-export function vmToGithubRepos(vm: AnalysisVM): GithubRepo[] {
-  return vm.repos.map((repo) => ({
-    id: repo.id,
-    name: repo.name,
-    description: repo.description,
-    language: repo.language,
-    stargazers_count: 0,
-    fork: repo.isFork,
-    homepage: repo.hasVerifiedDemo ? repo.htmlUrl : null,
-    pushed_at: undefined,
-    html_url: repo.htmlUrl,
-  }));
 }

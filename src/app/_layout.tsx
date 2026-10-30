@@ -53,8 +53,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={themedNav}>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-      {/* Children render only after fonts resolve to avoid font flash;
-          keep the splash up in the meantime. */}
+      {/* FE-2 — one QueryClient for the whole app; sits above the router so
+          every screen shares the same cache. In mock mode the Supabase session
+          sync stays inert. */}
       {fontsLoaded || fontError ? (
         <DataProvider>
           <RootNavigatorSlot />

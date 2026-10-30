@@ -8,13 +8,9 @@ import {
 } from '@/lib/analyze';
 import type { AnalysisVM } from '../../../contracts/src/types.ts';
 
-jest.mock('@/lib/supabase', () => ({
-  supabase: {
-    functions: { invoke: jest.fn() },
-    auth: { signInWithOAuth: jest.fn(), exchangeCodeForSession: jest.fn(), signOut: jest.fn() },
-    rpc: jest.fn(),
-  },
-}));
+// Mock global (src/lib/__mocks__/supabase.ts): modul asli menarik supabase-js
+// yang butuh WebSocket native Node 22+, sedangkan tes ini tidak butuh jaringan.
+jest.mock('@/lib/supabase');
 
 const vm = (overrides: Partial<AnalysisVM> = {}): AnalysisVM => ({
   source: 'fresh',

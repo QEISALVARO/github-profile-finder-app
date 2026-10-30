@@ -3,13 +3,23 @@
  *
  * Alasan: `@supabase/supabase-js` membutuhkan WebSocket native (Node 22+),
  * sementara CI memakai Node 20 — mengimpor modul asli saat test membuat
- * suite gagal sebelum satu test pun jalan. Test FE menguji UI/store, bukan
- * jaringan, jadi client diganti stub yang bentuknya sama.
+ * suite gagal sebelum satu test pun jalan. Test FE menguji UI/store/adapter,
+ * bukan jaringan, jadi client diganti stub yang bentuknya sama.
  *
- * Dipakai otomatis oleh semua suite via `roots` + `setupFiles` di
- * package.json — tidak perlu `jest.mock` per berkas.
+ * Sejak FE-2 klien dibuat malas (`getSupabase()`), jadi mock ini mengekspor
+ * permukaan modul yang sama:
+ *  - `getSupabase()` → stub client (`functions.invoke`, `auth.*`, `rpc`, `from`)
+ *  - `anyApiDomainEnabled()` → `false` (default: mode mock, tanpa jaringan)
+ *  - `missingSupabaseEnv()` / `resetSupabaseClient()` → no-op yang aman
+ *
+ * Dipakai lewat `jest.mock('@/lib/supabase')` (tanpa factory) di suite yang
+ * menyentuh rantai auth/analyze, sehingga tidak ada stub ad-hoc yang saling
+ * bertentangan. Suite yang butuh mengatur hasil `invoke` cukup meng-override
+ * `getSupabase` itu sendiri.
  */
-export const supabase = {
+
+/** Stub client dengan bentuk sama seperti `SupabaseClient` yang dipakai FE. */
+export const supabaseStub = {
   functions: { invoke: jest.fn() },
   auth: {
     signInWithOAuth: jest.fn(),
@@ -31,3 +41,11 @@ export const supabase = {
     single: jest.fn(async () => ({ data: null, error: null })),
   })),
 };
+
+export const getSupabase = jest.fn(async () => supabaseStub);
+
+export const anyApiDomainEnabled = jest.fn(() => false);
+
+export const missingSupabaseEnv = jest.fn((): string[] => []);
+
+export const resetSupabaseClient = jest.fn(() => {});

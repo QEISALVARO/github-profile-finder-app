@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { HEATMAP_FULL_WIDTH } from '@/config/flags';
 import { Card } from '@/components/ui/Card';
+import { SectionHeading } from '@/components/ui/SectionHeading';
 import { T } from '@/components/ui/T';
 import { useTheme } from '@/theme/useTheme';
 
@@ -15,13 +16,34 @@ const LEVELS = 5;
 /** heat0…heat4 in level order — avoids a computed index into the token map. */
 const HEAT_TOKENS = ['heat0', 'heat1', 'heat2', 'heat3', 'heat4'] as const;
 
-/** Deterministic cell level from design.md §3.13: `(i*7 + (i%5)) % 5`. */
+/** Fallback cell level (design.md §3.13) only used when the VM has no values. */
 function levelFor(index: number): number {
   return (index * 7 + (index % 5)) % LEVELS;
 }
 
-/** FR-A7 + D8 — 12×7 contribution heatmap (design.md §3.13). */
-export function Heatmap({ values, yoyPct }: { values?: number[]; yoyPct?: number }) {
+export type HeatmapProps = {
+  /** Section title — Q4 default is "12 week momentum". */
+  label?: string;
+  /** 84 cells (12 columns × 7 rows) from `AnalysisVM.heatmap`. */
+  values?: number[];
+  /** Note beside the heading: `AnalysisVM.metrics.contributions12m`. */
+  contributions?: number;
+  /** `AnalysisVM.metrics.yoyPct` — footer comparison. */
+  yoyPct?: number;
+};
+
+/**
+ * FR-A7 + D8 — 12×7 contribution heatmap (design.md §3.13).
+ *
+ * FE-2: the values, contribution count, year-over-year figure and the section
+ * title are all props, so the screen only forwards the VM.
+ */
+export function Heatmap({
+  label = '12 week momentum',
+  values,
+  contributions = 642,
+  yoyPct,
+}: HeatmapProps) {
   const theme = useTheme();
   const [innerWidth, setInnerWidth] = useState(0);
 
@@ -31,12 +53,12 @@ export function Heatmap({ values, yoyPct }: { values?: number[]; yoyPct?: number
 
   const columns = Array.from({ length: COLUMNS }, (_, col) => col);
 
-  // R2: data nyata dari AnalysisVM.heatmap (84 angka 0–4); fallback ke pola
-  // deterministik lama bila VM belum ada (belum dianalisis via BE).
+  // R2: real data from AnalysisVM.heatmap (84 numbers 0–4); fall back to the
+  // deterministic design.md pattern when the VM carries no values.
   const levelAt = (index: number): number => {
     if (values && values.length === COLUMNS * ROWS) {
-      const v = values[index];
-      return typeof v === 'number' && v >= 0 && v <= 4 ? Math.round(v) : 0;
+      const value = values[index];
+      return typeof value === 'number' && value >= 0 && value <= 4 ? Math.round(value) : 0;
     }
     return levelFor(index);
   };
@@ -47,53 +69,66 @@ export function Heatmap({ values, yoyPct }: { values?: number[]; yoyPct?: number
       : '+18% vs last year';
 
   return (
-    <Card variant="heatmap">
-      <View style={styles.gridWrap} onLayout={(e) => setInnerWidth(e.nativeEvent.layout.width)}>
-        <View style={styles.grid}>
-          {columns.map((col) => (
-            <View key={col} style={styles.column}>
-              {Array.from({ length: ROWS }, (_, row) => {
-                const index = col * ROWS + row;
-                const level = levelAt(index);
-                return (
-                  <View
-                    key={row}
-                    style={[
-                      styles.cell,
-                      {
-                        width: cell,
-                        height: cell,
-                        backgroundColor: theme.colors[HEAT_TOKENS[level]],
-                      },
-                    ]}
-                  />
-                );
-              })}
-            </View>
-          ))}
-        </View>
-      </View>
+    <>
+      <SectionHeading
+        eyebrow="CONTRIBUTION ACTIVITY"
+        title={label}
+        rightVariant="mono-note"
+        note={`${contributions} contributions`}
+      />
 
-      <View style={styles.footer}>
-        <View style={styles.legend}>
-          <T size={7} color="muted">
-            Less
-          </T>
-          {[0, 2, 4].map((level) => (
-            <View
-              key={level}
-              style={[styles.cell, styles.legendCell, { backgroundColor: theme.colors[HEAT_TOKENS[level]] }]}
-            />
-          ))}
-          <T size={7} color="muted">
-            More
-          </T>
+      <Card variant="heatmap">
+        <View style={styles.gridWrap} onLayout={(e) => setInnerWidth(e.nativeEvent.layout.width)}>
+          <View style={styles.grid}>
+            {columns.map((col) => (
+              <View key={col} style={styles.column}>
+                {Array.from({ length: ROWS }, (_, row) => {
+                  const index = col * ROWS + row;
+                  const level = levelAt(index);
+                  return (
+                    <View
+                      key={row}
+                      style={[
+                        styles.cell,
+                        {
+                          width: cell,
+                          height: cell,
+                          backgroundColor: theme.colors[HEAT_TOKENS[level]],
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+            ))}
+          </View>
         </View>
+
+        <View style={styles.footer}>
+          <View style={styles.legend}>
+            <T size={7} color="muted">
+              Less
+            </T>
+            {[0, 2, 4].map((level) => (
+              <View
+                key={level}
+                style={[
+                  styles.cell,
+                  styles.legendCell,
+                  { backgroundColor: theme.colors[HEAT_TOKENS[level]] },
+                ]}
+              />
+            ))}
+            <T size={7} color="muted">
+              More
+            </T>
+          </View>
           <T size={7} weight="700" color="greenText">
             {yoyLabel}
           </T>
-      </View>
-    </Card>
+        </View>
+      </Card>
+    </>
   );
 }
 

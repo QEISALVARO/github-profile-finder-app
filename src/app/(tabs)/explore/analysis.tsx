@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { PageContainer } from '@/components/PageContainer';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Icon } from '@/components/ui/Icon';
 import { SectionHeading } from '@/components/ui/SectionHeading';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { StaleBanner } from '@/components/ui/StaleBanner';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
-import { deriveAnalysis } from '@/lib/scoring';
+import { useAnalysis, useExportReport } from '@/api/queries';
+import { describeError } from '@/api/errors';
+import { vmToGithubUser } from '@/lib/analyze';
 import { openGithubUrl } from '@/lib/links';
 import { MetricGrid } from '@/features/analysis/MetricGrid';
 import { Heatmap } from '@/features/analysis/Heatmap';
@@ -19,45 +24,29 @@ import { useAppStore } from '@/store/useAppStore';
 import { useTheme } from '@/theme/useTheme';
 
 /**
- * FR-A1…A8 — Developer Intelligence screen. Bila `analysisVm` tersedia (hasil
- * Edge Function R2), seluruh angka dibaca dari VM; bila null (fixture /dev
- * atau sesi lama), fallback ke deriveAnalysis v1 agar layar tetap jalan.
+ * FR-A1…A8 — Developer Intelligence screen.
+ *
+ * FE-2: the VM is fetched through `useAnalysis(login)` where `login` comes from
+ * the route (`/explore/analysis?login=octocat`), so deep links and refresh both
+ * work without any global analysis state. The screen renders a skeleton while
+ * loading, `ErrorState` per `ErrorBody.code` on failure, and `StaleBanner`
+ * whenever the VM reports cached-but-aged data.
  */
 export default function AnalysisScreen() {
   const theme = useTheme();
+  const params = useLocalSearchParams<{ login?: string | string[] }>();
+  const login = Array.isArray(params.login) ? params.login[0] : (params.login ?? null);
 
-  // Granular selectors — the screen re-renders only when these change.
-  const user = useAppStore((s) => s.user);
-  const repos = useAppStore((s) => s.repos);
   const saved = useAppStore((s) => s.saved);
   const setSaved = useAppStore((s) => s.setSaved);
   const openChat = useAppStore((s) => s.openChat);
   const showNotice = useAppStore((s) => s.showNotice);
-  const analysisVm = useAppStore((s) => s.analysisVm);
-  const staleNotice = useAppStore((s) => s.staleNotice);
 
-  const legacy = useMemo(() => deriveAnalysis(user, repos), [user, repos]);
-
-  // Tampilan efektif: VM bila ada, jika tidak nilai turunan v1.
-  const role = analysisVm?.inferredRole ?? legacy.role;
-  const primary = analysisVm?.primaryLanguage ?? legacy.primary;
-  const stats = analysisVm?.languageStats ?? legacy.stats;
-  const authenticity = analysisVm?.authenticity ?? legacy.authenticity;
-  const confidence = analysisVm?.confidence;
-  const tier = analysisVm?.tier;
-  const frameworks = analysisVm?.frameworks;
-  const originalRatio = analysisVm ? Math.round(analysisVm.metrics.originalRatio * 100) : legacy.originalRatio;
-  const originalCount = analysisVm?.metrics.originalCount ?? legacy.originalCount;
-  const demoRatio = analysisVm ? Math.round(analysisVm.metrics.demoRatio * 100) : legacy.demoRatio;
-  const commitHealth = analysisVm?.metrics.commitHealth;
-  const contributionDepth = analysisVm?.metrics.contributionDepth;
-  const heatmap = analysisVm?.heatmap;
-  const yoyPct = analysisVm?.metrics.yoyPct;
-  const contributions12m = analysisVm?.metrics.contributions12m;
+  const { data: vm, isLoading, error, isStale, staleSince, refetch } = useAnalysis(login);
+  const exportReport = useExportReport();
+  const errorCopy = error ? describeError(error) : null;
 
   // FR-A1 — view-in: 250 ms ease, translateX 12 → 0 + opacity 0 → 1.
-  // `useState` (not `useRef`) keeps the Animated.Value stable across renders
-  // without reading a ref during render.
   const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -91,6 +80,18 @@ export default function AnalysisScreen() {
     }
   };
 
+  const handleExport = () => {
+    if (!vm) return;
+    exportReport.mutate(
+      { login: vm.user.login, score: vm.authenticity },
+      {
+        onSuccess: () => showNotice('PDF report berhasil dibuat'),
+        onError: (exportError) =>
+          showNotice(exportError instanceof Error ? exportError.message : 'Export gagal'),
+      },
+    );
+  };
+
   return (
     <PageContainer paddingTop={27}>
       <Animated.View style={animatedStyle}>
@@ -120,77 +121,88 @@ export default function AnalysisScreen() {
           </T>
         </View>
 
-        {staleNotice ? (
-          <View style={styles.staleBanner}>
-            <T size={8} weight="700" color="warnText">
-              {staleNotice}
-            </T>
-          </View>
+        {isLoading ? <AnalysisSkeleton /> : null}
+
+        {!isLoading && vm === null && errorCopy ? (
+          <ErrorState
+            title={errorCopy.title}
+            message={errorCopy.message}
+            onRetry={refetch}
+            githubUrl={errorCopy.showGithub && login ? `https://github.com/${login}` : undefined}
+          />
         ) : null}
 
-        <ProfileCard
-          user={user}
-          role={role}
-          primary={primary}
-          saved={saved}
-          onToggleSaved={() => setSaved(!saved)}
-          // TODO(M5) — ChatSheet UI lands in M5; openChat only sets state now.
-          onMessage={() => openChat('', user)}
-          onExport={() => showNotice('PDF report berhasil dibuat')}
-        />
+        {!isLoading && vm !== null ? (
+          <>
+            {isStale ? <StaleBanner since={staleSince} onReload={refetch} /> : null}
 
-        <SectionHeading
-          eyebrow="ROLE INTELLIGENCE"
-          title="Skill fingerprint"
-          rightVariant="mono-note"
-          note={typeof confidence === 'number' ? `${confidence}% CONFIDENCE` : '94% CONFIDENCE'}
-        />
-        <SkillCard role={role} stats={stats} frameworks={frameworks} />
+            <ProfileCard
+              vm={vm}
+              saved={saved}
+              onToggleSaved={() => setSaved(!saved)}
+              onMessage={() => openChat('', vmToGithubUser(vm))}
+              onExport={handleExport}
+            />
 
-        <SectionHeading
-          eyebrow="PROJECT VALIDATION"
-          title="Authenticity analysis"
-          rightVariant="verified-label"
-          verifiedLabel="VERIFIED"
-        />
-        <ScoreCard authenticity={authenticity} confidence={confidence} tier={tier} />
-        <MetricGrid
-          originalRatio={originalRatio}
-          originalCount={originalCount}
-          repoCount={repos.length}
-          demoRatio={demoRatio}
-          commitHealth={commitHealth}
-          contributionDepth={contributionDepth}
-        />
+            <SectionHeading
+              eyebrow="ROLE INTELLIGENCE"
+              title="Skill fingerprint"
+              rightVariant="mono-note"
+              note={`${vm.confidence}% CONFIDENCE`}
+            />
+            <SkillCard vm={vm} />
 
-        <SectionHeading
-          eyebrow="CONTRIBUTION ACTIVITY"
-          title="12 week momentum"
-          rightVariant="mono-note"
-          note={
-            typeof contributions12m === 'number' ? `${contributions12m} contributions` : '642 contributions'
-          }
-        />
-        <Heatmap values={heatmap} yoyPct={yoyPct} />
+            <SectionHeading
+              eyebrow="PROJECT VALIDATION"
+              title="Authenticity analysis"
+              rightVariant="verified-label"
+              verifiedLabel="VERIFIED"
+            />
+            <ScoreCard vm={vm} />
+            <MetricGrid vm={vm} />
 
-        <SectionHeading
-          eyebrow="VERIFIED PROJECTS"
-          title="Evidence, not claims"
-          rightVariant="view-all"
-          viewAllLabel="View all"
-          onPressViewAll={() => openGithubUrl(`${user.html_url}?tab=repositories`)}
-        />
-        {repos.slice(0, 3).map((repo) => (
-          <VerifiedRepoCard
-            key={repo.id}
-            repo={repo}
-            authenticity={authenticity}
-            // TODO(M5) — ChatSheet UI lands in M5; openChat only sets state now.
-            onDiscuss={(repoName) => openChat(repoName, user)}
-          />
-        ))}
+            <Heatmap
+              values={vm.heatmap}
+              contributions={vm.metrics.contributions12m}
+              yoyPct={vm.metrics.yoyPct}
+            />
+
+            <SectionHeading
+              eyebrow="VERIFIED PROJECTS"
+              title="Evidence, not claims"
+              rightVariant="view-all"
+              viewAllLabel="View all"
+              onPressViewAll={() => openGithubUrl(`${vm.user.htmlUrl}?tab=repositories`)}
+            />
+            {vm.repos.slice(0, 3).map((repo) => (
+              <VerifiedRepoCard
+                key={repo.id}
+                repo={repo}
+                onDiscuss={(repoName) => openChat(repoName, vmToGithubUser(vm))}
+              />
+            ))}
+          </>
+        ) : null}
       </Animated.View>
     </PageContainer>
+  );
+}
+
+/** Loading state — mirrors the final layout so nothing jumps when data lands. */
+function AnalysisSkeleton() {
+  return (
+    <View style={styles.skeleton}>
+      <Skeleton width="45%" height={10} />
+      <Skeleton width="70%" height={24} />
+      <Skeleton height={168} radius={20} />
+      <Skeleton width="40%" height={12} />
+      <Skeleton height={132} radius={17} />
+      <Skeleton height={132} radius={17} />
+      <Skeleton height={180} radius={17} />
+      <Skeleton width="45%" height={12} />
+      <Skeleton height={92} radius={15} />
+      <Skeleton height={92} radius={15} />
+    </View>
   );
 }
 
@@ -202,13 +214,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     alignSelf: 'flex-start',
-  },
-  staleBanner: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
   },
   backIcon: {
     transform: [{ rotate: '180deg' }],
@@ -223,5 +228,8 @@ const styles = StyleSheet.create({
   heroTitle: {
     marginTop: 4,
     marginBottom: 4,
+  },
+  skeleton: {
+    gap: 14,
   },
 });

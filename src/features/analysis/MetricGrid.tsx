@@ -4,38 +4,56 @@ import { Card } from '@/components/ui/Card';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
 import { useTheme } from '@/theme/useTheme';
+import type { AnalysisVM } from '@/api/analysis';
 
 export type MetricGridProps = {
-  originalRatio: number;
-  originalCount: number;
-  repoCount: number;
-  demoRatio: number;
-  /** Nilai BE (opsional — default = label v1 agar fixture lama tetap jalan). */
-  commitHealth?: 'Consistent' | 'Irregular' | 'Sporadic';
-  contributionDepth?: 'Deep' | 'Moderate' | 'Light';
+  /** FE-2 — the grid renders the AnalysisVM, never a raw GitHub payload. */
+  vm: AnalysisVM;
 };
 
-/** FR-A6 — 2×2 metric grid (design.md §3.12). Nilai BE bila VM tersedia (PRD v2 §9.2). */
-export function MetricGrid({
-  originalRatio,
-  originalCount,
-  repoCount,
-  demoRatio,
-  commitHealth = 'Consistent',
-  contributionDepth = 'Deep',
-}: MetricGridProps) {
+/**
+ * FR-A6 — 2×2 metric grid (design.md §3.12).
+ *
+ * The denominator never drops below the numerator: PRD §5.4 candidates report
+ * 184 original projects while the VM only carries the top 8 repositories, so
+ * `max(repos, originalCount)` keeps "184 of 184" honest.
+ */
+export function MetricGrid({ vm }: MetricGridProps) {
   const theme = useTheme();
+  const { metrics } = vm;
+  const repoCount = Math.max(vm.repos.length, metrics.originalCount);
 
-  const metrics: { icon: IconName; label: string; value: string; sub: string }[] = [
-    { icon: 'check', label: 'Original work', value: `${originalRatio}%`, sub: `${originalCount} of ${repoCount} repos` },
-    { icon: 'history', label: 'Commit health', value: commitHealth, sub: 'Active this month' },
-    { icon: 'arrow', label: 'Live demos', value: `${demoRatio}%`, sub: 'Links verified' },
-    { icon: 'users', label: 'Contribution', value: contributionDepth, sub: 'PRs & issues active' },
+  const cells: { icon: IconName; label: string; value: string; sub: string }[] = [
+    {
+      icon: 'check',
+      label: 'Original work',
+      // SP-0 stores the ratio as 0…1 (BE `derive.ts`); render it as a percent.
+      value: `${Math.round(metrics.originalRatio * 100)}%`,
+      sub: `${metrics.originalCount} of ${repoCount} repos`,
+    },
+    {
+      icon: 'history',
+      label: 'Commit health',
+      value: metrics.commitHealth,
+      sub: 'Active this month',
+    },
+    {
+      icon: 'arrow',
+      label: 'Live demos',
+      value: `${metrics.demoRatio}%`,
+      sub: 'Links verified',
+    },
+    {
+      icon: 'users',
+      label: 'Contribution',
+      value: metrics.contributionDepth,
+      sub: 'PRs & issues active',
+    },
   ];
 
   return (
     <View style={styles.grid}>
-      {metrics.map((metric) => (
+      {cells.map((metric) => (
         <Card key={metric.label} variant="base" padding={13} style={styles.cell}>
           <View style={styles.labelRow}>
             <Icon name={metric.icon} size={13} color={theme.colors.greenText} />

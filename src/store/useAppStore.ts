@@ -2,17 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { fallbackRepos, fallbackUser } from '@/data/seed';
-import type { AnalysisVM } from '../../contracts/src/types.ts';
-import type { Candidate, GithubRepo, GithubUser } from '@/types';
+import type { Candidate, GithubUser } from '@/types';
 import type { ThemeMode } from '@/theme/tokens';
 
 // ---------------------------------------------------------------------------
-// M3b additions (PRD §6) — analysis state read by the Analysis screen. All
-// additions are additive; M2 keys (query, feedRole, feedLocation, recentOnly,
-// error, loadingId) are untouched. M3c will add the analyzeDeveloper action
-// that fills user/repos and resets `saved` (M2's setAnalysisTarget already
-// resets `saved`).
+// Zustand holds *UI state* only (D4: only the theme toggle is persisted).
+// Server data — feed pages, AnalysisVM, conversations — lives in TanStack
+// Query behind `src/api/queries/*`; FE-2 removed the old user/repos/VM slots.
 // ---------------------------------------------------------------------------
 
 export type ChatPerson = GithubUser | Candidate;
@@ -68,8 +64,8 @@ interface AppState {
   error: string;
   setError: (error: string) => void;
   /** D2 — id of the card currently running Analyze, null = none. */
-  loadingId: number | null;
-  setLoadingId: (id: number | null) => void;
+  loadingId: string | null;
+  setLoadingId: (id: string | null) => void;
   /** FR-E8 — resets query/role/location/recentOnly, never error/loadingId. */
   resetFeedFilters: () => void;
 
@@ -78,18 +74,13 @@ interface AppState {
   setFilters: (patch: Partial<FilterState>) => void;
   resetFilters: () => void;
 
-  // --- Analysis target ------------------------------------------------------
-  /** Currently analysed developer; also drives the Profile tab (PRD §6). */
-  user: GithubUser;
-  repos: GithubRepo[];
+  // --- Analysis (UI only) ---------------------------------------------------
+  /**
+   * FE-2: analysis *results* are never stored. The screen reads the VM through
+   * `useAnalysis(login)` from the route param; the store only keeps the
+   * bookmark toggle and the progress slot the prototype shows.
+   */
   saved: boolean;
-  /** R2: target lama (adapter VM) + VM penuh dari BE untuk komponen nyata. */
-  setAnalysisTarget: (user: GithubUser, repos: GithubRepo[]) => void;
-  /** AnalysisVM penuh dari Edge Function; null = belum ada analisis BE. */
-  analysisVm: AnalysisVM | null;
-  /** Banner stale (POL-5) — null berarti data fresh/cache tanpa peringatan. */
-  staleNotice: string | null;
-  setAnalysisVm: (vm: AnalysisVM | null, staleNotice?: string | null) => void;
   analysis: AnalysisProgress;
   setAnalysis: (patch: Partial<AnalysisProgress>) => void;
   resetAnalysis: () => void;
@@ -112,8 +103,6 @@ interface AppState {
   // above — they are declared once, not twice.
   chat: { open: boolean; project: string; person: ChatPerson | null };
   notice: string;
-  setUser: (user: GithubUser) => void;
-  setRepos: (repos: GithubRepo[]) => void;
   setSaved: (saved: boolean) => void;
   openChat: (project?: string, person?: ChatPerson | null) => void;
   showNotice: (notice: string) => void;
@@ -152,13 +141,7 @@ export const useAppStore = create<AppState>()(
       resetFilters: () =>
         set({ filters: { language: null, minStars: 50, maxResultAgeDays: 30 } }),
 
-      user: fallbackUser,
-      repos: fallbackRepos,
       saved: false,
-      setAnalysisTarget: (user, repos) => set({ user, repos, saved: false }),
-      analysisVm: null,
-      staleNotice: null,
-      setAnalysisVm: (analysisVm, staleNotice = null) => set({ analysisVm, staleNotice }),
 
       analysis: { status: 'idle', step: null, progress: 0 },
       setAnalysis: (patch) =>
@@ -201,8 +184,6 @@ export const useAppStore = create<AppState>()(
       // the plain setters the Analysis screen + /dev fixtures need.
       chat: { open: false, project: '', person: null },
       notice: '',
-      setUser: (user) => set({ user }),
-      setRepos: (repos) => set({ repos }),
       setSaved: (saved) => set({ saved }),
       // Minimal additive actions for FR-A3/FR-A8 — they only set state; the
       // ChatSheet and Toast UIs land in M5.

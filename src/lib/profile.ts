@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import type { Availability } from '@/store/useAuthStore';
 
 // ---------------------------------------------------------------------------
@@ -17,6 +17,7 @@ export interface OnboardingInput {
 }
 
 export async function completeOnboardingRemote(input: OnboardingInput): Promise<{ error: string | null }> {
+  const supabase = await getSupabase();
   const { error } = await supabase.rpc('complete_onboarding', {
     p_roles: input.roles,
     p_country_code: input.countryCode ?? null,
@@ -32,6 +33,7 @@ export async function setCountryRemote(
   countryCode: string | null,
   city?: string | null,
 ): Promise<{ error: string | null }> {
+  const supabase = await getSupabase();
   const { error } = await supabase.rpc('set_country', {
     p_country_code: countryCode,
     p_city: city ?? null,
@@ -49,6 +51,7 @@ export interface DeveloperSettingsInput {
 export async function updateDeveloperSettingsRemote(
   input: DeveloperSettingsInput,
 ): Promise<{ error: string | null }> {
+  const supabase = await getSupabase();
   const { error } = await supabase.rpc('update_developer_settings', {
     p_listed: input.listed ?? null,
     p_open_to_messages: input.openToMessages ?? null,
@@ -67,6 +70,7 @@ export interface RecruiterProfileInput {
 export async function updateRecruiterProfileRemote(
   input: RecruiterProfileInput,
 ): Promise<{ error: string | null }> {
+  const supabase = await getSupabase();
   const { error } = await supabase.rpc('update_recruiter_profile', {
     p_company: input.company ?? null,
     p_title: input.title ?? null,
