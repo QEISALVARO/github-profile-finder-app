@@ -1,10 +1,15 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import type { FeedItem } from '@/api/contracts';
+
 import { PageContainer } from '@/components/PageContainer';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { T } from '@/components/ui/T';
-import { feedProjects, type FeedProject } from '@/data/seed';
+import { useAnalyze, useFeed } from '@/api/queries';
+import { describeError } from '@/api/errors';
 import { FeedEmpty } from '@/features/feed/FeedEmpty';
 import { FeedFilters } from '@/features/feed/FeedFilters';
 import { FeedHeading } from '@/features/feed/FeedHeading';
@@ -12,19 +17,15 @@ import { FeedIntro } from '@/features/feed/FeedIntro';
 import { ProjectCard } from '@/features/feed/ProjectCard';
 import { SearchBox } from '@/features/feed/SearchBox';
 import { SearchExamples } from '@/features/feed/SearchExamples';
-import { filterProjects } from '@/lib/feed';
-import {
-  ANALYZE_STALE_MESSAGE,
-  analyzeDeveloper,
-  analyzeErrorMessage,
-  vmToGithubRepos,
-  vmToGithubUser,
-} from '@/lib/analyze';
 import { useAppStore } from '@/store/useAppStore';
 
 /**
- * FR-E1…E9 — Project Discovery Feed. Order per design.md §4:
- * Intro → SearchBox → (error) → SearchExamples → Filters → Heading → cards.
+ * FR-E1…E9 — Project Discovery Feed (design.md §4 order: Intro → SearchBox →
+ * (error) → SearchExamples → Filters → Heading → cards).
+ *
+ * FE-2: the list comes from `useFeed`, which returns a contract `FeedPage`.
+ * Which adapter produced it (`mock` | `api`) is decided by
+ * `EXPO_PUBLIC_DS_FEED` and never by this screen.
  */
 export default function ExploreScreen() {
   const router = useRouter();
@@ -35,54 +36,29 @@ export default function ExploreScreen() {
   const feedLocation = useAppStore((s) => s.feedLocation);
   const recentOnly = useAppStore((s) => s.recentOnly);
   const error = useAppStore((s) => s.error);
-  const loadingId = useAppStore((s) => s.loadingId);
-  const setLoadingId = useAppStore((s) => s.setLoadingId);
-  const setError = useAppStore((s) => s.setError);
-  const setAnalysisTarget = useAppStore((s) => s.setAnalysisTarget);
-  const setAnalysisVm = useAppStore((s) => s.setAnalysisVm);
 
-  const filteredProjects = useMemo(
-    () =>
-      filterProjects(feedProjects, {
-        query,
-        role: feedRole,
-        location: feedLocation,
-        recentOnly,
-      }),
-    [query, feedRole, feedLocation, recentOnly],
-  );
+  const feed = useFeed({ query, role: feedRole, location: feedLocation, recentOnly });
+  const items = feed.data?.items ?? [];
+  const feedError = feed.error ? describeError(feed.error) : null;
 
-  // FR-E7 — Analyze via BE Edge Function (PRD v2 §8). Tanpa data palsu
-  // (POL-5): error upstream ditampilkan di slot FR-E9, Analysis tidak dibuka.
-  // Hasil stale tetap dibuka + banner stale di layar Analysis.
+  const { analyze, loadingId } = useAnalyze();
+
+  // FR-E7 + D1 + D2 — prefetch *this* developer while only this card spins;
+  // on success open Analysis with the login in the route (deep-link friendly).
   const onAnalyze = useCallback(
-    async (project: FeedProject) => {
-      // Guard against double taps / taps on other cards while one is running.
-      if (useAppStore.getState().loadingId !== null) return;
-      setLoadingId(project.id);
-      setError('');
-      try {
-        const result = await analyzeDeveloper(project.developer.login);
-        if (result.error) {
-          setError(analyzeErrorMessage(result.error));
-          return;
-        }
-        const vm = result.data;
-        setAnalysisVm(vm, result.stale ? ANALYZE_STALE_MESSAGE : null);
-        setAnalysisTarget(vmToGithubUser(vm), vmToGithubRepos(vm));
-        router.push('/explore/analysis');
-      } finally {
-        setLoadingId(null);
-      }
+    async (item: FeedItem) => {
+      const result = await analyze(item);
+      if (!result.ok) return;
+      router.push({ pathname: '/explore/analysis', params: { login: item.developer.login } });
     },
-    [router, setLoadingId, setError, setAnalysisTarget, setAnalysisVm],
+    [analyze, router],
   );
 
   return (
     <PageContainer paddingTop={30} keyboardShouldPersistTaps="handled">
       <FeedIntro />
       <SearchBox />
-      {/* FR-E9 — error slot under the search box (never set during M2). */}
+      {/* FR-E9 — error slot under the search box (validation + Analyze errors). */}
       {error !== '' ? (
         <T size={12} color="error" style={styles.error}>
           {error}
@@ -90,22 +66,37 @@ export default function ExploreScreen() {
       ) : null}
       <SearchExamples />
       <FeedFilters />
-      <FeedHeading count={filteredProjects.length} />
+      <FeedHeading count={items.length} />
 
-      {filteredProjects.length === 0 ? (
+      {feed.isError && feedError ? (
+        <ErrorState
+          title="Feed gagal dimuat"
+          message={feedError.message}
+          onRetry={() => feed.refetch()}
+        />
+      ) : feed.isPending ? (
+        <View style={styles.list}>
+          <Skeleton height={318} radius={18} />
+          <Skeleton height={318} radius={18} />
+        </View>
+      ) : items.length === 0 ? (
         <FeedEmpty />
       ) : (
         <View style={styles.list}>
-          {filteredProjects.map((project, index) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              index={index}
-              loading={loadingId === project.id}
-              disabled={loadingId !== null && loadingId !== project.id}
-              onAnalyze={onAnalyze}
-            />
-          ))}
+          {items.map((item, index) => {
+            const cardId = String(item.id);
+            return (
+              <ProjectCard
+                key={item.id}
+                item={item}
+                index={index}
+                // D2 — spinner only on the tapped card, others disabled.
+                loading={loadingId === cardId}
+                disabled={loadingId !== null && loadingId !== cardId}
+                onAnalyze={onAnalyze}
+              />
+            );
+          })}
         </View>
       )}
     </PageContainer>

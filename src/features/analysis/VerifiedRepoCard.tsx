@@ -1,26 +1,26 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { GithubRepo } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { ScoreCircle } from '@/components/ui/ScoreRing';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
-import { repoScore } from '@/lib/scoring';
 import { openGithubUrl } from '@/lib/links';
 import { useTheme } from '@/theme/useTheme';
+import type { AnalysisVM } from '@/api/analysis';
 
 export type VerifiedRepoCardProps = {
-  repo: GithubRepo;
-  authenticity: number;
+  /** FE-2 — the contract repo (id, name, isFork, hasVerifiedDemo, score). */
+  repo: AnalysisVM['repos'][number];
   onDiscuss: (repoName: string) => void;
 };
 
 /** FR-A8 — verified repo evidence card (design.md §3.14). */
-export function VerifiedRepoCard({ repo, authenticity, onDiscuss }: VerifiedRepoCardProps) {
+export function VerifiedRepoCard({ repo, onDiscuss }: VerifiedRepoCardProps) {
   const theme = useTheme();
-  const score = repoScore(repo, authenticity);
+  const score = repo.score;
+  const fork = repo.isFork;
 
   return (
     <Card variant="repo">
@@ -39,17 +39,17 @@ export function VerifiedRepoCard({ repo, authenticity, onDiscuss }: VerifiedRepo
         <ScoreCircle
           value={score}
           size={30}
-          background={repo.fork ? 'warnBg' : 'accentSoft'}
-          valueColor={repo.fork ? 'warnText' : 'greenStrong'}
+          background={fork ? 'warnBg' : 'accentSoft'}
+          valueColor={fork ? 'warnText' : 'greenStrong'}
         />
       </View>
 
       <View style={styles.badges}>
         <TagBadge
           icon={<Icon name="check" size={10} color={theme.colors.greenStrong} />}
-          label={repo.fork ? 'Fork modified' : 'Original work'}
+          label={fork ? 'Fork modified' : 'Original work'}
         />
-        {repo.homepage ? (
+        {repo.hasVerifiedDemo ? (
           <TagBadge
             icon={<View style={[styles.demoDot, { backgroundColor: theme.colors.accent }]} />}
             label="Live demo"
@@ -63,7 +63,7 @@ export function VerifiedRepoCard({ repo, authenticity, onDiscuss }: VerifiedRepo
           accessibilityRole="link"
           accessibilityLabel={`View evidence ${repo.name}`}
           hitSlop={hitSlopFor(120, 20)}
-          onPress={() => openGithubUrl(repo.html_url)}>
+          onPress={() => openGithubUrl(repo.htmlUrl)}>
           <T size={8} weight="700" color="greenText">
             View evidence
           </T>

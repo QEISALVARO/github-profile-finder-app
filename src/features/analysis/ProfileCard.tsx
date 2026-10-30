@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { GithubUser } from '@/types';
+import type { AnalysisVM } from '@/api/analysis';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
@@ -11,9 +11,8 @@ import { openGithubUrl } from '@/lib/links';
 import { useTheme } from '@/theme/useTheme';
 
 export type ProfileCardProps = {
-  user: GithubUser;
-  role: string;
-  primary: string;
+  /** FE-2 — the card renders the AnalysisVM, never a raw GitHub payload. */
+  vm: AnalysisVM;
   saved: boolean;
   onToggleSaved: () => void;
   onMessage: () => void;
@@ -22,15 +21,16 @@ export type ProfileCardProps = {
 
 /** FR-A2 + FR-A3 — profile card with bookmark, tags and CTA (design.md §3.8). */
 export function ProfileCard({
-  user,
-  role,
-  primary,
+  vm,
   saved,
   onToggleSaved,
   onMessage,
   onExport,
 }: ProfileCardProps) {
   const theme = useTheme();
+  const user = vm.user;
+  const role = vm.inferredRole;
+  const primary = vm.primaryLanguage;
   const displayName = user.name || user.login;
 
   return (
@@ -39,7 +39,7 @@ export function ProfileCard({
 
       <View style={styles.mainRow}>
         <Avatar
-          uri={user.avatar_url}
+          uri={user.avatarUrl}
           name={displayName}
           login={user.login}
           size={61}
@@ -61,7 +61,7 @@ export function ProfileCard({
             accessibilityRole="link"
             accessibilityLabel={`Buka GitHub ${user.login}`}
             hitSlop={hitSlopFor(120, 20)}
-            onPress={() => openGithubUrl(user.html_url)}>
+            onPress={() => openGithubUrl(user.htmlUrl)}>
             <T size={11} color="muted">
               @{user.login}
             </T>
@@ -108,18 +108,18 @@ export function ProfileCard({
       </View>
 
       <View style={styles.metaRow}>
-        {user.location ? (
+        {user.locationText ? (
           <View style={styles.metaItem}>
             <Icon name="location" size={15} color={theme.colors.muted} />
             <T size={10} color="muted">
-              {user.location}
+              {user.locationText}
             </T>
           </View>
         ) : null}
         <View style={styles.metaItem}>
           <Icon name="repo" size={15} color={theme.colors.muted} />
           <T size={10} color="muted">
-            {user.public_repos} public repos
+            {user.publicRepos} public repos
           </T>
         </View>
       </View>

@@ -7,19 +7,23 @@ import { Icon } from '@/components/ui/Icon';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { T } from '@/components/ui/T';
 import { useTheme } from '@/theme/useTheme';
-import type { LanguageStat } from '@/lib/scoring';
+import type { AnalysisVM } from '@/api/analysis';
 
 export type SkillCardProps = {
-  role: string;
-  stats: LanguageStat[];
-  /** Framework dari manifest BE (PRD v2 §9.2); default = label v1. */
-  frameworks?: string[];
+  /** FE-2 — the card renders the AnalysisVM, never a raw GitHub payload. */
+  vm: AnalysisVM;
 };
 
+/** How many framework chips fit before the dashed "+N tools" counter. */
+const VISIBLE_FRAMEWORKS = 3;
+
 /** FR-A4 — skill fingerprint (design.md §3.10). */
-export function SkillCard({ role, stats, frameworks }: SkillCardProps) {
+export function SkillCard({ vm }: SkillCardProps) {
   const theme = useTheme();
-  const chips = frameworks && frameworks.length > 0 ? frameworks : ['React', 'Vite', 'Node.js'];
+  const role = vm.inferredRole;
+  const stats = vm.languageStats;
+  const visibleFrameworks = vm.frameworks.slice(0, VISIBLE_FRAMEWORKS);
+  const extraFrameworks = vm.frameworks.length - visibleFrameworks.length;
 
   return (
     <Card variant="skill">
@@ -71,18 +75,14 @@ export function SkillCard({ role, stats, frameworks }: SkillCardProps) {
       </View>
 
       <View style={styles.frameworks}>
-        {chips.slice(0, 3).map((framework) => (
+        {visibleFrameworks.map((framework) => (
           <Chip key={framework} variant="default" mono size={7}>
             {framework}
           </Chip>
         ))}
-        {chips.length > 3 ? (
+        {extraFrameworks > 0 ? (
           <Chip variant="dashed" mono size={7}>
-            {`+${chips.length - 3} tools`}
-          </Chip>
-        ) : chips.length === 3 ? (
-          <Chip variant="dashed" mono size={7}>
-            +3 tools
+            {`+${extraFrameworks} tools`}
           </Chip>
         ) : null}
       </View>
