@@ -30,3 +30,10 @@ CHECK countries -> [{"count":"152"}]
 CHECK aliases -> [{"count":"14"}]
 CHECK Paris-ambigu -> [{"country_code":null,"city":null,"confidence":0}]
 GAGAL: 2
+
+---
+## Tambahan 30 Okt 2026 (main 5c7342a, BE-3 + FE-2 merge)
+- Migrasi 018-021 + seed bench: OK di PG17 portable (23 OK total).
+- FUNCT BE-3 9/9: tokenisasi, search, filter negara, kursor roundtrip, facet mask, rank.
+- Mutasi M1/M2/M3/M5: tiap mutasi efektif mengubah perilaku dan terdeteksi; M4 (Paris) menegaskan fungsi benar (ambigu -> NULL). Trigger/kebijakan dipulihkan, DB bersih, server dimatikan.
+- FE: tsc OK, jest 119/119 (serial; satu flaky paralel), Deno kontrak 15/15 + fungsi 38/38.
