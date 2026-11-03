@@ -45,10 +45,18 @@ type HookHandle<T, P> = {
   unmount: () => void;
 };
 
+/** Every client created by a test — cleared in `afterEach` even on failure. */
+const clients: QueryClient[] = [];
+
 async function renderHook<T, P>(useHook: (props: P) => T, initialProps: P): Promise<HookHandle<T, P>> {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
+      // Mutations also schedule a 5-minute gc timer by default.
+      mutations: { retry: false, gcTime: Infinity },
+    },
   });
+  clients.push(client);
   const props = { current: initialProps };
   const ref: { current: T } = { current: undefined as unknown as T };
 
@@ -77,7 +85,12 @@ async function renderHook<T, P>(useHook: (props: P) => T, initialProps: P): Prom
       await flush();
     },
     unmount: () => {
-      root.unmount();
+      // Unmount inside `act` so pending notifications cannot warn, then drop
+      // the cache and its gc timers (the source of Jest's open-handle warning).
+      act(() => {
+        root.unmount();
+      });
+      client.clear();
     },
   };
 }
@@ -88,7 +101,10 @@ beforeEach(() => {
   useAppStore.setState({ loadingId: null, error: '' });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Tests that fail before their explicit `unmount()` still leave work behind:
+  // cancel in-flight queries and clear the cache deterministically.
+  await Promise.all(clients.splice(0).map((client) => client.cancelQueries()));
   delete process.env.EXPO_PUBLIC_DS_FEED;
   delete process.env.EXPO_PUBLIC_DS_ANALYSIS;
 });
@@ -270,3 +286,4 @@ describe('useConversations / useMessages / useSendMessage', () => {
     reopened.unmount();
   });
 });
+

@@ -1,8 +1,12 @@
 # Laporan Progres — Gitscope Mobile (Expo)
 
-**Tanggal laporan:** 26 Oktober 2026
-**Branch aktif:** `feat/m3a-m3b`
-**Commit terakhir:** `e25e016` — *M3a: tidy seed re-export spacing*
+**Tanggal laporan:** 3 November 2026
+**Basis aktif:** `origin/main` @ `387438a` (FE-0…FE-4, FE-2 merged PR #3, FE-8 selesai)
+**Status terbaru:** 12 suite / **119 tes** hijau; lihat bagian **FE Hardening 3** di akhir dokumen.
+
+> Bagian 1–8 di bawah adalah **arsip** laporan M0–M3b (basis `feat/m3a-m3b`).
+> Angka, branch, dan catatan "main masih di M1" di arsip itu sudah tidak berlaku.
+
 **Basis dokumen:** `PRD.md` §7 (FR) dan §11 (Rencana Pengerjaan)
 
 ---
@@ -307,9 +311,9 @@ Suite test baru:
 3. **M3c** (v1) tetap relevan — wiring `analyzeDeveloper()` ke tombol Analyze — sebelum R2 menggantinya dengan Edge Function.
 4. Hubungkan CountryPicker ke Feed (R3) dan Discover (R4).
 5. Tulis `design_v2.md` untuk layar baru (PRD §15).
-# Laporan Fase — FE-2 Data-layer per Domain (rebased)
+# Laporan Fase — FE-2 Data-layer per Domain (rebased) — **MERGED (PR #3)**
 
-Tanggal: 30 Oktober 2026 · Branch: `feat/fe-2-rebased` (basis `main` @ `dcf8049`)
+Tanggal: 30 Oktober 2026 · Branch: `feat/fe-2-rebased` (basis `main` @ `dcf8049`) · **Merge: PR #3**
 
 ## 1. Ringkasan
 
@@ -492,3 +496,60 @@ jadi angka 119 di atas tidak termasuk dirinya.
 - `ChatSheet` (M5) belum ada, `openChat` hanya mengisi state seperti sebelumnya.
 - Branch lama `feat/fe-2-data-layer` sengaja dibiarkan; pemilik repo dapat
   menutupnya setelah PR ini diverifikasi.
+
+---
+
+# Laporan Fase — FE Hardening 3 (Paket A)
+
+**Tanggal:** 3 November 2026
+**Branch:** `chore/fe-hardening-3` (basis `origin/main` @ `387438a`)
+**Cakupan:** tes flaky + akurasi laporan + audit sisa impor lama. Tanpa perubahan perilaku aplikasi.
+
+## 1. Ringkasan
+
+Tes FE-2 (`fe2-screens.test.tsx` dan `hooks.test.tsx`) dibuat deterministik: tidak
+lagi bergantung pada waktu nyata, cache TanStack Query dibersihkan eksplisit, dan
+timer GC query/mutation tidak lagi tertinggal setelah suite selesai. Sebelum
+perbaikan, run penuh sempat gagal 1 tes secara acak dan Jest memaksa keluar
+worker karena open handle; sekarang 10× run berpasangan dan 5× `jest --ci`
+penuh hijau tanpa peringatan `act`/open handle.
+
+## 2. Perubahan
+
+| Berkas | Perubahan |
+|---|---|
+| `src/app/__tests__/fe2-screens.test.tsx` | `QueryClient` uji memakai `retryDelay: 0`, `gcTime: Infinity` (query + mutation); `flush()` memakai scope `act` sinkron untuk timer lalu `act` async untuk microtask (menghapus peringatan React 19); `afterEach` async meng-unmount di dalam `act`, `cancelQueries()`, `clear()`, lalu `jest.clearAllTimers()`. |
+| `src/api/queries/__tests__/hooks.test.tsx` | `QueryClient` uji `retryDelay: 0` + `gcTime: Infinity` (query & mutation); `unmount()` sekarang di dalam `act` dan men-`clear()` cache; `afterEach` membatalkan semua query yang masih berjalan. Timer GC mutation 5 menit (penyebab "Jest did not exit") hilang. |
+| `LAPORAN.md` | Header status diperbarui (FE-2 merged PR #3, basis `387438a`, 119 tes/12 suite), arsip M0–M3b ditandai, bagian ini ditambahkan. |
+
+Tidak ada asersi yang dilemahkan: jumlah dan isi asersi tetap sama. Yang berubah
+hanya cara menunggu dan cara membersihkan.
+
+## 3. Audit A3 — hasil `grep` (bukan perbaikan)
+
+| Pola | Perintah | Hasil |
+|---|---|---|
+| `api.github.com` | `grep -rn "api\.github\.com" src` | **kosong** |
+| `analysis-types` | `grep -rn "analysis-types" src` | **kosong** |
+| `TODO(M5)` / `TODO(M3c)` | `grep -rn "TODO(M5)\|TODO(M3c)" src` | **kosong** |
+| `TODO` (apa pun) | `grep -rn "TODO" src` | **kosong** |
+
+Tidak ada temuan yang perlu diperbaiki; tidak ada perubahan di luar cakupan.
+
+## 4. Hasil verifikasi (perintah yang benar-benar dijalankan)
+
+| Pemeriksaan | Perintah | Hasil |
+|---|---|---|
+| Typecheck | `npm run typecheck` | ✅ 0 error |
+| Lint | `npx expo lint` (via `npm run check`) | ✅ 0 error, 0 warning |
+| Jest penuh | `npx jest --ci` | ✅ 12 suite, 119 tes |
+| Loop berpasangan | `for i in $(seq 1 10); do npx jest --ci src/app/__tests__/fe2-screens.test.tsx src/api/queries/__tests__/hooks.test.tsx; done` | ✅ 10/10 run, 20 tes per run, exit 0 |
+| Loop penuh | `for i in $(seq 1 5); do npx jest --ci; done` | ✅ 5/5 run, 12 suite/119 tes, tanpa `did not exit`/`force exited` |
+| Gate | `npm run check` | ✅ exit 0 |
+
+## 5. BELUM DIUJI
+
+- **Mode `api` end-to-end** (Supabase lokal + Edge Functions + token/OAuth):
+  Docker dan proyek Supabase dev tidak tersedia di lingkungan ini. Yang teruji
+  hanya adapter dengan mock; tidak ada klaim runtime backend nyata.
+- Uji manual perangkat/emulator untuk light/dark dan lebar 375/393/430.
