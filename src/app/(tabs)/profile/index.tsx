@@ -155,6 +155,31 @@ export default function ProfileScreen() {
           <Icon name="arrow" size={17} color={theme.colors.muted} />
         </Pressable>
 
+        {roles.includes('developer') ? (
+          <>
+            <View style={[styles.divider, { backgroundColor: theme.colors.line }]} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Buka skor dan bukti profil saya"
+              android_ripple={{ color: 'transparent' }}
+              onPress={() => router.push('/profile/my-score')}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+              <View style={[styles.rowIcon, { backgroundColor: theme.colors.accentSoft }]}>
+                <Icon name="chart" size={18} color={theme.colors.greenText} />
+              </View>
+              <View style={styles.rowCopy}>
+                <T size={10} weight="700">
+                  Skor saya
+                </T>
+                <T size={8} color="muted" style={styles.rowSub}>
+                  Rincian komponen dan bukti dari profil GitHub Anda
+                </T>
+              </View>
+              <Icon name="arrow" size={17} color={theme.colors.muted} />
+            </Pressable>
+          </>
+        ) : null}
+
         <View style={[styles.divider, { backgroundColor: theme.colors.line }]} />
 
         <View style={styles.row}>

@@ -14,6 +14,7 @@ export default function ExploreLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="analysis" />
+      <Stack.Screen name="evidence" />
     </Stack>
   );
 }

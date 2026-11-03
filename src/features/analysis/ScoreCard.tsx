@@ -1,27 +1,24 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { ScoreRing } from '@/components/ui/ScoreRing';
 import { T } from '@/components/ui/T';
+import { hitSlopFor } from '@/components/ui/hit-slop';
 import type { AnalysisVM } from '@/api/analysis';
+import { TIER_COPY } from '@/lib/score';
 
 export type ScoreCardProps = {
   /** FE-2 — the card renders the AnalysisVM, never a raw GitHub payload. */
   vm: AnalysisVM;
-};
-
-/** PRD v2 §9.2 — tier copy follows the BE tier, never a static label. */
-const TIER_COPY: Record<AnalysisVM['tier'], string> = {
-  high: 'Original, active work',
-  medium: 'Promising signals, verify evidence',
-  low: 'Limited verifiable evidence',
+  /** B1 — opens the full component + evidence breakdown. */
+  onViewBreakdown?: () => void;
 };
 
 /**
  * FR-A5 — green authenticity card (design.md §3.11).
  * Authenticity, confidence and tier all come from the VM.
  */
-export function ScoreCard({ vm }: ScoreCardProps) {
+export function ScoreCard({ vm, onViewBreakdown }: ScoreCardProps) {
   const authenticity = vm.authenticity;
   const copy = TIER_COPY[vm.tier];
 
@@ -40,6 +37,19 @@ export function ScoreCard({ vm }: ScoreCardProps) {
             ? 'Aktivitas konsisten dan mayoritas repository bukan hasil fork.'
             : 'Periksa evidence di bawah sebelum menghubungi kandidat.'}
         </T>
+
+        {onViewBreakdown ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Lihat rincian skor"
+            hitSlop={hitSlopFor(140, 22)}
+            onPress={onViewBreakdown}
+            style={({ pressed }) => [styles.link, pressed && styles.pressed]}>
+            <T size={8} weight="800" color="onAccent">
+              Lihat rincian →
+            </T>
+          </Pressable>
+        ) : null}
       </View>
     </Card>
   );
@@ -58,5 +68,14 @@ const styles = StyleSheet.create({
   title: {
     marginTop: 4,
     marginBottom: 4,
+  },
+  link: {
+    marginTop: 6,
+    minHeight: 20,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
+  pressed: {
+    opacity: 0.85,
   },
 });
