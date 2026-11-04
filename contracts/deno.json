@@ -1,3 +1,6 @@
+// contracts/deno.json
+// Deno workspace untuk kontrak (tidak memakai Expo).
+// Lock dikunci agar CI deterministik.
 {
   "imports": {
     "zod": "npm:zod@^3.24.0"
@@ -5,5 +8,6 @@
   "tasks": {
     "check": "deno check --frozen --config contracts/deno.json contracts/src/*.ts",
     "test": "deno test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/"
-  }
+  },
+  "lock": true
 }

@@ -2,11 +2,12 @@
   "imports": {
     "zod": "npm:zod@^3.24.0",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.1",
-    "@std/assert": "jsr:@std/assert@^1.0.19"
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@shared/normalize-login": "../functions/_shared/normalize-login.ts"
   },
-  "lock": true,
   "tasks": {
-    "check": "deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts",
+    "check": "deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts supabase/functions/_shared/normalize-login.ts supabase/functions/_shared/scoring/role-map.ts",
     "test": "deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/"
-  }
+  },
+  "lock": true
 }
