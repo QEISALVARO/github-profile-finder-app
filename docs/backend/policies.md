@@ -16,7 +16,7 @@ Setiap tabel di skema `public` menerapkan RLS aktif dengan prinsip **DEFAULT DEN
 | `profiles` | Diri sendiri; ATAU developer `listed=true` (+ negara terisi); ATAU partner dalam percakapan aktif | Service Role / Trigger Auth | Diri sendiri (kolom non-sensitif) | Diri sendiri / Service Role |
 | `developer_settings`| Pemilik; Recruiter hanya jika developer `listed = true` | Pemilik | Pemilik | Pemilik |
 | `recruiter_profiles` | Publik (authenticated) | Pemilik | Pemilik | Pemilik |
-| `projects` | Publik jika `published=true`, `is_hidden=false`, dan pemilik `listed=true` | Pemilik | Pemilik | Pemilik |
+| `projects` | **RPC-only** — tanpa GRANT/kebijakan langsung untuk klien; baca via `search_projects` / `featured_projects` / `my_projects` (ADR-015) | Service Role (Edge Function) | Service Role (Edge Function) | Service Role (Edge Function) |
 | `analyses` | Publik (authenticated) | Service Role | Service Role | Service Role |
 | `github_snapshots` | Service Role | Service Role | Service Role | Service Role |
 | `conversations` | Peserta (`recruiter_id = auth.uid()` OR `developer_id = auth.uid()`) | Peserta | Peserta | Peserta |
@@ -45,6 +45,7 @@ Setiap tabel di skema `public` menerapkan RLS aktif dengan prinsip **DEFAULT DEN
 | **POL-6 (BE-3)** | Ingestion repo via GraphQL resmi; demo SSRF-safe | github/*, ssrf, publish-project | Deno 11/11 |
 | **POL-8 (BE-3)** | Moderasi: report unik + rate limit; admin klaim JWT; audit_log default-deny | admin_set_project_hidden | pgTAP 09 |
 | **POL-9 (BE-3)** | Publish butuh negara (listed); kosongkan -> auto-unlist -> hilang | trigger sync + visible | pgTAP 08 |
+| **POL-3 (A3)** | `projects` tidak dapat dibaca/ditulis langsung oleh klien; hanya RPC definer | Migrasi 022 (cabut grant + hapus policy inert) | pgTAP 10 (CI: menunggu run PR) |
 | **AIR-5 (BE-3)** | Tanpa atribut sensitif; role dari bahasa/manifest; facet = domisili | role.ts, FeedRole | kontrak + Deno |
 | **POL-9** | Keharusan Negara sebelum Terdaftar (Listed) | Trigger `BEFORE INSERT/UPDATE ON developer_settings` menolak `listed=true` jika `country_code` null (`POL9_COUNTRY_REQUIRED`). Trigger `AFTER UPDATE ON profiles` mematikan `listed=false` jika negara dihapus. Sinkronisasi `projects.country_code`. (Menyusul di BE-1: `pol9_triggers` + pgTAP `04_pol9_enforcement`.) | - |
 

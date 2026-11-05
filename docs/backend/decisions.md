@@ -94,3 +94,15 @@ Dokumen ini mencatat keputusan arsitektur dan teknis non-trivial yang diambil se
 - D6 facet mask <5 (ambang app.facet_min_count=5); totalCount eksak. Terbukti pgTAP + fixture.
 - Riset Postgres: setweight butuh leksem tsvector (bangun per-bagian); encode() wrap 76 char (strip ws); decode() tolak base64url (konversi balik); standard_conforming_strings membuat backslash-s literal (pakai POSIX class); quote_literal merusak prefix-term; generated menolak now() (pakai trigger); Supabase beri GRANT default ke anon/authenticated.
 - Riset GraphQL: resolve satu repo by databaseId butuh node ID global; dipakai list-OWNER-30 + cocokkan databaseId (1 query).
+
+## ADR-015: `projects` hanya dapat dibaca lewat RPC (RPC-only)
+
+- **Konteks:** Migrasi 019 mencabut seluruh privilese `authenticated` atas `public.projects`, tetapi tetap membuat kebijakan `"projects: visible or owner read"`. Tanpa `GRANT SELECT`, kebijakan itu tidak pernah dievaluasi untuk `authenticated` sehingga menyesatkan pembaca matriks RLS (utang A3).
+- **Keputusan:** Pertahankan **RPC-only**. Migrasi 022 mencabut privilese `anon`/`authenticated`, menghapus seluruh kebijakan `projects`, dan menegaskan komentar tabel. Baca lewat RPC SECURITY DEFINER (`search_projects`, `featured_projects`, dan `my_projects` di BE-3b); tulis hanya `service_role` (Edge Function publish-project).
+- **Konsekuensi:** Klien tidak dapat membaca `projects` langsung — dibuktikan pgTAP `10_be3_projects_rpc_only.sql` (error 42501, 0 kebijakan, `service_role` tetap punya SELECT). Setiap kebutuhan baca baru harus menjadi RPC definer, bukan grant tabel.
+
+## ADR-016: Nomor migrasi 0016 sengaja dilewati
+
+- **Konteks:** Urutan migrasi melompat dari `20261001000015` ke `20261001000017`.
+- **Keputusan:** 0016 adalah sisa penghapusan satu draf BE-2 yang tidak pernah di-commit; **tidak dibuat ulang**. Nomor berikutnya melanjutkan 0022 dst. agar riwayat yang sudah merge tidak berubah.
+- **Konsekuensi:** Celah nomor bukan indikasi migrasi hilang; `supabase db reset` menerapkan 0015 → 0017 tanpa masalah (reset CI pada `dcf8049`).
