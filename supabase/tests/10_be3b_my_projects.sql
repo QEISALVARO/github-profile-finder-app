@@ -3,7 +3,7 @@
 -- peran developer wajib, anon ditolak, kursor, rate limit, tanpa email.
 
 begin;
-select plan(15);
+select plan(19);
 
 -- ─── Data uji ────────────────────────────────────────────────────────
 insert into auth.users (id, aud, role, email) values
