@@ -6,7 +6,7 @@
   },
   "lock": true,
   "tasks": {
-    "check": "deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts",
+    "check": "deno check --frozen --config supabase/deno.json supabase/functions/analyze-developer/index.ts supabase/functions/delete-account/index.ts supabase/functions/refresh-stale/index.ts supabase/functions/publish-project/handler.ts supabase/functions/list-my-repos/handler.ts supabase/functions/_shared/github/upstream.ts supabase/functions/_shared/scoring/publish.ts supabase/functions/_shared/ssrf/safe-fetch.ts supabase/functions/_shared/scoring/score.ts",
     "test": "deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/"
   }
 }

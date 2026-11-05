@@ -1,13 +1,14 @@
 // @ts-nocheck
 // supabase/functions/list-my-repos/index.ts
 // BE-3: daftar repo PUBLIK milik pemanggil untuk dipilih (MyRepoItem[]).
-// Login diambil dari profiles.login pemanggil — TIDAK menerima login dari klien.
-// Rate limit: 60/jam (app_rate_limits.list_my_repos). Peran developer wajib.
+// Logika ada di handler.ts (dapat diuji offline); berkas ini hanya wiring
+// dependensi nyata. Login diambil dari profiles.github_login pemanggil.
 
-import { corsHeaders, json, errorResponse } from "../_shared/http.ts";
-import { authenticateCaller, getAdminClient } from "../_shared/supabase.ts";
+import { getAdminClient, authenticateCaller } from "../_shared/supabase.ts";
 import { createGitHubAuth } from "../_shared/github/auth.ts";
 import { executeGraphQL, GitHubGraphQLError } from "../_shared/github/graphql.ts";
+import { UpstreamFailure } from "../_shared/github/upstream.ts";
+import { createListMyReposHandler, type ListReposDeps } from "./handler.ts";
 
 const OWNER_REPOS_QUERY = `
 query OwnerRepos($login: String!, $after: String) {
@@ -38,135 +39,99 @@ query OwnerRepos($login: String!, $after: String) {
   }
 }`;
 
-function toCursor(obj: unknown): string {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+function mapGitHubError(err: unknown): never {
+  if (err instanceof GitHubGraphQLError) {
+    if (err.isRateLimited) throw new UpstreamFailure("rate_limited", err.message, err.retryAfter);
+    if (err.isNotFound) throw new UpstreamFailure("not_found", err.message);
+  }
+  throw new UpstreamFailure("other", err instanceof Error ? err.message : String(err));
 }
-function fromCursor<T>(s: string): T {
-  return JSON.parse(decodeURIComponent(escape(atob(s))));
-}
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-  if (req.method !== "GET" && req.method !== "POST") {
-    return errorResponse("VALIDATION", "Hanya metode GET/POST yang diizinkan", 405);
-  }
-
-  const { user: caller, error: authError } = await authenticateCaller(
-    req.headers.get("Authorization"),
-  );
-  if (authError || !caller) {
-    return errorResponse("UNAUTHORIZED", authError ?? "Token autentikasi tidak valid", 401);
-  }
-
+export function createDefaultDeps(): ListReposDeps {
   const adminClient = getAdminClient();
-
-  // Profil pemanggil (login + peran).
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("github_login, roles")
-    .eq("id", caller.id)
-    .maybeSingle();
-
-  const login = (profile?.github_login ?? caller.githubLogin ?? "").toLowerCase();
-  if (!login) {
-    return errorResponse("VALIDATION", "Profil GitHub pemanggil belum terhubung", 400);
-  }
-  if (!((profile?.roles ?? []) as string[]).includes("developer")) {
-    return errorResponse("FORBIDDEN", "Hanya peran developer yang dapat mempublikasi proyek", 403);
-  }
-
-  // Rate limit 60/jam.
-  try {
-    const { data: rl } = await adminClient.rpc("check_rate_limit", {
-      p_user: caller.id,
-      p_key: "list_my_repos",
-      p_max: 60,
-      p_window: "1 hour",
-    });
-    if (rl?.[0] && !rl[0].allowed) {
-      return errorResponse(
-        "RATE_LIMITED",
-        `Batas daftar repo tercapai. Coba lagi dalam ${rl[0].retry_after ?? 60} detik.`,
-        429,
-        rl[0].retry_after ?? 60,
-      );
-    }
-  } catch { /* abaikan kegagalan rate-limit lunak */ }
-
-  // Kursor dari query string (GET) atau body (POST).
-  let after: string | null = null;
-  try {
-    if (req.method === "GET") {
-      const u = new URL(req.url);
-      const c = u.searchParams.get("cursor");
-      if (c) after = (fromCursor<{ after?: string }>(c).after as string) ?? null;
-    } else {
-      const body = await req.json().catch(() => ({}));
-      if (typeof body.cursor === "string" && body.cursor) {
-        after = (fromCursor<{ after?: string }>(body.cursor).after as string) ?? null;
-      }
-    }
-  } catch {
-    return errorResponse("VALIDATION", "Format kursor tidak valid", 400);
-  }
-
-  // Repo milik pemanggil (server-side, token layanan).
   const auth = createGitHubAuth();
-  let gql: any;
-  try {
-    gql = await executeGraphQL(OWNER_REPOS_QUERY, { login, after }, auth);
-  } catch (err: unknown) {
-    if (err instanceof GitHubGraphQLError) {
-      if (err.isRateLimited) {
-        return errorResponse("RATE_LIMITED", "Kuota GitHub API habis. Coba lagi nanti.", 429, err.retryAfter ?? 60);
+
+  return {
+    async authenticate(req) {
+      const { user, error } = await authenticateCaller(req.headers.get("Authorization"));
+      return {
+        caller: user ? { id: user.id, githubLogin: user.githubLogin } : null,
+        error,
+      };
+    },
+
+    async getProfile(userId) {
+      const { data } = await adminClient
+        .from("profiles")
+        .select("github_login, roles")
+        .eq("id", userId)
+        .maybeSingle();
+      if (!data) return null;
+      return {
+        githubLogin: data.github_login ?? null,
+        roles: (data.roles ?? []) as string[],
+      };
+    },
+
+    async checkRateLimit(userId) {
+      const { data } = await adminClient.rpc("check_rate_limit", {
+        p_user: userId,
+        p_key: "list_my_repos",
+        p_max: 60,
+        p_window: "1 hour",
+      });
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) return { allowed: true, retryAfter: 0 };
+      return { allowed: row.allowed === true, retryAfter: row.retry_after ?? 0 };
+    },
+
+    async listRepos(login, after) {
+      let gql: { data?: { user?: { repositories?: unknown } } };
+      try {
+        gql = await executeGraphQL(OWNER_REPOS_QUERY, { login, after }, auth);
+      } catch (err) {
+        mapGitHubError(err);
       }
-      if (err.isNotFound) return errorResponse("NOT_FOUND", "Akun GitHub tidak ditemukan", 404);
-    }
-    return errorResponse("UPSTREAM_ERROR", "Gagal menghubungi GitHub API", 502);
-  }
+      const conn = gql?.data?.user?.repositories as
+        | {
+          pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+          nodes?: Array<Record<string, unknown>>;
+        }
+        | undefined;
+      if (!conn) throw new UpstreamFailure("not_found", "Akun GitHub tidak ditemukan");
 
-  const conn = gql?.data?.user?.repositories;
-  if (!conn) return errorResponse("NOT_FOUND", "Akun GitHub tidak ditemukan", 404);
-  const nodes = conn.nodes ?? [];
+      return {
+        nodes: (conn.nodes ?? []).map((n) => ({
+          databaseId: Number(n.databaseId),
+          nameWithOwner: String(n.nameWithOwner ?? ""),
+          name: String(n.name ?? ""),
+          description: (n.description as string | null) ?? null,
+          primaryLanguage:
+            (n.primaryLanguage as { name?: string } | null | undefined)?.name ?? null,
+          stargazers: Number(n.stargazerCount ?? 0),
+          pushedAt: (n.pushedAt as string | null) ?? null,
+          isFork: n.isFork === true,
+          isArchived: n.isArchived === true,
+          isEmpty: n.isEmpty === true,
+          homepageUrl: (n.homepageUrl as string | null) ?? null,
+        })),
+        hasNextPage: conn.pageInfo?.hasNextPage === true,
+        endCursor: conn.pageInfo?.endCursor ?? null,
+      };
+    },
 
-  // alreadyPublished dari DB (service role).
-  const repoIds = nodes.map((n: any) => n.databaseId).filter(Boolean);
-  let published = new Set<number>();
-  if (repoIds.length > 0) {
-    const { data: rows } = await adminClient
-      .from("projects")
-      .select("github_repo_id")
-      .in_("github_repo_id", repoIds);
-    published = new Set((rows ?? []).map((r: any) => r.github_repo_id));
-  }
+    async publishedRepoIds(ids) {
+      const { data } = await adminClient
+        .from("projects")
+        .select("github_repo_id")
+        .in("github_repo_id", ids);
+      return ((data ?? []) as Array<{ github_repo_id: number | null }>)
+        .map((r) => r.github_repo_id)
+        .filter((id): id is number => typeof id === "number");
+    },
+  };
+}
 
-  const items = nodes.map((n: any) => {
-    const isFork = n.isFork === true;
-    const isEmpty = n.isEmpty === true;
-    const notOwner = false; // query sudah ownerAffiliations: OWNER
-    const ineligibleReason = isFork ? "FORK" : isEmpty ? "EMPTY" : null;
-    return {
-      githubRepoId: n.databaseId,
-      fullName: n.nameWithOwner,
-      name: n.name,
-      description: n.description ?? null,
-      language: n.primaryLanguage?.name ?? null,
-      stars: n.stargazerCount ?? 0,
-      pushedAt: n.pushedAt ?? null,
-      isFork,
-      isArchived: n.isArchived === true,
-      homepageUrl: n.homepageUrl ?? null,
-      alreadyPublished: published.has(n.databaseId),
-      eligible: !isFork && !isEmpty && !notOwner,
-      ineligibleReason,
-    };
-  });
+const handle = createListMyReposHandler(createDefaultDeps());
 
-  const nextCursor = conn.pageInfo?.hasNextPage && conn.pageInfo?.endCursor
-    ? toCursor({ after: conn.pageInfo.endCursor })
-    : null;
-
-  return json({ items, nextCursor });
-});
+Deno.serve(handle);

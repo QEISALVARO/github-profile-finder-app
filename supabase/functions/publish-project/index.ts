@@ -1,53 +1,18 @@
 // @ts-nocheck
 // supabase/functions/publish-project/index.ts
 // BE-3: publikasi repo milik pemanggil menjadi proyek feed (verifikasi server).
-// Hanya pemilik (owner.databaseId == profiles.github_id); bukan fork; publik;
-// tidak kosong; demo SSRF-safe; upsert idempoten per github_repo_id.
-// Rate limit: 20/jam (app_rate_limits.publish_project). Peran developer wajib.
+// Logika ada di handler.ts (dapat diuji offline); berkas ini hanya wiring
+// dependensi nyata: Supabase, GitHub GraphQL, dan verifikasi demo SSRF-safe.
 
-import { corsHeaders, json, errorResponse } from "../_shared/http.ts";
-import { authenticateCaller, getAdminClient } from "../_shared/supabase.ts";
+import { getAdminClient, authenticateCaller } from "../_shared/supabase.ts";
 import { createGitHubAuth } from "../_shared/github/auth.ts";
 import { executeGraphQL, GitHubGraphQLError } from "../_shared/github/graphql.ts";
-import { extractFactsFromGraphQL, sanitizeNoEmail } from "../_shared/github/facts.ts";
+import { extractFactsFromGraphQL } from "../_shared/github/facts.ts";
 import { detectFrameworks } from "../_shared/scoring/frameworks.ts";
 import { inferDeveloperRole } from "../_shared/scoring/role.ts";
 import { safeVerifyDemoUrl } from "../_shared/ssrf/safe-fetch.ts";
-import { z } from "npm:zod@^3.24.0";
-import { PublishProjectInput } from "../../../contracts/src/projects.ts";
-
-const SINGLE_REPO_QUERY = `
-query SingleRepo($owner: String!, $name: String!) {
-  rateLimit { cost remaining resetAt }
-  repository(owner: $owner, name: $name) {
-    databaseId
-    name
-    nameWithOwner
-    description
-    isFork
-    isArchived
-    isPrivate
-    isEmpty
-    createdAt
-    pushedAt
-    stargazerCount
-    homepageUrl
-    url
-    diskUsage
-    licenseInfo { spdxId }
-    owner { ... on User { databaseId login } }
-    languages(first: 6, orderBy: { field: SIZE, direction: DESC }) {
-      edges { size node { name } }
-    }
-    defaultBranchRef {
-      target {
-        ... on Commit {
-          history(first: 1) { nodes { committedDate } }
-        }
-      }
-    }
-  }
-}`;
+import { createPublishHandler, type PublishDeps, type RepoNode } from "./handler.ts";
+import { UpstreamFailure } from "../_shared/github/upstream.ts";
 
 const REPO_MANIFEST_QUERY = `
 query RepoManifest($owner: String!, $name: String!, $expression: String!) {
@@ -59,90 +24,7 @@ query RepoManifest($owner: String!, $name: String!, $expression: String!) {
   }
 }`;
 
-const MANIFEST_FILES = [
-  "package.json",
-  "pubspec.yaml",
-  "go.mod",
-  "Cargo.toml",
-  "requirements.txt",
-  "pyproject.toml",
-];
-
-function mapRole(inferred: string): "Front-End" | "Back-End" | "Mobile" | "Data" {
-  if (inferred === "Front-End Developer") return "Front-End";
-  if (inferred === "Mobile Developer") return "Mobile";
-  if (inferred === "AI / Data Engineer") return "Data";
-  return "Back-End";
-}
-
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return errorResponse("VALIDATION", "Hanya metode POST yang diizinkan", 405);
-  }
-
-  const { user: caller, error: authError } = await authenticateCaller(
-    req.headers.get("Authorization"),
-  );
-  if (authError || !caller) {
-    return errorResponse("UNAUTHORIZED", authError ?? "Token autentikasi tidak valid", 401);
-  }
-
-  const adminClient = getAdminClient();
-
-  // Profil + peran + negara (untuk visible).
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("github_id, github_login, roles, country_code, city, developer_settings(listed)")
-    .eq("id", caller.id)
-    .maybeSingle();
-
-  const roles = ((profile?.roles ?? []) as string[]);
-  if (!roles.includes("developer")) {
-    return errorResponse("FORBIDDEN", "Hanya peran developer yang dapat mempublikasikan proyek", 403);
-  }
-  const githubId = profile?.github_id;
-  if (!githubId) {
-    return errorResponse("VALIDATION", "Profil GitHub pemanggil belum terhubung", 400);
-  }
-
-  // Rate limit 20/jam.
-  try {
-    const { data: rl } = await adminClient.rpc("check_rate_limit", {
-      p_user: caller.id,
-      p_key: "publish_project",
-      p_max: 20,
-      p_window: "1 hour",
-    });
-    if (rl?.[0] && !rl[0].allowed) {
-      return errorResponse(
-        "RATE_LIMITED",
-        `Batas publikasi tercapai. Coba lagi dalam ${rl[0].retry_after ?? 60} detik.`,
-        429,
-        rl[0].retry_after ?? 60,
-      );
-    }
-  } catch { /* lunak */ }
-
-  // Validasi input (zod kontrak).
-  let input: z.infer<typeof PublishProjectInput>;
-  try {
-    input = PublishProjectInput.parse(await req.json());
-  } catch {
-    return errorResponse("VALIDATION", "Input tidak valid (githubRepoId/role/demoUrl/description)", 400);
-  }
-
-  const auth = createGitHubAuth();
-
-  // Ambil fakta SATU repo: cari via search dulu? Tidak — butuh owner/name.
-  // Karena kontrak hanya membawa githubRepoId, resolve via node(id)? GraphQL
-  // `node(id: ID!)` butuh global ID, bukan databaseId. Jalur yang didukung:
-  // list repo milik user login lalu cocokkan databaseId (1 query, ≤30 repo).
-  let repoNode: any = null;
-  try {
-    const q = `
+const FIND_REPO_QUERY = `
 query FindRepo($login: String!) {
   rateLimit { cost remaining resetAt }
   user(login: $login) {
@@ -157,165 +39,205 @@ query FindRepo($login: String!) {
     }
   }
 }`;
-    const login = (profile?.github_login ?? "").toLowerCase();
-    const found: any = await executeGraphQL(q, { login }, auth);
-    const nodes = found?.data?.user?.repositories?.nodes ?? [];
-    repoNode = nodes.find((n: any) => n.databaseId === input.githubRepoId) ?? null;
-  } catch (err: unknown) {
-    if (err instanceof GitHubGraphQLError && err.isRateLimited) {
-      return errorResponse("RATE_LIMITED", "Kuota GitHub API habis. Coba lagi nanti.", 429, err.retryAfter ?? 60);
+
+const MANIFEST_FILES = [
+  "package.json",
+  "pubspec.yaml",
+  "go.mod",
+  "Cargo.toml",
+  "requirements.txt",
+  "pyproject.toml",
+];
+
+function mapGitHubError(err: unknown): never {
+  if (err instanceof GitHubGraphQLError) {
+    if (err.isRateLimited) {
+      throw new UpstreamFailure("rate_limited", err.message, err.retryAfter);
     }
-    return errorResponse("UPSTREAM_ERROR", "Gagal menghubungi GitHub API", 502);
+    if (err.isNotFound) {
+      throw new UpstreamFailure("not_found", err.message);
+    }
   }
+  throw new UpstreamFailure("other", err instanceof Error ? err.message : String(err));
+}
 
-  if (!repoNode) {
-    return errorResponse("NOT_FOUND", "Repositori tidak ditemukan atau bukan milik Anda", 404);
-  }
+export function createDefaultDeps(): PublishDeps {
+  const adminClient = getAdminClient();
+  const auth = createGitHubAuth();
 
-  // Verifikasi D3: pemilik, publik, bukan fork, tidak kosong.
-  if (repoNode.owner?.databaseId !== githubId) {
-    return errorResponse("FORBIDDEN", "Repositori ini bukan milik Anda", 403);
-  }
-  if (repoNode.isPrivate) {
-    return errorResponse("NOT_FOUND", "Repositori tidak ditemukan atau bukan milik Anda", 404);
-  }
-  if (repoNode.isFork) {
-    return errorResponse("VALIDATION", "Fork tidak dapat dipublikasikan", 400);
-  }
-  if ((repoNode.diskUsage ?? 0) <= 0) {
-    return errorResponse("VALIDATION", "Repositori kosong tidak dapat dipublikasikan", 400);
-  }
+  return {
+    async authenticate(req) {
+      const { user, error } = await authenticateCaller(req.headers.get("Authorization"));
+      return { caller: user ? { id: user.id } : null, error };
+    },
 
-  // Bahasa top-3 byte -> persen bulat jumlah 100 (D2).
-  const langEdges = repoNode.languages?.edges ?? [];
-  const langBytes = langEdges.map((e: any) => ({ name: e.node.name, bytes: e.size ?? 0 }));
-  const langTotal = langBytes.reduce((s: number, l: any) => s + l.bytes, 0);
-  const top3 = langBytes.slice(0, 3);
-  let stack = top3.map((l: any) => ({
-    name: l.name,
-    percent: langTotal > 0 ? Math.round((l.bytes / langTotal) * 100) : 0,
-  }));
-  const stackSum = stack.reduce((s: number, x: any) => s + x.percent, 0);
-  if (stack.length > 0 && stackSum !== 100) {
-    stack[0].percent += 100 - stackSum;
-  }
+    async getProfile(userId) {
+      const { data } = await adminClient
+        .from("profiles")
+        .select("github_id, github_login, roles, country_code, city, developer_settings(listed)")
+        .eq("id", userId)
+        .maybeSingle();
+      if (!data) return null;
+      return {
+        githubId: data.github_id ?? null,
+        githubLogin: data.github_login ?? null,
+        roles: (data.roles ?? []) as string[],
+        countryCode: data.country_code ?? null,
+      };
+    },
 
-  // Framework via manifest (reuse detektor BE-2) — hanya untuk inferensi role.
-  const [ownerLogin, repoName] = (repoNode.nameWithOwner as string).split("/");
-  const manifests: Record<string, string> = {};
-  for (const f of MANIFEST_FILES) {
-    try {
-      const mr: any = await executeGraphQL(
-        REPO_MANIFEST_QUERY,
-        { owner: ownerLogin, name: repoName, expression: `HEAD:${f}` },
-        auth,
-      );
-      const text = mr?.data?.repository?.object?.text;
-      if (typeof text === "string" && text.length > 0 && text.length < 200000) {
-        manifests[f] = text;
+    async checkRateLimit(userId) {
+      const { data } = await adminClient.rpc("check_rate_limit", {
+        p_user: userId,
+        p_key: "publish_project",
+        p_max: 20,
+        p_window: "1 hour",
+      });
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) return { allowed: true, retryAfter: 0 };
+      return {
+        allowed: row.allowed === true,
+        retryAfter: row.retry_after ?? 0,
+      };
+    },
+
+    async findRepo(login, repoId): Promise<RepoNode | null> {
+      let found: { data?: { user?: { repositories?: { nodes?: unknown[] } } } };
+      try {
+        found = await executeGraphQL(FIND_REPO_QUERY, { login }, auth);
+      } catch (err) {
+        mapGitHubError(err);
       }
-    } catch { /* manifest hilang = bukan sinyal */ }
-  }
-  const frameworks = detectFrameworks([{ manifests } as any]);
-  const primaryLanguage = stack[0]?.name ?? "TypeScript";
-  const languageBytesMap: Record<string, number> = {};
-  for (const l of langBytes) languageBytesMap[l.name] = l.bytes;
-  const inferred = inferDeveloperRole(primaryLanguage, frameworks, languageBytesMap);
-  const role = input.role ?? mapRole(inferred);
+      const nodes = (found?.data?.user?.repositories?.nodes ?? []) as Array<
+        Record<string, unknown>
+      >;
+      const node = nodes.find((n) => n.databaseId === repoId);
+      if (!node) return null;
 
-  // Fakta tunggal untuk substance (reuse kalkulator BE-2).
-  let substance = 0;
-  try {
-    const facts = extractFactsFromGraphQL(
-      { user: { login: ownerLogin, repositories: { nodes: [repoNode] } } },
-      null,
-      null,
-      { [repoNode.name]: manifests },
-    );
-    substance = facts.repos[0]?.substance ?? 0;
-  } catch { substance = 0; }
+      const languages = ((node.languages as {
+        edges?: Array<{ size?: number; node?: { name?: string } }>;
+      })?.edges ?? [])
+        .map((e) => ({ name: e.node?.name ?? "", bytes: e.size ?? 0 }))
+        .filter((l) => l.name !== "");
 
-  // Demo: input.demoUrl bila ada, selain itu homepageUrl — verifikasi SSRF-safe.
-  // Hanya demo_verified jika 2xx; URL tidak disimpan bila gagal/tidak aman.
-  const candidateDemo = (input.demoUrl ?? repoNode.homepageUrl ?? null) as string | null;
-  let demoUrl: string | null = null;
-  let demoVerified = false;
-  if (candidateDemo) {
-    const check = await safeVerifyDemoUrl(candidateDemo);
-    if (check.verified) {
-      demoUrl = check.finalUrl ?? candidateDemo;
-      demoVerified = true;
-    }
-  }
+      const owner = node.owner as { databaseId?: number | null } | undefined;
 
-  // Skor repo (rumus BE-2 §4.6): fork?0:40 + demo?20:0 + round(40*substance).
-  const repoScore = Math.min(100, 40 + (demoVerified ? 20 : 0) + Math.round(40 * substance));
+      return {
+        databaseId: Number(node.databaseId),
+        name: String(node.name ?? ""),
+        nameWithOwner: String(node.nameWithOwner ?? ""),
+        description: (node.description as string | null) ?? null,
+        isFork: node.isFork === true,
+        isPrivate: node.isPrivate === true,
+        isEmpty: node.isEmpty === true,
+        pushedAt: (node.pushedAt as string | null) ?? null,
+        stargazerCount: Number(node.stargazerCount ?? 0),
+        homepageUrl: (node.homepageUrl as string | null) ?? null,
+        diskUsage: Number(node.diskUsage ?? 0),
+        ownerDatabaseId: owner?.databaseId ?? null,
+        languages,
+      };
+    },
 
-  const active = (() => {
-    if (!repoNode.pushedAt) return false;
-    return Date.now() - new Date(repoNode.pushedAt).getTime() < 30 * 24 * 3600 * 1000;
-  })();
+    async readManifests(ownerLogin, repoName) {
+      const manifests: Record<string, string> = {};
+      for (const file of MANIFEST_FILES) {
+        try {
+          const res = await executeGraphQL(
+            REPO_MANIFEST_QUERY,
+            { owner: ownerLogin, name: repoName, expression: `HEAD:${file}` },
+            auth,
+          );
+          const text = res?.data?.repository?.object?.text;
+          if (typeof text === "string" && text.length > 0 && text.length < 200000) {
+            manifests[file] = text;
+          }
+        } catch {
+          // manifest hilang = bukan sinyal
+        }
+      }
+      return manifests;
+    },
 
-  const description = sanitizeNoEmail(
-    (input.description ?? repoNode.description ?? "").slice(0, 500),
-  ) ?? "";
+    inferRole(primaryLanguage, manifests, languages) {
+      const frameworks = detectFrameworks([{ manifests }]);
+      const languageBytesMap: Record<string, number> = {};
+      for (const l of languages) languageBytesMap[l.name] = l.bytes;
+      return inferDeveloperRole(primaryLanguage, frameworks, languageBytesMap);
+    },
 
-  // Upsert idempoten per github_repo_id; konflik pemilik lain -> 403.
-  const { data: existing } = await adminClient
-    .from("projects")
-    .select("id, owner_id")
-    .eq("github_repo_id", input.githubRepoId)
-    .maybeSingle();
+    detectSubstance(repo, manifests) {
+      const node = {
+        databaseId: repo.databaseId,
+        name: repo.name,
+        description: repo.description,
+        isFork: repo.isFork,
+        isArchived: false,
+        pushedAt: repo.pushedAt,
+        stargazerCount: repo.stargazerCount,
+        homepageUrl: repo.homepageUrl,
+        url: `https://github.com/${repo.nameWithOwner}`,
+        diskUsage: repo.diskUsage,
+        languages: {
+          edges: repo.languages.map((l) => ({ size: l.bytes, node: { name: l.name } })),
+        },
+      };
+      const facts = extractFactsFromGraphQL(
+        { user: { login: repo.nameWithOwner.split("/")[0], repositories: { nodes: [node] } } },
+        null,
+        null,
+        { [repo.name]: manifests },
+      );
+      return facts.repos[0]?.substance ?? 0;
+    },
 
-  if (existing && existing.owner_id !== caller.id) {
-    return errorResponse("FORBIDDEN", "Repositori sudah dipublikasikan pemilik lain", 403);
-  }
+    async verifyDemo(url) {
+      const check = await safeVerifyDemoUrl(url);
+      return { verified: check.verified, finalUrl: check.finalUrl ?? null };
+    },
 
-  const row = {
-    owner_id: caller.id,
-    github_repo_id: input.githubRepoId,
-    name: repoNode.name,
-    description,
-    role,
-    stack,
-    score: repoScore,
-    published: true,
-    is_hidden: false,
-    demo_url: demoUrl,
-    demo_verified: demoVerified,
-    stars: repoNode.stargazerCount ?? 0,
-    pushed_at: repoNode.pushedAt ?? null,
+    async findExistingProject(repoId) {
+      const { data } = await adminClient
+        .from("projects")
+        .select("id, owner_id")
+        .eq("github_repo_id", repoId)
+        .maybeSingle();
+      if (!data) return null;
+      return { id: data.id, ownerId: data.owner_id };
+    },
+
+    async insertProject(row) {
+      const { data, error } = await adminClient.from("projects").insert(row).select("id").single();
+      if (error || !data) throw new Error("insert projects gagal");
+      const { data: saved } = await adminClient
+        .from("projects")
+        .select("visible, country_code")
+        .eq("id", data.id)
+        .maybeSingle();
+      return {
+        id: data.id,
+        visible: saved?.visible ?? false,
+        countryCode: saved?.country_code ?? null,
+      };
+    },
+
+    async updateProject(id, row) {
+      const { error } = await adminClient.from("projects").update(row).eq("id", id);
+      if (error) throw new Error("update projects gagal");
+      const { data: saved } = await adminClient
+        .from("projects")
+        .select("visible, country_code")
+        .eq("id", id)
+        .maybeSingle();
+      return {
+        id,
+        visible: saved?.visible ?? false,
+        countryCode: saved?.country_code ?? null,
+      };
+    },
   };
+}
 
-  let projectId: string;
-  if (existing) {
-    const { error } = await adminClient.from("projects").update(row).eq("id", existing.id);
-    if (error) return errorResponse("UPSTREAM_ERROR", "Gagal menyimpan proyek", 502);
-    projectId = existing.id;
-  } else {
-    const { data, error } = await adminClient.from("projects").insert(row).select("id").single();
-    if (error || !data) return errorResponse("UPSTREAM_ERROR", "Gagal menyimpan proyek", 502);
-    projectId = data.id;
-  }
+const handle = createPublishHandler(createDefaultDeps());
 
-  // Baca kembali visible + country (dihitung trigger D4).
-  const { data: saved } = await adminClient
-    .from("projects")
-    .select("visible, country_code")
-    .eq("id", projectId)
-    .maybeSingle();
-
-  return json({
-    projectId,
-    name: repoNode.name,
-    role,
-    stack,
-    active,
-    demoUrl,
-    demoVerified,
-    score: repoScore,
-    published: true,
-    visible: saved?.visible ?? false,
-    countryCode: saved?.country_code ?? profile?.country_code ?? null,
-  });
-});
+Deno.serve(handle);
