@@ -492,3 +492,90 @@ jadi angka 119 di atas tidak termasuk dirinya.
 - `ChatSheet` (M5) belum ada, `openChat` hanya mengisi state seperti sebelumnya.
 - Branch lama `feat/fe-2-data-layer` sengaja dibiarkan; pemilik repo dapat
   menutupnya setelah PR ini diverifikasi.
+
+---
+
+# Laporan Paket C — FE-10a Feed API & Report Project
+
+**Tanggal:** 5 November 2026 · **Branch:** `feat/fe-10a-feed-api` (basis `origin/main` @ `387438a`)
+
+## 1. Ringkasan
+
+Paket C (FE-10a) selesai: feed 🔍 API adapter yang memanggil BE-3 (`search_projects`,
+`country_facets`, `city_facets`, `report_project`) via Supabase, filter negara/kota
+di UI (`FeedFilters`), kartu project diperbarui dengan badge `VERIFIED ACTIVE`,
+lokasi kota+bendera, chip stack, dan tombol Live demo; serta fitur laporan project
+dengan alasan preset + teks gratis ≤500 karakter.
+
+## 2. Yang Dikerjakan
+
+### 2.1 Feed API Adapter (`src/api/feed/`)
+- **`api.ts`** — wrapper RPC BE-3: `fetchFeedPage` (search_projects), `fetchFeedCountryFacets`,
+  `fetchFeedCityFacets`, `reportProject`. Setiap respons divalidasi Zod schema →
+  `UPSTREAM_ERROR` bila bentuk tidak sesuai (POL-5). Pemetaan error backend:
+  `RATE_LIMITED` (dengan `retry_after`), `VALIDATION`, `UNAUTHORIZED`, `FORBIDDEN`,
+  `NOT_FOUND`, `UPSTREAM_ERROR`.
+- **`mock.ts`** — adapter mock yang memfilter seed data (`filterProjects`), mendukung infinite
+  scroll dengan fake cursor, menghitung facets dari seed (dengan masking `<5`),
+  dan `reportProject` yang selalu berhasil + idempoten (duplikat tetap `true`).
+- **`index.ts`** — barrel yang memilih adapter berdasarkan `EXPO_PUBLIC_DS_FEED`.
+
+### 2.2 Filter Negara & Kota (`src/features/feed/FeedFilters.tsx`)
+- Toggle **Active 30d** (recentOnly).
+- Role chips (Front-End / Back-End / Mobile / Data / All).
+- **Country chip** dengan bendera emoji + count + chevron-down; klik → `CountryPicker`.
+- **City drill-down**: saat 1 negara dipilih, muncul filter kota; bila negara berubah,
+  kota direset.
+- Negara source of truth: `FeedFilters.countries` (bukan field `location` lama).
+
+### 2.3 Ikon & Link Helper
+- **`src/components/ui/Icon.tsx`** — menambahkan `'chevron-down'` ke `IconName` dan path SVG.
+- **`src/lib/links.ts`** — menambahkan `openHttpsUrl(url, allowedHosts?)` generic; `openGithubUrl`
+  kini delegate ke fungsi ini.
+
+### 2.4 ProjectCard Diperbarui (`src/features/feed/ProjectCard.tsx`)
+- Badge: `VERIFIED ACTIVE` bila `item.active`, else `VERIFIED`.
+- Title row: menampilkan `countryFlag + city` bila tersedia.
+- Proof row: tombol **Live demo** (hijau) bila `demoVerified`, else **Demo** (accent) bila
+  ada `demoUrl`, keduanya pakai `openHttpsUrl`.
+- Tombol **report** (ikon flag) di pojok kanan atas kartu → memicu `ReportProjectSheet`.
+
+### 2.5 ReportProjectSheet (`src/features/feed/ReportProjectSheet.tsx`)
+- Bottom sheet dengan alasan preset: `spam`, `plagiarism`, `fake`, `inappropriate`, `other`.
+- Untuk "other", text input multiline dengan batas 500 karakter + counter.
+- Submit: memanggil `feedAdapter.reportProject(projectId, reason)`.
+- Menangani `RATE_LIMITED` dengan pesan ramah; duplikat tetap sukses (backend deduksi).
+- Diintegrasikan ke `src/app/(tabs)/explore/index.tsx`.
+
+### 2.6 Tes FE-10a (`src/api/__tests__/fe10a.test.ts`)
+27 test baru:
+- Parameter mapping: query, role, country, city, recentOnly.
+- Zod validation: struktur FeedPage, CountryFacet, CityFacet, FeedItem.
+- `reportProject`: projectId + reason, duplikat idempoten, alasan ≤500, alasan preset.
+- Error handling: mode api → `ApiNotReadyError`.
+- `useFeedInfinite` behavior: nextCursor, totalCount, filter consistency.
+- Facets: country facets, city facets, struktur.
+- Mode mock tidak panggil `fetch`.
+
+## 3. Hasil Verifikasi
+
+| Pemeriksaan | Perintah | Hasil |
+|---|---|---|
+| Typecheck | `npx tsc --noEmit` | ✅ Lulus |
+| Lint | `npx expo lint` | ✅ Lulus |
+| Unit test | `npm run check` | ✅ **13 suite, 146 test** lulus |
+| Bundle Android | `npx expo export -p android` | ✅ Sukses |
+| Static render web | `npx expo export -p web` | ✅ Sukses |
+| Drift BE/FE | `git diff origin/main --stat -- supabase contracts docs/backend .github Makefile scripts` | kosong |
+| Secret di src | `grep -r "service_role\|GITHUB_API_TOKEN" src` | kosong |
+
+**Rincian tes (146):** sebelumnya 119 → +27 FE-10a.
+
+## 4. Gap yang Diketahui
+
+1. Mode `api` feed (`EXPO_PUBLIC_DS_FEED=api`) belum dijalankan terhadap backend sungguhan
+   (butuh stack Supabase + Edge Functions BE-3).
+2. Report masih dikirim ke mock; backend sebenarnya butuh auth + rate limit 20/hari.
+3. FeedFilters.country/city facets di mock hanya return `<5` untuk semua (sesuai seed).
+
+---

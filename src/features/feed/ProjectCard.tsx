@@ -12,9 +12,10 @@ import { ScoreCircle } from '@/components/ui/ScoreRing';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { availabilityLabel } from '@/lib/availability';
-import { compactNumber, demoLabel } from '@/lib/feed';
-import { openGithubUrl } from '@/lib/links';
+import { compactNumber } from '@/lib/feed';
+import { openHttpsUrl } from '@/lib/links';
 import { useTheme } from '@/theme/useTheme';
+import { flagEmoji } from '@/data/countries';
 
 const FOLDER_SIZE = 39;
 const AVATAR_SIZE = 36;
@@ -43,13 +44,17 @@ export function ProjectCardComponent({
   loading,
   disabled,
   onAnalyze,
-}: ProjectCardProps) {
+  onReport,
+}: ProjectCardProps & { onReport?: (item: FeedItem) => void }) {
   const theme = useTheme();
   const developer = item.developer;
-  const demoUrl = `https://github.com/${developer.login}`;
-  const demo = demoLabel(item.demoUrl);
+  const demoUrl = item.demoUrl ?? `https://github.com/${developer.login}`;
   const location = item.city ?? '';
+  const countryFlag = item.countryCode ? flagEmoji(item.countryCode) : '';
   const analyzeDisabled = disabled || loading;
+
+  // Badge: VERIFIED ACTIVE jika active, else VERIFIED
+  const badgeText = item.active ? 'VERIFIED ACTIVE' : 'VERIFIED';
 
   return (
     <Card variant="project" style={styles.card}>
@@ -64,8 +69,7 @@ export function ProjectCardComponent({
           {`0${index + 1}`}
         </T>
 
-        {/* D7 — badge stays "VERIFIED ACTIVE" even for active:false projects. */}
-        <Badge variant="verified">VERIFIED ACTIVE</Badge>
+        <Badge variant="verified">{badgeText}</Badge>
 
         <ScoreCircle value={item.score} size={35} style={styles.score} />
       </View>
@@ -85,6 +89,11 @@ export function ProjectCardComponent({
           <T size={8} color="muted" lh={1.55}>
             {item.description}
           </T>
+          {location ? (
+            <T size={7} color="muted">
+              {countryFlag} {location}
+            </T>
+          ) : null}
         </View>
       </View>
 
@@ -105,17 +114,30 @@ export function ProjectCardComponent({
           Original work
         </T>
 
-        {demo ? (
+        {item.demoUrl && item.demoVerified ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Live demo - buka ${demoUrl}`}
+            android_ripple={{ color: 'transparent' }}
+            hitSlop={hitSlopFor(90, 24)}
+            onPress={() => openHttpsUrl(demoUrl)}
+            style={({ pressed }) => [styles.demoLink, pressed && styles.pressed]}>
+            <View style={[styles.demoDot, { backgroundColor: theme.colors.greenStrong }]} />
+            <T size={7} color="greenText" weight="700">
+              Live demo
+            </T>
+          </Pressable>
+        ) : item.demoUrl ? (
           <Pressable
             accessibilityRole="link"
             accessibilityLabel={`Buka ${demoUrl}`}
             android_ripple={{ color: 'transparent' }}
             hitSlop={hitSlopFor(90, 24)}
-            onPress={() => openGithubUrl(demoUrl)}
+            onPress={() => openHttpsUrl(demoUrl)}
             style={({ pressed }) => [styles.demoLink, pressed && styles.pressed]}>
             <View style={[styles.demoDot, { backgroundColor: theme.colors.accent }]} />
             <T size={7} color="greenText">
-              {demo}
+              Demo
             </T>
           </Pressable>
         ) : null}
@@ -182,6 +204,21 @@ export function ProjectCardComponent({
             </>
           )}
         </Pressable>
+
+        {onReport ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Laporkan ${item.name}`}
+            android_ripple={{ color: 'transparent' }}
+            hitSlop={hitSlopFor(44, 44)}
+            onPress={() => onReport(item)}
+            style={({ pressed }) => [
+              styles.reportButton,
+              pressed && styles.pressed,
+            ]}>
+            <Icon name="flag" size={16} color={theme.colors.muted} />
+          </Pressable>
+        ) : null}
       </View>
     </Card>
   );
@@ -296,9 +333,23 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.85,
   },
+  reportButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  },
 });
 
-/** Memoized — see ProjectCardProps (PRD §10 performance). */
-export const ProjectCard = memo(ProjectCardComponent);
-
+/** Memoized — see ProjectCardProps (PRD §10 performance). */export const ProjectCard = memo(ProjectCardComponent);
 export default ProjectCard;
+
+/** Extended props with report callback for FE-10a C4. */
+export type ProjectCardWithReportProps = ProjectCardProps & {
+  /** Called when user taps the report button. */
+  onReport?: (item: FeedItem) => void;
+};
