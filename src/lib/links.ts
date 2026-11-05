@@ -7,8 +7,16 @@ import { Linking } from 'react-native';
 
 const ALLOWED_HOSTS = new Set(['github.com', 'www.github.com']);
 
-/** Returns true when the URL was handed to `Linking.openURL`. */
+/** Opens a GitHub URL after validating it's https://github.com/... */
 export function openGithubUrl(url: string): boolean {
+  return openHttpsUrl(url, ALLOWED_HOSTS);
+}
+
+/**
+ * Opens an HTTPS URL after validating against an allowlist of hosts.
+ * Returns true when the URL was handed to `Linking.openURL`.
+ */
+export function openHttpsUrl(url: string, allowedHosts?: Iterable<string>): boolean {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -17,7 +25,10 @@ export function openGithubUrl(url: string): boolean {
   }
 
   if (parsed.protocol !== 'https:') return false;
-  if (!ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) return false;
+  const hosts = allowedHosts ?? ALLOWED_HOSTS;
+  if (!Array.from(hosts).some((h) => parsed.hostname.toLowerCase().endsWith(h.toLowerCase()))) {
+    return false;
+  }
 
   Linking.openURL(url).catch(() => {
     // No handler available (e.g. simulator without a browser) — stay silent.

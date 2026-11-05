@@ -58,6 +58,15 @@ interface AppState {
   setFeedRole: (role: string) => void;
   feedLocation: string;
   setFeedLocation: (location: string) => void;
+  /** PRD v2 §11A — ISO 3166-1 alpha-2 array; empty = all countries. */
+  countries: string[];
+  setCountries: (countries: string[]) => void;
+  /** City filter (drill-down); empty = all cities. */
+  city: string;
+  setCity: (city: string) => void;
+  /** PRD v2 §11A — recruiter target countries (default = semua). */
+  targetCountries: string[];
+  setTargetCountries: (countries: string[]) => void;
   recentOnly: boolean;
   toggleRecentOnly: () => void;
   /** FR-E9 — empty string means no error. */
@@ -126,6 +135,12 @@ export const useAppStore = create<AppState>()(
       setFeedRole: (feedRole) => set({ feedRole }),
       feedLocation: 'All locations',
       setFeedLocation: (feedLocation) => set({ feedLocation }),
+      countries: [],
+      setCountries: (countries) => set({ countries }),
+      city: '',
+      setCity: (city) => set({ city }),
+      targetCountries: [],
+      setTargetCountries: (targetCountries) => set({ targetCountries }),
       recentOnly: false,
       toggleRecentOnly: () => set((s) => ({ recentOnly: !s.recentOnly })),
       error: '',

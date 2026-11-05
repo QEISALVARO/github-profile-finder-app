@@ -5,7 +5,7 @@
 
 export { queryKeys } from '@/api/queryKeys';
 
-export { useFeed, useFeedCountryFacets } from './feed';
+export { useFeed, useFeedInfinite, useFeedCountryFacets, useFeedCityFacets } from './feed';
 export { useAnalysis, useAnalyze, type AnalysisState, type AnalyzeResult } from './analysis';
 export { useDiscover, usePipeline, useSetStage } from './talent';
 export {

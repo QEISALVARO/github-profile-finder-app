@@ -11,6 +11,7 @@ import type { TalentFilters } from '@/lib/talent';
 export const queryKeys = {
   feed: (filters: FeedFilters) => ['feed', filters] as const,
   feedFacets: (filters: FeedFilters) => ['feed', 'facets', filters] as const,
+  feedCityFacets: (country: string, filters: FeedFilters) => ['feed', 'city-facets', country, filters] as const,
   analysis: (login: string) => ['analysis', login] as const,
   discover: (filters: TalentFilters) => ['talent', 'discover', filters] as const,
   pipeline: () => ['talent', 'pipeline'] as const,
