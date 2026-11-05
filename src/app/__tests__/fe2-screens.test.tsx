@@ -40,35 +40,58 @@ jest.mock('expo-router', () => ({
 
 jest.useFakeTimers();
 
-const mounted: ReactTestRenderer[] = [];
+type Mounted = { tree: ReactTestRenderer; client: QueryClient };
+const mounted: Mounted[] = [];
 
 function render(node: ReactElement): ReactTestRenderer {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      // `gcTime: Infinity` keeps TanStack Query from scheduling 5-minute gc
+      // timers, so fake timers stay empty between tests (no open handles).
+      // `retryDelay: 0` removes the 1 s wait without skipping the retry
+      // itself; the fake clock therefore never has to be moved by wall time.
+      queries: { retry: false, retryDelay: 0, gcTime: Infinity },
+      mutations: { retry: false, gcTime: Infinity },
+    },
   });
   let tree!: ReactTestRenderer;
   act(() => {
     tree = create(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
   });
-  mounted.push(tree);
+  mounted.push({ tree, client });
   return tree;
 }
 
-async function flush(rounds = 8): Promise<void> {
+/**
+ * Deterministic settle: drain the microtask queue and advance the fake clock
+ * by a *fixed* 1 ms per round. No real time, no reliance on the 1 s retry
+ * delay, so a loaded CI machine cannot change the number of rounds that land.
+ */
+async function flush(rounds = 20): Promise<void> {
   for (let index = 0; index < rounds; index += 1) {
+    // Timer callbacks run in a *sync* act scope, then the microtask queue is
+    // drained in its own awaited scope — mixing timers into `act(async …)`
+    // makes React 19 warn that the async scope was not awaited.
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
     await act(async () => {
-      // Covers both the microtask queue and TanStack Query's 1 s retry delay.
-      jest.advanceTimersByTime(1500);
       await Promise.resolve();
     });
   }
 }
 
-afterEach(() => {
+afterEach(async () => {
+  // Unmount inside `act`, then cancel/clear each client so no pending query
+  // or animation timer survives the test (the old source of flaky reruns).
   while (mounted.length > 0) {
-    const tree = mounted.pop();
-    act(() => tree?.unmount());
+    const entry = mounted.pop();
+    if (!entry) break;
+    act(() => entry.tree.unmount());
+    await entry.client.cancelQueries();
+    entry.client.clear();
   }
+  jest.clearAllTimers();
   mockPush.mockReset();
   resetChat();
 });
