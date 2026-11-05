@@ -1,6 +1,6 @@
 // supabase/functions/_shared/scoring/publish.ts
 // Fungsi murni publikasi proyek (BE-3) — dipakai Edge Function publish-project
-// dan test-nya. Tanpa @ts-nocheck, tanpa I/O, strict-safe.
+// dan test-nya. Tanpa penonaktifan tipe, tanpa I/O, strict-safe.
 
 export type FeedRole = "Front-End" | "Back-End" | "Mobile" | "Data";
 

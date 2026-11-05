@@ -2,7 +2,7 @@
 // Logika publish-project dengan dependensi disuntikkan (GitHub, DB, verifikasi
 // demo) agar dapat diuji offline tanpa jaringan. Entrypoint HTTP ada di
 // index.ts; perilaku respons identik dengan BE-3.
-// Strict TypeScript (tanpa @ts-nocheck, tanpa `any`).
+// Strict TypeScript (tanpa penonaktifan tipe, tanpa `any`).
 
 import { corsHeaders, errorResponse, json } from "../_shared/http.ts";
 import { sanitizeNoEmail } from "../_shared/github/facts.ts";
