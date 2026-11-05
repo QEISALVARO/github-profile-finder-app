@@ -219,7 +219,7 @@ Pekerjaan Fase BE-2 selesai penuh. Berhenti sesuai aturan kualitas (§6/§10) hi
 # LAPORAN FASE BE-3: Proyek, Pencarian Feed & Filter Negara (status implementasi 29 Okt 2026)
 
 **Branch PR:** `chore/contracts-projects` (merge dulu) -> `feat/be-3-projects-feed`.
-**Status:** implementasi + verifikasi lokal Postgres 17 SELESAI; pgTAP 08+09 ditulis dan disimulasikan logikanya (9/9 FUNCT hijau); pgTAP/bench/smoke penuh menunggu runner ber-Docker + token (TIDAK DIUKUR di sini).
+**Status:** implementasi selesai. **CI hijau pada kode BE-3** (`dcf8049`): Backend CI https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/40845759710 (static check, pgTAP 01–09, drift tipe, lint) dan Frontend CI https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/40845759748. Verifikasi portable (non-CI): Postgres 17 + FUNCT 9/9. Commit dokumentasi sesudahnya (`84d13c4`, `387438a`) tidak memicu CI (0 run). Gate performa & smoke tetap belum terpenuhi.
 
 ## Berkas
 - Kontrak (PR1): `contracts/src/projects.ts`, `types.ts`, fixtures city/my_repos/publish_result, schema_test +7, CHANGELOG v0.2.0.
@@ -243,9 +243,18 @@ Pekerjaan Fase BE-2 selesai penuh. Berhenti sesuai aturan kualitas (§6/§10) hi
 - [x] golang dan ml mengembalikan hasil; e-commerce == e commerce; kursor stabil — terbukti FUNCT 9/9.
 - [x] Klien tak dapat tulis kolom hitungan; RPC tolak anon; tanpa email — pgTAP 08/09 ditulis; RLS 019.
 - [x] Demo SSRF-safe; hulu gagal tanpa karangan — reuse BE-2 (9/9 SSRF) + Deno 11/11.
-- [ ] Feed p95 < 500 ms pada >= 10 rb proyek — BELUM DIUKUR (butuh runner + JWT; jalankan make bench-seed + bench-feed.ts).
-- [ ] make reset && make test hijau + CI hijau — MENUNGGU CI runner (pgTAP 08/09 ditulis 48 asersi; drift/lint via CI).
+- [ ] Feed p95 < 500 ms pada >= 10 rb proyek — **BELUM DIUKUR** (batuh runner + JWT; jalankan make bench-seed + bench-feed.ts). Tidak ada angka sampai `evidence/` berisi data mentah.
+- [x] make reset && make test hijau + **CI hijau** — TERBUKTI CI pada `dcf8049`: https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/40845759710 (pgTAP 01–09, drift, lint).
 - [x] Pemindai rahasia bersih (tanpa token di repo).
+
+## Paket A — Hardening & utang bukti (5 Nov 2026)
+
+- **A1.** Bagian BE-3 di atas diselaraskan: klaim "menunggu CI" diganti tautan run nyata `dcf8049` (Backend run 40845759710). Bukti dipisah: **terbukti CI** vs **portable (non-CI)** vs **belum ada** (lihat `evidence/README.md`). Centang yang hanya berdasar "pgTAP ditulis" dihapus/dinilai ulang.
+- **A2.** `publish-project` dan `list-my-repos` dipecah menjadi `handler.ts` (strict, dependensi disuntik) + `index.ts` (wiring). 26 test offline baru (13 + 10 test, termasuk sukses, 403 bukan pemilik, fork 400, privat/absen 404, kosong 400, demo terverifikasi, demo SSRF tidak disimpan, upsert idempoten, konflik 403, rate limit 429, input 400, hulu 502/429 tanpa data karangan, tanpa email, kontrak `PublishProjectResult`/`MyReposPage`, paginasi, login hanya dari profil).
+- **A3.** Migrasi 022: `projects` **RPC-only**; kebijakan baca inert dihapus; pgTAP `10_be3_projects_rpc_only.sql` (11 asersi: grant, 0 kebijakan, RLS aktif, `service_role` tetap, error 42501, RPC tetap jalan). ADR-015.
+- **A4.** Nomor migrasi 0016 dicatat sengaja dilewati (ADR-016).
+- **A5.** `evidence/README.md` kini menyatakan eksplisit mana bukti CI, portable, dan belum ada.
+- **A6.** Audit `main`: tidak ada `_shared/normalize-login.ts` maupun `_shared/scoring/role-map.ts`; tidak ada impor `contracts/` → `supabase/functions/`. Utilitas baru yang dipakai: `_shared/scoring/publish.ts` (murni, strict, diuji) dan `_shared/github/upstream.ts` (error hulu, strict).
 
 ## Deviasi
 - Fallback fuzzy trigram DITUNDA (opsional setelah gate hijau) sesuai prompt.
