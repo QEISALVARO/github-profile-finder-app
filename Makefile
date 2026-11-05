@@ -35,6 +35,7 @@ test-db:
 test-contracts:
 	$(DENO) test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/
 	$(DENO) test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/
+	$(DENO) test --frozen --config supabase/deno.json --allow-read --allow-env scripts/backend/
 
 types:
 	$(SUPABASE) gen types typescript --local --schema public > contracts/src/database.types.ts

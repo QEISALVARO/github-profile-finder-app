@@ -101,6 +101,17 @@ Dokumen ini mencatat keputusan arsitektur dan teknis non-trivial yang diambil se
 - **Keputusan:** Pertahankan **RPC-only**. Migrasi 022 mencabut privilese `anon`/`authenticated`, menghapus seluruh kebijakan `projects`, dan menegaskan komentar tabel. Baca lewat RPC SECURITY DEFINER (`search_projects`, `featured_projects`, dan `my_projects` di BE-3b); tulis hanya `service_role` (Edge Function publish-project).
 - **Konsekuensi:** Klien tidak dapat membaca `projects` langsung — dibuktikan pgTAP `10_be3_projects_rpc_only.sql` (error 42501, 0 kebijakan, `service_role` tetap punya SELECT). Setiap kebutuhan baca baru harus menjadi RPC definer, bukan grant tabel.
 
+## ADR-017: Keputusan BE-4 (D1–D6) & riset
+
+- **D1 — Discover hanya developer siap-tampil.** `listed = true` + `country_code` terisi (POL-9) + analisis **terbaru** `score_version = 2`. Developer listed tanpa analisis tidak muncul; FE memicu `analyze-developer` login sendiri (AIR-3). Alternatif "tampilkan tanpa skor" ditolak karena melanggar prinsip sinyal terbuka (AIR-1).
+- **D2 — Satu pemetaan role.** `public.feed_role(inferred_role)` → `Front-End/Back-End/Mobile/Data`; "Full-Stack" tidak disimpulkan. `DiscoverItem.role` di kontrak tetap `string` (Lampiran A), backend hanya mengeluarkan 4 nilai.
+- **D3 — Recruiter-only + blokir.** Discover/Compare/Pipeline `FORBIDDEN` untuk non-recruiter; developer yang memblokir pemanggil (`blocks.blocker_id = developer`) tidak muncul; diri sendiri dikecualikan.
+- **D4 — Batas akses login.** Login hanya boleh diakses bila `listed` ATAU sudah ada di pipeline pemanggil; selain itu `NOT_FOUND`. Mencegah Compare menjadi jalur membaca analisis lookup orang lain.
+- **D5 — Minimisasi pipeline.** Hanya `github_login` + `stage` + `note`; identitas/skor hanya untuk login listed. Trigger `profiles_purge_pipeline` menghapus entri saat akun developer dihapus.
+- **D6 — RPC-only.** `pipeline_entries` dicabut dari `authenticated` (baca & tulis), akses lewat RPC definer; konsisten dengan ADR-015.
+- **Riset Postgres:** `percentile_cont` memerlukan `double precision` (dipakai cast eksplisit); `distinct on (login) ... order by login, created_at desc` memberi "analisis terbaru" tanpa N+1; view internal memakai `security_invoker = true` + `revoke` agar tidak menjadi bypass RLS; regex POSIX tidak mendukung lookahead (validasi login memakai kelas karakter + cek `--`).
+- **Riset retensi:** `purge_expired_lookups` lama menghapus semua baris ber-`expires_at` lampau; diganti agar mengecualikan login yang sedang `listed` (kalau tidak, re-list setelah unlist bisa kehilangan analisis).
+
 ## ADR-016: Nomor migrasi 0016 sengaja dilewati
 
 - **Konteks:** Urutan migrasi melompat dari `20261001000015` ke `20261001000017`.

@@ -364,20 +364,22 @@ Deno.serve(async (req: Request) => {
       expires_at: snapshotExpiresAt,
     });
 
-    // Simpan analisis
+    // Simpan analisis — kolom HARUS sesuai skema 005 + 014.
+    // (Sebelumnya fungsi menulis score/tier/breakdown_json/metrics_json/
+    // heatmap_arr/repos_json yang tidak ada; insert gagal senyap sehingga
+    // Discover/Compare tidak punya data.)
     await adminClient.from("analyses").insert({
       github_login: normalizedLogin,
-      score: analysisVm.authenticity,
+      score_version: analysisVm.scoreVersion,
       authenticity: analysisVm.authenticity,
       confidence: analysisVm.confidence,
-      tier: analysisVm.tier,
-      score_version: analysisVm.scoreVersion,
-      breakdown_json: analysisVm.breakdown,
-      metrics_json: analysisVm.metrics,
-      heatmap_arr: analysisVm.heatmap,
-      repos_json: analysisVm.repos,
-      inferred_role: analysisVm.inferredRole,
+      breakdown: analysisVm.breakdown,
       primary_language: analysisVm.primaryLanguage,
+      inferred_role: analysisVm.inferredRole,
+      language_stats: analysisVm.languageStats,
+      frameworks: analysisVm.frameworks,
+      metrics: analysisVm.metrics,
+      heatmap: analysisVm.heatmap,
       facts,
       is_lookup: !isListedDeveloper,
       expires_at: analysisExpiresAt,

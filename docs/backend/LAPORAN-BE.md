@@ -265,6 +265,52 @@ Pekerjaan Fase BE-2 selesai penuh. Berhenti sesuai aturan kualitas (§6/§10) hi
 - **Status verifikasi:** `deno check` + kontrak hijau lokal. pgTAP **BELUM DIJALANKAN di sini** (Docker tidak tersedia); wajib hijau di CI PR sebelum merge.
 - `unpublish_project`/`republish_project` tetap `void`; FE me-refetch `my_projects()` (didokumentasikan di `publishing.md`).
 
+## Paket C — BE-4: Discover, Pipeline, Compare, audit bias v0 (5 Nov 2026)
+
+### Berkas
+- Migrasi: `0024_be4_retention.sql` (retensi listed + purge aman + indeks + view internal + pembersihan pipeline saat akun dihapus), `0025_be4_discover.sql` (`feed_role`, `discover_developers`, `discover_country_facets`, rate limit), `0026_be4_pipeline_compare.sql` (hardening pipeline_entries + `pipeline_list/upsert/remove` + `compare_developers`), `0027_be4_bias.sql` (`bias_stats`, `bias_report_v0`).
+- pgTAP: `11_be4_discover.sql` (27 asersi), `12_be4_pipeline_compare.sql` (29), `13_be4_retention_bias.sql` (15).
+- Dokumen: `talent.md` (signature, D1–D6, kursor, masking, contoh, error), `bias-audit.md`, pembaruan `policies.md` (AIR-1/3/4/5, POL-3/5/8) dan `decisions.md` (ADR-017).
+- Skrip: `scripts/backend/bias-format.ts` (+test), `bias-report.ts`, `bench-discover.ts`.
+- Kontrak: v0.3.0 (`PipelineItem`, `PipelineList`, `CompareResult`, fixture).
+- Perbaikan bug: `analyze-developer` kini menulis ke kolom `analyses` yang benar (`breakdown`, `metrics`, `heatmap`, …). Sebelumnya insert memakai kolom tidak ada dan gagal senyap sehingga Discover/Compare tidak akan punya data.
+
+### Keputusan
+D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discover = listed ∧ negara ∧ analisis terbaru v2; role via `feed_role`; recruiter-only + blokir + tanpa diri sendiri; akses login dibatasi D4; minimisasi data pipeline D5; RPC-only D6.
+
+### Status verifikasi (jujur)
+| Item | Status |
+|---|---|
+| `deno check` handler/modul strict + kontrak | **Lulus lokal** (5 Nov 2026) |
+| Deno test kontrak (20), fungsi (64 + baru), formatter bias (3) | **Lulus lokal** |
+| pgTAP 11/12/13 | **BELUM DIJALANKAN** — Docker tidak aktif di lingkungan ini. Wajib hijau di CI PR. |
+| Migrasi 024–027 dijalankan | **BELUM DIJALANKAN** (butuh Postgres). |
+| p95 Discover < 500 ms | **BELUM DIUKUR** (tidak ada data mentah). |
+| Laporan bias v0 | **BELUM DIUJI** (tidak ada DB/data sintetis; hanya mekanisme + docs). |
+| `make reset && make test` | **BELUM DIJALANKAN** (tanpa Docker). |
+
+### Gate C
+- [ ] Discover listed/negara/v2 + filter + kursor — pgTAP 11 ditulis; **belum terbukti CI**.
+- [ ] Facet ter-mask, rate limit, tanpa email/breakdown — pgTAP 11 ditulis; **belum terbukti CI**.
+- [ ] Pipeline kepemilikan/batas/summary/tanpa grant tulis — pgTAP 12 ditulis; **belum terbukti CI**.
+- [ ] Compare memakai metrik nyata + D4 — pgTAP 12 ditulis; **belum terbukti CI**.
+- [ ] Retensi & purge aman — pgTAP 13 ditulis; **belum terbukti CI**.
+- [ ] Bias v0 tersedia (sintetis) — **BELUM DIUJI**; `bias_report_v0` admin-only sudah ditulis.
+- [ ] p95 Discover < 500 ms — **BELUM DIUKUR** (gate belum terpenuhi).
+- [ ] `make reset && make test` hijau + drift nol + secret scan + CI hijau — **BELUM**; kontrak & Deno lulus lokal.
+- [ ] L2 (regulasi AI rekrutmen & metodologi bias) — **belum selesai**; Discover belum boleh dibuka ke pengguna eksternal.
+
+### Deviasi
+- `DiscoverItem.role` di kontrak tetap `string` (Lampiran A); backend hanya mengeluarkan 4 nilai FeedRole.
+- Retensi memakai trigger DB (bukan perubahan Edge `delete-account`) agar berlaku untuk semua jalur penghapusan; `delete-account` tetap memanggil delete profil sehingga trigger berjalan.
+- `unpublish_project`/`republish_project` tetap `void`; FE me-refetch `my_projects`.
+- Benchmark Discover memakai REST (bukan `EXPLAIN ANALYZE` otomatis); perintah EXPLAIN didokumentasikan di `bench-discover.ts`.
+
+### Masalah terbuka / TODO
+- Jalankan `make up && make reset && make test` (atau CI) untuk membuktikan migrasi 022–027 dan pgTAP 10–13.
+- Hasilkan `evidence/discover-bench-<tanggal>.json` dan `evidence/bias-v0-<tanggal>.md` dari run nyata.
+- Tinjauan L2 (regulasi AI perekrutan) sebelum Discover dibuka eksternal.
+
 ## Deviasi
 - Fallback fuzzy trigram DITUNDA (opsional setelah gate hijau) sesuai prompt.
 - refresh-projects (cron) DITUNDA (opsional setelah gate hijau) — refresh_rank_scores/refresh_featured tersedia.

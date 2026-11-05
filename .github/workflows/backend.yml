@@ -76,6 +76,7 @@ jobs:
         run: |
           deno test --frozen --config contracts/deno.json --allow-read --allow-env contracts/tests/
           deno test --frozen --config supabase/deno.json --allow-read --allow-env supabase/functions/
+          deno test --frozen --config supabase/deno.json --allow-read --allow-env scripts/backend/
 
   backend-db:
     name: Database & Contracts Verification

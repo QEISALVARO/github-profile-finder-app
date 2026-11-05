@@ -58,5 +58,20 @@ Setiap tabel di skema `public` menerapkan RLS aktif dengan prinsip **DEFAULT DEN
 | **AIR-1** | Transparansi & Sinyal Terbuka | (Menyusul di BE-2: scoring engine + `evidence[]`.) | - |
 | **AIR-2** | Integritas Penulisan & Re-scoring | Klien dilarang menulis langsung ke tabel analisis. (Penyimpanan `facts` + re-scoring menyusul di BE-2.) | `supabase/tests/02_default_deny.sql` |
 | **AIR-3** | Hak Analisis Profil Milik Sendiri | (Menyusul di BE-2: `analyze-developer`.) | - |
-| **AIR-5** | Normalisasi Lokasi & Bebas Bias | Fungsi `normalize_location(text)` (menyusul di BE-1 beserta pgTAP `05_location_normalize`). | - |
+| **AIR-5** | Normalisasi Lokasi & Bebas Bias | Fungsi `normalize_location(text)` (BE-1) + pasal BE-4: tidak ada fungsi yang menyimpulkan atribut sensitif dari nama/avatar/bio. | pgTAP 05; checklist review BE-4 (§4) |
+| **AIR-1 (BE-4)** | Transparansi & sinyal terbuka | DiscoverItem hanya `login,name,avatarUrl,role,primaryLanguage,countryCode,city,score,availability` — tanpa `breakdown`, evidence, atau label lolos/gagal. | pgTAP 11 (kunci JSON) |
+| **AIR-3 (BE-4)** | Analisis profil sendiri | Developer `listed` tanpa analisis tidak muncul di Discover; FE memicu `analyze-developer` untuk login sendiri. | pgTAP 11 (D1) + `talent.md` |
+| **AIR-4 (BE-4)** | Audit bias v0 | `bias_report_v0()` admin/service-only; kelompok n<10 dimasking; tanpa identitas individu. | pgTAP 13; laporan: `bias-audit.md` (**BELUM DIUJI**) |
+| **AIR-5 (BE-4)** | Tanpa inferensi atribut sensitif | Review kode: role hanya dari bahasa/manifest; negara hanya dari profil terkonfirmasi; tidak ada penggunaan nama/avatar/bio untuk atribut sensitif. | Checklist review di bawah |
+| **POL-5 (BE-4)** | Retensi listing | Trigger `sync_analysis_retention`: listed → permanen; unlisted → 7 hari/24 jam; `purge_expired_lookups` mengecualikan login listed. | pgTAP 13 |
+| **POL-8 (BE-4)** | Right to erasure pipeline | Trigger `profiles_purge_pipeline` menghapus entri pipeline orang lain yang merujuk login akun terhapus. | pgTAP 13 |
+| **POL-3 (BE-4)** | Tanpa ekspor massal | Discover/Compare/Pipeline hanya RPC per-halaman; rate limit per endpoint; tanpa endpoint CSV/ekspor. | pgTAP 11/12 |
+
+### Checklist review AIR-5 (BE-4, 5 Nov 2026)
+
+- [x] Tidak ada fungsi yang membaca `profiles.name`, `avatar_url`, atau `bio` untuk menyimpulkan gender/etnis/usia/kesehatan.
+- [x] `inferred_role` hanya dari bahasa dominan + manifest framework (`scoring/role.ts`).
+- [x] `country_code` hanya dari profil yang dikonfirmasi pengguna/normalisasi lokasi eksplisit (POL-9).
+- [x] Discover tidak menerima filter atribut sensitif; hanya role/skor/negara/bahasa/availability.
+- [x] Keluaran Discover/Compare/Pipeline tidak memuat email, breakdown, atau evidence.
 
