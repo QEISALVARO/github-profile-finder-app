@@ -47,3 +47,28 @@ export const CityFacet = z.object({
   city: z.string(),
   count: z.union([z.number().int(), z.literal("<5")]),
 });
+
+// v0.3.0 (BE-3b) — proyek milik pemanggil, termasuk yang belum visible.
+export const MyProject = z.object({
+  projectId: z.string().uuid(),
+  githubRepoId: z.number().int().positive(),
+  name: z.string(),
+  description: z.string().nullable(),
+  role: FeedRole,
+  stack: z.array(z.object({ name: z.string(), percent: z.number().int().min(0).max(100) })).max(3),
+  active: z.boolean(),
+  demoUrl: z.string().nullable(),
+  demoVerified: z.boolean(),
+  score: z.number().int().min(0).max(100),
+  stars: z.number().int().nonnegative(),
+  pushedAt: z.string().nullable(),
+  published: z.boolean(),
+  visible: z.boolean(),
+  isHidden: z.boolean(),
+  countryCode: CountryCode.nullable(),
+  city: z.string().nullable(),
+});
+export const MyProjectsPage = z.object({
+  items: z.array(MyProject),
+  nextCursor: z.string().nullable(),
+});

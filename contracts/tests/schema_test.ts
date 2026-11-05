@@ -7,12 +7,19 @@ import { assertEquals } from "jsr:@std/assert";
 import { z } from "npm:zod@^3.24.0";
 import { AnalysisVM } from "../src/analysis.ts";
 import { FeedPage, CountryFacet } from "../src/feed.ts";
-import { DiscoverPage, PipelineEntry } from "../src/talent.ts";
+import {
+  CompareResult,
+  DiscoverPage,
+  PipelineEntry,
+  PipelineList,
+} from "../src/talent.ts";
 import { StartConversationInput, Message } from "../src/chat.ts";
 import { ErrorBody } from "../src/common.ts";
 import {
   CityFacet,
   FeedRole,
+  MyProject,
+  MyProjectsPage,
   MyRepoItem,
   MyReposPage,
   PublishProjectInput,
@@ -129,6 +136,72 @@ Deno.test("PublishProjectInput rejects bad input", () => {
 Deno.test("FeedRole accepts BE-3 roles only", () => {
   assertEquals(FeedRole.safeParse("Back-End").success, true);
   assertEquals(FeedRole.safeParse("AI / Data Engineer").success, false);
+});
+
+Deno.test("MyProjectsPage fixture parses correctly (flag unpublished/hidden)", async () => {
+  const raw = await loadFixture("my_projects.json");
+  const result = MyProjectsPage.safeParse(raw);
+  if (!result.success) throw new Error(`MyProjectsPage parse failed: ${result.error.message}`);
+  assertEquals(result.data.items.length, 2);
+  assertEquals(result.data.items[0].visible, true);
+  assertEquals(result.data.items[1].published, false);
+  assertEquals(result.data.items[1].isHidden, true);
+  assertEquals(result.data.items[1].visible, false);
+  // stack max 3
+  const tooMany = MyProject.safeParse({
+    ...result.data.items[0],
+    stack: [
+      { name: "A", percent: 40 },
+      { name: "B", percent: 30 },
+      { name: "C", percent: 20 },
+      { name: "D", percent: 10 },
+    ],
+  });
+  assertEquals(tooMany.success, false);
+});
+
+Deno.test("Discover country facets fixture parses (incl <5 mask)", async () => {
+  const raw = await loadFixture("discover_country_facets.json") as unknown[];
+  for (const item of raw) {
+    const result = CountryFacet.safeParse(item);
+    if (!result.success) throw new Error(`Discover facet parse failed: ${result.error.message}`);
+  }
+});
+
+Deno.test("PipelineList fixture parses correctly (identitas null bila non-listed)", async () => {
+  const raw = await loadFixture("pipeline_list.json");
+  const result = PipelineList.safeParse(raw);
+  if (!result.success) throw new Error(`PipelineList parse failed: ${result.error.message}`);
+  assertEquals(result.data.entries.length, 2);
+  assertEquals(result.data.entries[1].name, null);
+  assertEquals(result.data.summary.saved + result.data.summary.interviewing, 2);
+});
+
+Deno.test("CompareResult requires exactly 2 entries", async () => {
+  const raw = await loadFixture("compare_entries.json");
+  const result = CompareResult.safeParse(raw);
+  if (!result.success) throw new Error(`CompareResult parse failed: ${result.error.message}`);
+  assertEquals(result.data.length, 2);
+  const one = CompareResult.safeParse([(raw as unknown[])[0]]);
+  assertEquals(one.success, false);
+});
+
+Deno.test("PipelineItem rejects bad stage", () => {
+  const bad = PipelineList.safeParse({
+    entries: [{
+      id: "x",
+      githubLogin: "budi",
+      stage: "offer",
+      note: null,
+      updatedAt: "2026-11-04T00:00:00Z",
+      name: null,
+      avatarUrl: null,
+      role: null,
+      score: null,
+    }],
+    summary: { saved: 1, interviewing: 0, hired: 0 },
+  });
+  assertEquals(bad.success, false);
 });
 
 Deno.test("MyRepoItem rejects bad ineligibleReason", () => {

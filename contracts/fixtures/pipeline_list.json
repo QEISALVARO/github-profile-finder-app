@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {
+      "id": "5a1f0c2e-3b4d-4e6f-8a90-1b2c3d4e5f01",
+      "githubLogin": "budi_id",
+      "stage": "saved",
+      "note": "Kandidat kuat Go, domisili Jakarta",
+      "updatedAt": "2026-11-04T10:00:00Z",
+      "name": "Budi Santoso",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/101?v=4",
+      "role": "Back-End",
+      "score": 88
+    },
+    {
+      "id": "5a1f0c2e-3b4d-4e6f-8a90-1b2c3d4e5f02",
+      "githubLogin": "ghost_dev",
+      "stage": "interviewing",
+      "note": null,
+      "updatedAt": "2026-11-03T08:00:00Z",
+      "name": null,
+      "avatarUrl": null,
+      "role": null,
+      "score": null
+    }
+  ],
+  "summary": { "saved": 1, "interviewing": 1, "hired": 0 }
+}

@@ -1,5 +1,25 @@
 # contracts/CHANGELOG.md
 
+## v0.3.0 — 2026-11-05 (BE-3b & BE-4, PR chore/contracts-0.3)
+
+### Talent & My Projects contracts (Lampiran A, ditinjau FE + BE)
+
+- Baru di `contracts/src/projects.ts`: `MyProject`, `MyProjectsPage`
+  (proyek milik pemanggil termasuk `published=false`/`isHidden=true`;
+  `stack` maks 3, `percent` 0–100).
+- Baru di `contracts/src/talent.ts`: `PipelineItem` (perluasan
+  `PipelineEntry` dengan `name/avatarUrl/role/score` nullable — terisi hanya
+  untuk developer `listed`, D5), `PipelineSummary`, `PipelineList`,
+  `CompareEntry`, `CompareResult` (tepat 2 entri).
+- `contracts/src/types.ts`: ekspor z.infer untuk skema baru.
+- Fixture baru: `my_projects.json`, `pipeline_list.json`, `compare_entries.json`,
+  `discover_country_facets.json` (memakai `CountryFacet` yang ada).
+- Test: 5 kasus baru (parse fixture + penolakan stack >3, stage asing, dan
+  `CompareResult` bukan 2 entri).
+- `DiscoverItem.role` tetap `string` sesuai Lampiran A; backend BE-4 hanya
+  mengeluarkan nilai `FeedRole` (`Front-End/Back-End/Mobile/Data`).
+- Kode error memakai `ErrorCode` yang ada (tanpa enum baru).
+
 
 ## v0.2.0 — 2026-10-29 (BE-3, PR chore/contracts-projects)
 

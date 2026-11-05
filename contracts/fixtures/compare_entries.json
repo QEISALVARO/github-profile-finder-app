@@ -1,0 +1,28 @@
+[
+  {
+    "login": "budi_id",
+    "name": "Budi Santoso",
+    "avatarUrl": "https://avatars.githubusercontent.com/u/101?v=4",
+    "role": "Back-End",
+    "primaryLanguage": "Go",
+    "score": 88,
+    "originalCount": 24,
+    "streakWeeks": 11,
+    "availability": "open_to_work",
+    "countryCode": "ID",
+    "city": "Jakarta"
+  },
+  {
+    "login": "ghost_dev",
+    "name": "",
+    "avatarUrl": "",
+    "role": "Back-End",
+    "primaryLanguage": "Python",
+    "score": 64,
+    "originalCount": 3,
+    "streakWeeks": 0,
+    "availability": null,
+    "countryCode": null,
+    "city": null
+  }
+]

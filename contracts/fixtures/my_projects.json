@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "projectId": "0f5c4d9e-2a51-4a3e-9c1e-6d0b7a4f2b11",
+      "githubRepoId": 9001,
+      "name": "tokoonline-core",
+      "description": "High-throughput e-commerce microservices in Go",
+      "role": "Back-End",
+      "stack": [
+        { "name": "Go", "percent": 75 },
+        { "name": "React", "percent": 20 },
+        { "name": "Python", "percent": 5 }
+      ],
+      "active": true,
+      "demoUrl": "https://demo.tokoonline.id",
+      "demoVerified": true,
+      "score": 88,
+      "stars": 142,
+      "pushedAt": "2026-10-31T09:12:00Z",
+      "published": true,
+      "visible": true,
+      "isHidden": false,
+      "countryCode": "ID",
+      "city": "Jakarta"
+    },
+    {
+      "projectId": "1b7e6f0d-8c42-4f9a-b3d5-7a1c2e4f6a22",
+      "githubRepoId": 9002,
+      "name": "nordic-iot",
+      "description": null,
+      "role": "Back-End",
+      "stack": [{ "name": "C++", "percent": 100 }],
+      "active": false,
+      "demoUrl": null,
+      "demoVerified": false,
+      "score": 70,
+      "stars": 5,
+      "pushedAt": null,
+      "published": false,
+      "visible": false,
+      "isHidden": true,
+      "countryCode": "ID",
+      "city": "Jakarta"
+    }
+  ],
+  "nextCursor": null
+}
