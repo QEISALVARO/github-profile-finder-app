@@ -256,6 +256,15 @@ Pekerjaan Fase BE-2 selesai penuh. Berhenti sesuai aturan kualitas (§6/§10) hi
 - **A5.** `evidence/README.md` kini menyatakan eksplisit mana bukti CI, portable, dan belum ada.
 - **A6.** Audit `main`: tidak ada `_shared/normalize-login.ts` maupun `_shared/scoring/role-map.ts`; tidak ada impor `contracts/` → `supabase/functions/`. Utilitas baru yang dipakai: `_shared/scoring/publish.ts` (murni, strict, diuji) dan `_shared/github/upstream.ts` (error hulu, strict).
 
+## Paket B — BE-3b: `my_projects()` (5 Nov 2026)
+
+- **Masalah:** layar "My Projects" butuh proyek milik sendiri (termasuk yang belum visible/unpublish) + `projectId`; klien tidak dapat membaca `projects` langsung (ADR-015).
+- **Solusi:** migrasi 023 `public.my_projects(p_cursor, p_lim)` → `MyProjectsPage`. Hanya `owner_id = auth.uid()`, peran developer wajib, keyset `(created_at, id)`, maks 100 baris, rate limit `my_projects` 120/jam, tanpa email.
+- **Kontrak:** `MyProject` + `MyProjectsPage` di contracts v0.3.0; fixture `my_projects.json`.
+- **Test:** pgTAP `10_be3b_my_projects.sql` (15 asersi: kepemilikan, flag unpublished/hidden, orang lain, FORBIDDEN/UNAUTHORIZED, tanpa email, RPC-only, kursor, clamp, republish tidak mengubah kolom hitungan, rate limit).
+- **Status verifikasi:** `deno check` + kontrak hijau lokal. pgTAP **BELUM DIJALANKAN di sini** (Docker tidak tersedia); wajib hijau di CI PR sebelum merge.
+- `unpublish_project`/`republish_project` tetap `void`; FE me-refetch `my_projects()` (didokumentasikan di `publishing.md`).
+
 ## Deviasi
 - Fallback fuzzy trigram DITUNDA (opsional setelah gate hijau) sesuai prompt.
 - refresh-projects (cron) DITUNDA (opsional setelah gate hijau) — refresh_rank_scores/refresh_featured tersedia.

@@ -17,6 +17,40 @@
 - Kolom hasil perhitungan tidak dapat ditulis klien (D4 didenormalisasi + trigger; D3: RLS 019 cabut tulis langsung).
 - Admin = klaim JWT `app_metadata.role = 'admin'` (D5, tanpa tabel peran baru).
 
+## My Projects (BE-3b)
+
+Setelah publish, layar "My Projects" memanggil RPC `my_projects()` — bukan
+membaca tabel `projects` (klien tidak punya grant; ADR-015).
+
+```sql
+-- p_cursor: kursor base64url dari nextCursor; p_lim di-clamp 1..100 (default 20)
+select public.my_projects(p_cursor => null, p_lim => 20);
+-- -> { items: MyProject[], nextCursor: string|null }
+```
+
+```bash
+curl -s http://127.0.0.1:54321/rest/v1/rpc/my_projects \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $DEV_JWT" \
+  -H 'Content-Type: application/json' \
+  -d '{"p_cursor": null, "p_lim": 20}' | head -c 600
+```
+
+Aturan:
+- Hanya `owner_id = auth.uid()`; peran **developer** wajib (`FORBIDDEN`).
+  Tanpa JWT/anon → `UNAUTHORIZED`.
+- Termasuk proyek `published=false`, `visible=false`, dan `isHidden=true`
+  (pemilik perlu `projectId` untuk unpublish/republish). Flag dikembalikan
+  apa adanya.
+- Urut `created_at desc, id desc`; kursor keyset stabil (tanpa duplikat).
+- Rate limit `my_projects` 120/jam; kursor rusak → `VALIDATION`.
+- Tidak ada email pada keluaran.
+
+`unpublish_project` / `republish_project` tetap mengembalikan `void`; FE
+**me-refetch** `my_projects()` setelah keduanya agar flag `published/visible`
+terbarui. `republish` tidak mengubah `score`, `demo_verified`, `stars`, atau
+`rank_score` (pgTAP `10_be3b`).
+
 ## SSRF & kegagalan hulu
 Reuse `ssrf/safe-fetch` + `github/*` + `scoring/*` + `http/supabase` BE-2 (tanpa menulis ulang). Kegagalan hulu → `502/429` terstruktur, **tanpa data karangan**. Rate limit GitHub dipantau (`rate.ts`); demo timeout default 5 dtk.
 
