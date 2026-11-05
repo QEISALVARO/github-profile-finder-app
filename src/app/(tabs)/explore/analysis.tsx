@@ -158,7 +158,7 @@ export default function AnalysisScreen() {
               rightVariant="verified-label"
               verifiedLabel="VERIFIED"
             />
-            <ScoreCard vm={vm} />
+            <ScoreCard vm={vm} onViewBreakdown={() => router.push({ pathname: '/explore/evidence', params: { login: vm.user.login } })} />
             <MetricGrid vm={vm} />
 
             <Heatmap
@@ -171,8 +171,8 @@ export default function AnalysisScreen() {
               eyebrow="VERIFIED PROJECTS"
               title="Evidence, not claims"
               rightVariant="view-all"
-              viewAllLabel="View all"
-              onPressViewAll={() => openGithubUrl(`${vm.user.htmlUrl}?tab=repositories`)}
+              viewAllLabel="Semua bukti"
+              onPressViewAll={() => router.push({ pathname: '/explore/evidence', params: { login: vm.user.login } })}
             />
             {vm.repos.slice(0, 3).map((repo) => (
               <VerifiedRepoCard

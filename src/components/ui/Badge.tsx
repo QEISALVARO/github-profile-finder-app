@@ -13,6 +13,8 @@ export type BadgeProps = {
   children?: ReactNode;
   label?: string;
   variant?: BadgeVariant;
+  /** ACTIVE pill when true (PRD v2 §10C / FE-10a badge: VERIFIED ACTIVE vs VERIFIED). */
+  active?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
@@ -23,6 +25,7 @@ export function Badge({
   children,
   label,
   variant = 'verified',
+  active = false,
   onPress,
   accessibilityLabel,
   style,
@@ -30,14 +33,14 @@ export function Badge({
   const theme = useTheme();
 
   const background =
-    variant === 'verified'
-      ? theme.colors.accentSoft
-      : variant === 'active'
-        ? theme.colors.connectedPillBg
-        : 'transparent';
+    active
+      ? theme.colors.connectedPillBg
+      : variant === 'mono'
+        ? 'transparent'
+        : theme.colors.accentSoft;
   const border = variant === 'mono' ? theme.colors.line : 'transparent';
   const textToken: ColorToken =
-    variant === 'verified' ? 'greenStrong' : variant === 'active' ? 'accent' : 'muted';
+    active ? 'accent' : variant === 'verified' ? 'greenStrong' : 'muted';
   const textColor = theme.colors[textToken];
 
   const content = (
