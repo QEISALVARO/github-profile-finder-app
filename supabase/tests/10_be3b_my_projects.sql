@@ -3,6 +3,7 @@
 -- peran developer wajib, anon ditolak, kursor, rate limit, tanpa email.
 
 begin;
+set search_path = public, extensions;
 select plan(19);
 
 -- ─── Data uji ────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ select throws_ok(
 
 reset role;
 set local role anon;
+set local "request.jwt.claim.sub" to '';
 select throws_ok(
   $$ select public.my_projects() $$,
   'P0001',
@@ -150,9 +152,13 @@ select lives_ok(
 );
 
 -- ─── 6. Republish tidak mengubah kolom hitungan ──────────────────────
+-- Snapshot kolom internal dibaca sebagai superuser (klien tidak punya grant).
+reset role;
 create temporary table _my_projects_before on commit drop as
   select score, demo_verified, stars, rank_score
   from public.projects where id = 'd1111111-1111-4111-a111-111111111111';
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a1111111-1111-4111-a111-111111111111';
 
 select lives_ok(
   $$ select public.unpublish_project('d1111111-1111-4111-a111-111111111111') $$,
@@ -171,6 +177,7 @@ select lives_ok(
   'pemilik dapat republish'
 );
 
+reset role;
 select results_eq(
   $$ select (p.score, p.demo_verified, p.stars, p.rank_score)::text
      from public.projects p where p.id = 'd1111111-1111-4111-a111-111111111111' $$,

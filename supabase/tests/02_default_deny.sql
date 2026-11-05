@@ -2,6 +2,7 @@
 -- pgTAP: Verifikasi default-deny untuk peran anon dan authenticated tanpa hak istimewa
 
 begin;
+set search_path = public, extensions;
 select plan(4);
 
 -- 1. Peran anon tidak boleh membaca data privat (mis. developer_settings, pipeline_entries, messages)
@@ -12,9 +13,11 @@ select is_empty(
   'Anon tidak bisa membaca developer_settings (default-deny)'
 );
 
-select is_empty(
+select throws_ok(
   'select * from public.pipeline_entries',
-  'Anon tidak bisa membaca pipeline_entries (default-deny)'
+  '42501',
+  null,
+  'Anon ditolak membaca pipeline_entries (RPC-only sejak BE-4)'
 );
 
 select is_empty(

@@ -3,16 +3,17 @@
 -- RLS tulis langsung, anon ditolak semua RPC, facet mengikuti filter lain.
 
 begin;
+set search_path = public, extensions;
 select plan(18);
 
-set local role authenticated;
-set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
+-- Setup dijalankan sebagai superuser; RLS baru diaktifkan sebelum asersi.
 
 -- ─── facet mengikuti filter lain kecuali countries ──────────────────
 -- (pakai data 08: 2 proyek ID-Go; 08 rollback? TIDAK — tiap file transaksi
 -- sendiri, jadi siapkan ulang minimal di sini)
 insert into auth.users (id, aud, role, email) values
-  ('a1111111-1111-4111-a111-111111111111', 'authenticated', 'authenticated', 'be3a2@test.com')
+  ('a1111111-1111-4111-a111-111111111111', 'authenticated', 'authenticated', 'be3a2@test.com'),
+  ('c3333333-3333-4333-a333-333333333333', 'authenticated', 'authenticated', 'be3rec2@test.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, github_id, login, github_login, name, roles, country_code, city, country_source) values
@@ -29,17 +30,20 @@ insert into public.projects (id, owner_id, github_repo_id, name, role, descripti
 on conflict (id) do nothing;
 
 -- facet: 2 proyek ID -> ID:2
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
+
 select results_eq(
   $$ select public.country_facets(null, null, null, false, null, false) $$,
-  $$ values ('[{"iso2":"ID","count":2}]'::jsonb) $$,
-  'country_facets menghitung ID=2 (tanpa masking di >=5? ambang 5 -> 2 tetap angka? lihat bawah)'
+  $$ values ('[{"iso2":"ID","count":"<5>"}]'::jsonb) $$,
+  'country_facets menghitung ID (2 < ambang 5, langsung termask)'
 );
 
 -- masking: <5 -> "<5" (2 < 5 sehingga termask)
 select results_eq(
   $$ select public.country_facets(null, null, null, false, null, false)->0->>'count' $$,
-  $$ values ('<5') $$,
-  'hitungan 2 < ambang 5 dimask "<5"'
+  $$ values ('<5>') $$,
+  'hitungan 2 < ambang 5 dimask "<5>"'
 );
 
 -- facet tanpa baris -> array kosong (bukan null)
@@ -52,7 +56,7 @@ select results_eq(
 -- facet mengikuti role: role=Data -> hanya 1 (ID tetap, count termask)
 select results_eq(
   $$ select public.country_facets(null, 'Data', null, false, null, false)->0->>'count' $$,
-  $$ values ('<5') $$,
+  $$ values ('<5>') $$,
   'facet mengikuti filter role'
 );
 
@@ -66,7 +70,7 @@ select results_eq(
 -- city_facets: drill-down 1 negara
 select results_eq(
   $$ select public.city_facets('ID', null, null, false, null) $$,
-  $$ values ('[{"city":"Jakarta","count":"<5"}]'::jsonb) $$,
+  $$ values ('[{"city":"Jakarta","count":"<5>"}]'::jsonb) $$,
   'city_facets Jakarta termask'
 );
 
@@ -74,6 +78,7 @@ select results_eq(
 select throws_ok(
   $$ select public.city_facets('XX1', null, null, false, null) $$,
   'P0001',
+  'VALIDATION',
   'city_facets menolak kode negara invalid'
 );
 
@@ -98,6 +103,15 @@ select results_eq(
 );
 
 -- ─── moderasi ──────────────────────────────────────────────────────
+-- abuse_reports.reporter_id FK ke profiles: lengkapi profil recruiter C
+-- (sebagai superuser; RLS profiles menolak insert dari role klien).
+reset role;
+insert into public.profiles (id, github_id, login, github_login, name, roles, country_code, country_source) values
+  ('c3333333-3333-4333-a333-333333333333', 9202, 'be3rec2', 'be3rec2', 'BE3 Rec 2', '{recruiter}', 'ID', 'self')
+on conflict (id) do nothing;
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
+
 -- report valid
 select lives_ok(
   $$ select public.report_project('d1111111-1111-4111-a111-111111111111', 'Spam atau misleading') $$,
@@ -115,6 +129,7 @@ select results_eq(
 select throws_ok(
   $$ select public.report_project('d1111111-1111-4111-a111-111111111111', '  ') $$,
   'P0001',
+  'VALIDATION',
   'alasan kosong ditolak VALIDATION'
 );
 
@@ -122,6 +137,7 @@ select throws_ok(
 select throws_ok(
   $$ select public.unpublish_project('d1111111-1111-4111-a111-111111111111') $$,
   'P0001',
+  'NOT_FOUND',
   'unpublish oleh non-pemilik ditolak NOT_FOUND'
 );
 
@@ -129,6 +145,7 @@ select throws_ok(
 select throws_ok(
   $$ select public.admin_set_project_hidden('d1111111-1111-4111-a111-111111111111', true, 'uji') $$,
   'P0001',
+  'FORBIDDEN',
   'non-admin ditolak FORBIDDEN'
 );
 
@@ -142,14 +159,17 @@ select results_eq(
 -- ─── anon ditolak semua RPC ────────────────────────────────────────
 reset role;
 set local role anon;
+set local "request.jwt.claim.sub" to '';
 select throws_ok(
   $$ select public.search_projects(null, null, null, null, false, null, null, 20, false) $$,
   'P0001',
+  'UNAUTHORIZED',
   'anon ditolak search_projects'
 );
 select throws_ok(
   $$ select public.country_facets(null, null, null, false, null, false) $$,
   'P0001',
+  'UNAUTHORIZED',
   'anon ditolak country_facets'
 );
 

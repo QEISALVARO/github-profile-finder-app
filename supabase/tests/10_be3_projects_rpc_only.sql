@@ -3,6 +3,7 @@
 -- (tanpa GRANT + tanpa kebijakan), dan satu-satunya jalur baca adalah RPC.
 
 begin;
+set search_path = public, extensions;
 select plan(11);
 
 -- ─── 1. Privilese tabel langsung ─────────────────────────────────────
@@ -69,7 +70,7 @@ select throws_ok(
   'authenticated ditolak membaca projects langsung (permission denied)'
 );
 
-select converges_ok(
+select lives_ok(
   $$ select public.search_projects(null, null, null, null, false, null, null, 20, false) $$,
   'RPC search_projects tetap dapat dipanggil authenticated (jalur baca resmi)'
 );

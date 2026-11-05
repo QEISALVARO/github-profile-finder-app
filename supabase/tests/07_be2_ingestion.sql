@@ -2,10 +2,20 @@
 -- pgTAP: Verifikasi skema BE-2 (RLS rate_limits, default deny, check_rate_limit, purge_expired_lookups)
 
 begin;
+set search_path = public, extensions;
 select plan(8);
 
--- Test 1: rate_limits memiliki RLS aktif
-select row_security_active('public.rate_limits');
+-- Fixture: rate_limits punya FK ke auth.users, jadi user harus ada.
+insert into auth.users (id, aud, role, email) values
+  ('11111111-1111-4111-a111-111111111111', 'authenticated', 'authenticated', 'rl@test.com')
+on conflict (id) do nothing;
+
+-- Test 1: rate_limits memiliki RLS aktif (relrowsecurity; row_security_active
+-- selalu false untuk superuser yang menjalankan tes).
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.rate_limits'::regclass),
+  'rate_limits memiliki RLS aktif'
+);
 
 -- Test 2: Anon tidak bisa membaca rate_limits
 set local role anon;
@@ -72,7 +82,7 @@ select isnt_empty(
 
 -- Test 8: Verifikasi snapshot kedaluwarsa terhapus dan snapshot aktif tetap ada
 select is_empty(
-  'select * from public.github_snapshots where login = 'expired_user'',
+  $$ select * from public.github_snapshots where login = 'expired_user' $$,
   'Snapshot yang kedaluwarsa berhasil dihapus oleh purge_expired_lookups'
 );
 

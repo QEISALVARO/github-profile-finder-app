@@ -47,6 +47,10 @@ Fondasi backend Gitscope (Fase BE-0) dan modul Otentikasi & Profil (Fase BE-1) t
 - `supabase/seed/dev.sql`: Akun dummy dev & recruiter lintas negara (ID, SG, US, NO, GB) untuk pengujian lokal.
 
 ### D. Pengujian pgTAP (`supabase/tests/`)
+
+**Status verifikasi 5 Nov 2026 — HIJAU (lokal, Docker):**
+27 berkas migrasi (001–028; nomor 0016 dilewati sesuai ADR-016) + 3 seed berhasil pada database baru (`migtest`) dengan `ON_ERROR_STOP=1`, 0 gagal. Rangkaian pgTAP: **14 berkas, 190 asersi, `Result: PASS`** lewat `npx supabase@2.122.0 test db` (rincian di `evidence/pgtap-local-2026-11-05.txt`). Commit ini **belum dijalankan di CI**; tidak ada URL run untuk klaim ini.
+
 - `01_rls_enabled.sql`: Memeriksa katalog sistem bahwa **seluruh** tabel di skema `public` memiliki RLS aktif.
 - `02_default_deny.sql`: Membuktikan peran anon dan authenticated tanpa hak tidak bisa mengakses data sensitif atau menulis ke tabel service-role.
 - `03_rls_policies.sql`: Pengujian granular kebijakan `profiles`, `projects`, `conversations`, dan penolakan pengiriman pesan pada status percakapan yang diblokir.
@@ -90,8 +94,8 @@ Fondasi backend Gitscope (Fase BE-0) dan modul Otentikasi & Profil (Fase BE-1) t
 - [x] Konfigurasi Supabase lokal (`config.toml` tanpa BOM, TOML valid) siap pakai.
 - [x] Migrasi skema v2.1 (001–014, 17 tabel + 7 fungsi cocok dengan `database.types.ts` — `sql-drift-secret-2026-10-29.txt`).
 - [x] Seluruh seed (`countries.sql`, `cities.sql`, `keyword_aliases.sql`, `dev.sql`) tersedia.
-- [x] Rangkaian pgTAP 01–03 (+04–07) tersedia; rencana 41 asersi terkonfirmasi statis — `sql-static-2026-10-29.txt`.
-- [x] RLS default-deny + kebijakan per tabel — **TERBUKTI via pgTAP CI** (01–03 hijau).
+- [x] Rangkaian pgTAP 01–13 tersedia; 190 asersi (2+4+7+4+10+6+8+30+18+11+19+27+29+15) hijau lokal 5 Nov 2026 — `evidence/pgtap-local-2026-11-05.txt`.
+- [x] RLS default-deny + kebijakan per tabel — **terbukti pgTAP lokal 5 Nov 2026** (01–03 hijau).
 - [x] Kontrak SP-0 + Deno test 9/9 hijau 29 Okt 2026 — `deno-contracts-2026-10-29.txt`.
 - [x] `database.types.ts` selaras statis dengan migrasi (drift penuh via `make types` + CI).
 - [x] CI Workflow `backend.yml` terkonfigurasi (diperketat: deno check, izin minimal, drift gagal-bila-beda, secret+encoding scan).
@@ -192,17 +196,22 @@ Fase BE-2 telah berhasil membangun mesin *Ingestion* data publik GitHub dan *Sco
 > Backend `6545b2f` success, Frontend `6c6628b` success.
 > Verifikasi lokal tambahan: Postgres 17 portable (tanpa Docker) —
 > 16/16 migrasi + seed referensi OK (`evidence/pg17-portable-2026-10-29.txt`).
+>
+> **Koreksi 5 Nov 2026:** klaim pgTAP 41/41 pada kutipan 29 Okt di atas berasal
+> dari langkah CI `tee | tail` tanpa `pipefail`, sehingga kegagalan pgTAP tidak
+> menggagalkan job. Hasil sebenarnya yang terverifikasi ada di §D
+> (`evidence/pgtap-local-2026-11-05.txt`).
 
 - [x] Golden test scoring hijau (**G1 = 77**; 29 Okt 2026: 27/27 Deno fungsi offline OK — `deno-functions-2026-10-29.txt`); seluruh keluaran lolos validasi `AnalysisVM` (9/9 kontrak — `deno-contracts-2026-10-29.txt`).
 - [x] Kegagalan hulu (403, 429, 404, 5xx, timeout) menghasilkan `stale`/error terstruktur — **terbukti di unit test offline** (`analyze-developer/index_test.ts`, tanpa data palsu).
 - [x] Mitigasi **SSRF** 9/9 offline tanpa jaringan/DNS asli (privat/loopback/link-local/ULA/IPv4-mapped, A+AAAA campuran, tanpa alamat, redirect privat, >3 redirect, timeout) — `deno-functions-2026-10-29.txt`.
-- [x] **Tidak ada email** / retensi `purge_expired_lookups` — **TERBUKTI via pgTAP CI** (02/07 hijau).
-- [x] RLS default-deny (`analyses`, `github_snapshots`, `rate_limits`) — **TERBUKTI via pgTAP CI** (01-03/07 hijau).
-- [x] Rate limit + ambang `force` — logika **TERBUKTI via pgTAP CI** (07 hijau); smoke S5-S7 tetap menunggu token.
+- [x] **Tidak ada email** / retensi `purge_expired_lookups` — **terbukti pgTAP lokal 5 Nov 2026** (02/07/13 hijau).
+- [x] RLS default-deny (`analyses`, `github_snapshots`, `rate_limits`) — **terbukti pgTAP lokal 5 Nov 2026** (01–03/07 hijau).
+- [x] Rate limit + ambang `force` — logika **terbukti pgTAP lokal 5 Nov 2026** (07 hijau); smoke S5-S7 tetap menunggu token.
 - [ ] **p95 analisis segar < 6 dtk** BELUM DIUKUR (butuh token + Supabase lokal; jalankan `live-bench`).
 - [x] Typecheck, pengujian frontend, dan lint tetap hijau bersih (PR #5: 88/88 jest).
 - [x] Pemindai rahasia bersih 29 Okt 2026 (`sql-drift-secret-2026-10-29.txt`; `src/` + evidence tanpa token).
-- [x] pgTAP `make test-db` — **HIJAU di CI** (41/41 asersi: 2+4+7+4+10+6+8; Backend CI `6545b2f`).
+- [x] pgTAP `make test-db` — **HIJAU lokal 5 Nov 2026**: 190/190 asersi, `supabase test db` `Result: PASS`. Backend CI untuk commit ini BELUM DIJALANKAN (tanpa URL run).
 - [x] Uji mutasi M1-M5 (BE-3: RLS, POL-9, grant liar, Paris ambigu, policy permisif) — **TERBUKTI di Postgres 17 portable** 30 Okt 2026; tiap mutasi efektif mengubah perilaku dan dikembalikan bersih. Bukti: `evidence/mutasi-be3-2026-10-30.txt`. Skrip CI: `scripts/backend/mutation-check.sh`.
 - [ ] Smoke test S1-S9 — **TIDAK DIUJI** (tanpa Docker). Panduan: `docs/backend/evidence/SMOKE-TEST.md`).
 

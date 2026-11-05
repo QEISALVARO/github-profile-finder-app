@@ -2,6 +2,7 @@
 -- pgTAP: Verifikasi fungsi RPC onboarding dan update profil (SECURITY INVOKER)
 
 begin;
+set search_path = public, extensions;
 select plan(6);
 
 -- Siapkan user autentikasi baru

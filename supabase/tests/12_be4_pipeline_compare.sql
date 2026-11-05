@@ -2,6 +2,7 @@
 -- BE-4: pipeline_list/upsert/remove + compare_developers.
 
 begin;
+set search_path = public, extensions;
 select plan(29);
 
 insert into auth.users (id, aud, role, email) values
@@ -116,10 +117,10 @@ select lives_ok(
 );
 
 select results_eq(
-  $$ select count(*)::int from public.pipeline_entries
-     where recruiter_id = '11111111-1111-4111-a111-111111111111' and github_login = 'a-dev' $$,
+  $$ select count(*)::int from jsonb_array_elements(public.pipeline_list()->'entries') e
+     where e->>'githubLogin' = 'a-dev' $$,
   $$ values (1) $$,
-  'upsert idempoten: tetap 1 baris per (recruiter, login)'
+  'upsert idempoten: tetap 1 entri per (recruiter, login)'
 );
 
 select results_eq(
@@ -150,6 +151,7 @@ select throws_ok(
 
 reset role;
 set local role anon;
+set local "request.jwt.claim.sub" to '';
 select throws_ok(
   $$ select public.pipeline_list() $$,
   'P0001',

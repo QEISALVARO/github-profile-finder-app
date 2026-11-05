@@ -2,11 +2,12 @@
 -- pgTAP: Verifikasi bahwa SEMUA tabel di skema public memiliki Row Level Security (RLS) aktif
 
 begin;
+set search_path = public, extensions;
 select plan(2);
 
 -- Test 1: Pastikan tabel ada di skema public
 select isnt_empty(
-  'select tablename from pg_tables where schemaname = 'public'',
+  $$ select tablename from pg_tables where schemaname = 'public' $$,
   'Tabel-tabel public harus ada'
 );
 

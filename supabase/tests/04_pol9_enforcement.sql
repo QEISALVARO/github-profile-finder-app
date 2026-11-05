@@ -6,6 +6,7 @@
 -- "Sinkron projects.country_code saat negara profil berubah"
 
 begin;
+set search_path = public, extensions;
 select plan(4);
 
 -- 1. Siapkan user tanpa country_code
@@ -23,7 +24,7 @@ select throws_ok(
   insert into public.developer_settings (user_id, listed)
   values ('f1111111-1111-4111-a111-111111111111', true)
   $$,
-  'POL9_COUNTRY_REQUIRED',
+  'POL9_COUNTRY_REQUIRED: developer cannot be listed without a confirmed country_code',
   'Menyetel listed=true tanpa country_code wajib ditolak oleh trigger POL-9'
 );
 
@@ -54,14 +55,14 @@ where id = 'f1111111-1111-4111-a111-111111111111';
 
 -- Test 3: Trigger AFTER UPDATE harus otomatis mematikan listed = false
 select results_eq(
-  'select listed from public.developer_settings where user_id = 'f1111111-1111-4111-a111-111111111111'',
+  $$ select listed from public.developer_settings where user_id = 'f1111111-1111-4111-a111-111111111111' $$,
   array[false],
   'Mengosongkan profiles.country_code wajib otomatis mematikan developer_settings.listed'
 );
 
 -- Test 4: projects.country_code juga tersinkronisasi menjadi null
 select results_eq(
-  'select country_code from public.projects where owner_id = 'f1111111-1111-4111-a111-111111111111'',
+  $$ select country_code from public.projects where owner_id = 'f1111111-1111-4111-a111-111111111111' $$,
   array[null::char(2)],
   'Mengosongkan profiles.country_code wajib menyinkronkan projects.country_code'
 );

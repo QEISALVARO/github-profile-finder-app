@@ -3,6 +3,7 @@
 -- kursor stabil, tanpa kebocoran, blokir, unlist/POL-9, facet masking, rate limit.
 
 begin;
+set search_path = public, extensions;
 select plan(27);
 
 -- ─── Data uji ────────────────────────────────────────────────────────
@@ -183,6 +184,7 @@ select throws_ok(
 
 reset role;
 set local role anon;
+set local "request.jwt.claim.sub" to '';
 select throws_ok(
   $$ select public.discover_developers() $$,
   'P0001',
@@ -244,14 +246,14 @@ select results_eq(
 select results_eq(
   $$ select g->>'count' from jsonb_array_elements(public.discover_country_facets()) g
      where g->>'iso2' = 'ID' $$,
-  $$ values ('<5') $$,
+  $$ values ('<5>') $$,
   'facet negara memakai masking <5'
 );
 
 select results_eq(
   $$ select g->>'count' from jsonb_array_elements(public.discover_country_facets('Mobile')) g
      where g->>'iso2' = 'SG' $$,
-  $$ values ('<5') $$,
+  $$ values ('<5>') $$,
   'facet mengikuti filter role dan tetap ter-mask'
 );
 

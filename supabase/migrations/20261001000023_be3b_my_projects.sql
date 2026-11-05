@@ -72,8 +72,10 @@ begin
     end if;
   end if;
 
+  -- sort_c/sort_id harus tetap ada sampai kursor dibuat (dulu dibuang di sini
+  -- sehingga nextCursor menjadi {"c":null,"id":null}).
   select coalesce(
-    jsonb_agg(to_jsonb(x) - 'sort_c' - 'sort_id' order by x.sort_c desc, x.sort_id desc),
+    jsonb_agg(to_jsonb(x) order by x.sort_c desc, x.sort_id desc),
     '[]'::jsonb
   )
   into v_rows

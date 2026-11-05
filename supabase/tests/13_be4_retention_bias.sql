@@ -3,6 +3,7 @@
 -- saat akun dihapus, dan bias_report_v0 (admin-only, masking).
 
 begin;
+set search_path = public, extensions;
 select plan(15);
 
 -- ─── Data populasi sintetis untuk bias (12 ID + 3 SG) ────────────────
@@ -82,7 +83,7 @@ select results_eq(
 select results_eq(
   $$ select g->>'n' from jsonb_array_elements(public.bias_report_v0()->'byCountry') g
      where g->>'key' = 'SG' $$,
-  $$ values ('<10') $$,
+  $$ values ('<10>') $$,
   'kelompok n < 10 dimasking "<10"'
 );
 
@@ -94,6 +95,8 @@ select is_empty(
 );
 
 -- ─── Retensi: unlisted -> lookup 7 hari, snapshot 24 jam ─────────────
+-- Fixture ditulis sebagai superuser; role klien dipasang lagi sebelum purge.
+reset role;
 insert into auth.users (id, aud, role, email) values
   ('ffffffff-ffff-4fff-ffff-ffffffffffff', 'authenticated', 'authenticated', 'ret@test.com'),
   ('99999999-9999-4999-9999-999999999999', 'authenticated', 'authenticated', 'gone@test.com')
@@ -156,6 +159,9 @@ update public.developer_settings set listed = true
 where user_id = 'ffffffff-ffff-4fff-ffff-ffffffffffff';
 update public.analyses set expires_at = now() - interval '1 day' where github_login = 'ret-dev';
 
+-- purge dijadwalkan sebagai service_role (satu-satunya yang diberi execute).
+set local role service_role;
+
 select lives_ok(
   $$ select * from public.purge_expired_lookups() $$,
   'purge_expired_lookups berjalan'
@@ -174,6 +180,12 @@ select results_eq(
 );
 
 -- ─── Hapus akun developer -> entri pipeline orang lain ikut hapus ────
+-- pipeline_entries RPC-only, jadi fixture/verifikasi memakai superuser.
+reset role;
+insert into public.profiles (id, github_id, login, github_login, name, roles)
+values ('eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', 9400, 'admin-test', 'admin-test', 'Admin Test', '{recruiter}')
+on conflict (id) do nothing;
+
 insert into public.pipeline_entries (recruiter_id, github_login, stage)
 values ('eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', 'gone-dev', 'saved')
 on conflict do nothing;

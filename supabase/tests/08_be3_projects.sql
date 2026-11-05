@@ -3,30 +3,31 @@
 -- facet masking, featured, moderasi, project_rank.
 
 begin;
+set search_path = public, extensions;
 select plan(30);
 
 -- ─── build_tsquery ──────────────────────────────────────────────────
 select results_eq(
   $$ select public.build_tsquery('golang')::text $$,
-  $$ values ('golang:* | go:*'::text) $$,
+  $$ values ('''golang'':* | ''go'':*'::text) $$,
   'golang diperluas ke go (grup OR prefix)'
 );
 
 select results_eq(
   $$ select (public.build_tsquery('ml')::text like '%pytorch%')::text $$,
-  values ('true'),
+  $$ values ('true') $$,
   'ml diperluas ke pytorch/tensorflow/machine/learning'
 );
 
 select results_eq(
   $$ select (public.build_tsquery('e-commerce')::text = public.build_tsquery('e commerce')::text)::text $$,
-  values ('true'),
+  $$ values ('true') $$,
   '"e-commerce" setara "e commerce"'
 );
 
 select results_eq(
   $$ select upper(public.build_tsquery('GOLANG')::text) $$,
-  $$ values ('GOLANG:* | GO:*'::text) $$,
+  $$ values ('''GOLANG'':* | ''GO'':*'::text) $$,
   'huruf besar/kecil tidak masalah'
 );
 
@@ -148,6 +149,7 @@ select ok(true, 'kursor 2 halaman stabil tanpa duplikat/loncatan');
 select throws_ok(
   $$ select public.search_projects(null, null, null, null, false, null, '!!!', 20, false) $$,
   'P0001',
+  'VALIDATION',
   'kursor rusak ditolak VALIDATION'
 );
 
@@ -180,10 +182,16 @@ select results_eq(
   'negara dikosongkan -> auto-unlist (POL-9) -> hilang dari feed'
 );
 
--- kembalikan negara agar test berikut stabil
+-- kembalikan negara agar test berikut stabil. country_code NULL tadi
+-- memicu auto-unlist (POL-9), jadi listed harus dinyalakan lagi; proyek kedua
+-- di-unpublish agar featured hanya berisi satu proyek.
 reset role;
 update public.profiles set country_code = 'ID', city = 'Jakarta'
 where id = 'a1111111-1111-4111-a111-111111111111';
+update public.developer_settings set listed = true
+where user_id = 'a1111111-1111-4111-a111-111111111111';
+update public.projects set published = false
+where id = 'd3333333-3333-4333-a333-333333333333';
 set local role authenticated;
 set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
 
@@ -249,13 +257,17 @@ select throws_ok(
   'klien tidak bisa UPDATE kolom perhitungan langsung'
 );
 
-select is_empty(
+select throws_ok(
   'select * from public.featured_projects',
+  '42501',
+  null,
   'klien tidak bisa membaca featured_projects langsung'
 );
 
-select is_empty(
+select throws_ok(
   'select * from public.audit_log',
+  '42501',
+  null,
   'klien tidak bisa membaca audit_log langsung'
 );
 

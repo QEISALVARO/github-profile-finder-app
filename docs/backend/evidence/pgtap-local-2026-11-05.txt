@@ -1,0 +1,45 @@
+# pgTAP lokal — 2026-11-05
+
+Lingkungan: Docker 29.9.2, container `public.ecr.aws/supabase/postgres:17.11.0.006`
+(PostgreSQL 17.11, pgTAP 1.3.3, pg_trgm, pgcrypto, unaccent), port host 54322.
+
+`supabase start` tidak dapat dipakai pada mesin ini (CLI 2.122.0 gagal menyalin
+secret file ke Docker 29.9.2; CLI 3.0.0 menolak config lama). Karena itu database
+uji disiapkan langsung dari image Postgres Supabase, dengan objek `auth` (skema,
+`auth.users`, `auth.uid()`, `auth.jwt()`, `auth.role()`) hasil restore dari
+database `postgres` image tersebut, dan default privilege ACL Supabase
+(`anon`, `authenticated`, `service_role` pada skema `public`) agar setara
+`supabase start`.
+
+## 1. Migrasi + seed pada database baru
+
+```
+createdb migtest
+# 27 berkas supabase/migrations/001–028, tiap berkas:
+#   psql -v ON_ERROR_STOP=1 -f <berkas>
+migrations=27 fail=0
+seed OK countries.sql
+seed OK cities.sql
+seed OK keyword_aliases.sql
+```
+
+## 2. pgTAP — jalur resmi CLI
+
+```
+$ npx supabase@2.122.0 test db
+...
+All tests successful.
+Files=14, Tests=190,  4 wallclock secs
+Result: PASS
+```
+
+Rincian asersi per berkas: 01=2, 02=4, 03=7, 04=4, 05=10, 06=6, 07=8,
+08=30, 09=18, 10_be3=11, 10_be3b=19, 11=27, 12=29, 13=15 (total 190).
+
+Sebelum perbaikan, seluruh 14 berkas berhenti dengan `No plan found` /
+`permission denied` dan CLI lama menutupi kegagalan karena `tee | tail` tanpa
+`pipefail`. Langkah CI kini memakai `set -o pipefail` pada `supabase start`,
+`supabase db reset`, dan `supabase test db`.
+
+Catatan: commit ini belum dijalankan di GitHub Actions; tidak ada URL run untuk
+hasil di atas.
