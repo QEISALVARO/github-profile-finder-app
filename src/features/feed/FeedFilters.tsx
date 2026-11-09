@@ -17,7 +17,9 @@ import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { useAppStore } from '@/store/useAppStore';
 import { useTheme } from '@/theme/useTheme';
+
 import { useFeedCountryFacets } from '@/api/queries';
+import { useFeedFilters } from './useFeedFilters';
 import { flagEmoji, formatCountrySelection } from '@/data/countries';
 
 const ROLES = ['All', 'Front-End', 'Back-End', 'Mobile', 'Data'] as const;
@@ -32,25 +34,28 @@ export function FeedFilters() {
   const setFeedRole = useAppStore((s) => s.setFeedRole);
   const recentOnly = useAppStore((s) => s.recentOnly);
   const toggleRecentOnly = useAppStore((s) => s.toggleRecentOnly);
-  const countries = useAppStore((s) => s.countries);
   const setCountries = useAppStore((s) => s.setCountries);
-  const city = useAppStore((s) => s.city);
   const setCity = useAppStore((s) => s.setCity);
 
-  const facets = useFeedCountryFacets({ query: '', role: feedRole, location: 'All locations', recentOnly, countries: [], city: '' });
+  const filters = useFeedFilters();
+  // Facets follow the effective query/role/recentOnly but intentionally omit the
+  // effective countries (same rule as the backend `country_facets` RPC).
+  const facets = useFeedCountryFacets({
+    ...filters,
+    countries: [],
+    city: '',
+  });
+  // City facets only matter when exactly one country is selected; pass the
+  // full effective filters so the hook can decide `enabled` + key correctly.
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Default negara dari auth store (targetCountries) — kosong = semua.
-  // Perubahan di picker TIDAK menimpa default permanen.
-  const defaultCountries = useAppStore((s) => s.targetCountries);
-
-  const currentCountries = countries.length > 0 ? countries : defaultCountries;
-
-  const selectedLabel = formatCountrySelection(currentCountries);
-  const hasCity = city.trim().length > 0;
+  // Effective label + picker value are derived from the same effective
+  // `filters.countries` the screen uses, so there is a single source of truth.
+  const selectedLabel = formatCountrySelection(filters.countries);
+  const hasCity = filters.city.trim().length > 0;
   const cityLabel =
-    hasCity && currentCountries.length === 1
-      ? `${city} - ${currentCountries[0]}`
+    hasCity && filters.countries.length === 1
+      ? `${filters.city} - ${filters.countries[0]}`
       : null;
 
   const openPicker = useCallback(() => {
@@ -128,13 +133,13 @@ export function FeedFilters() {
           style={({ pressed }) => [
             styles.countryChip,
             { borderColor: theme.colors.line },
-            currentCountries.length > 0 && { backgroundColor: theme.colors.accentSoft },
+            filters.countries.length > 0 && { backgroundColor: theme.colors.accentSoft },
             pressed && styles.pressed,
           ]}>
-          <T size={14}>{flagEmoji(currentCountries[0] ?? 'GLOBAL')}</T>
+          <T size={14}>{flagEmoji(filters.countries[0] ?? 'GLOBAL')}</T>
           <View style={styles.countryText}>
-            <T size={10} weight={currentCountries.length > 0 ? '700' : '400'} numberOfLines={1}>
-              {currentCountries.length === 0 ? 'All countries' : currentCountries.length === 1 ? flagEmoji(currentCountries[0]) + ' ' + currentCountries[0] : `${currentCountries.length} countries`}
+            <T size={10} weight={filters.countries.length > 0 ? '700' : '400'} numberOfLines={1}>
+              {filters.countries.length === 0 ? 'All countries' : filters.countries.length === 1 ? flagEmoji(filters.countries[0]) + ' ' + filters.countries[0] : `${filters.countries.length} countries`}
             </T>
             {cityLabel ? <T size={8} color="muted">{cityLabel}</T> : null}
           </View>
@@ -144,7 +149,7 @@ export function FeedFilters() {
       <CountryPicker
         visible={pickerOpen}
         mode="multi"
-        value={currentCountries}
+        value={filters.countries ?? []}
         onApply={applyCountries}
         onClose={closePicker}
         title="COUNTRY"

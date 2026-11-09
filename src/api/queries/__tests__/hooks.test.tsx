@@ -28,6 +28,8 @@ const DEFAULT_FEED_FILTERS = {
   role: 'All',
   location: 'All locations',
   recentOnly: false,
+  countries: [],
+  city: '',
 };
 
 /** Let the microtask queue and react-query's effects settle. */

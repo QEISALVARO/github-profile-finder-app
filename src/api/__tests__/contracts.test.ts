@@ -26,7 +26,7 @@ jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
  * `api` must explain itself instead of crashing or faking data.
  */
 
-const DEFAULT_FEED_FILTERS = { query: '', role: 'All', location: 'All locations', recentOnly: false };
+const DEFAULT_FEED_FILTERS = { query: '', role: 'All', location: 'All locations', recentOnly: false, countries: [], city: '' };
 
 const fetchSpy = jest.fn();
 

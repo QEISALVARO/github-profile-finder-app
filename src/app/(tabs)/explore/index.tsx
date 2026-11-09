@@ -19,14 +19,19 @@ import { ProjectCard } from '@/features/feed/ProjectCard';
 import { SearchBox } from '@/features/feed/SearchBox';
 import { SearchExamples } from '@/features/feed/SearchExamples';
 import { useAppStore } from '@/store/useAppStore';
+import { useFeedFilters } from '@/features/feed/useFeedFilters';
 
 /**
  * FR-E1…E9 — Project Discovery Feed (design.md §4 order: Intro → SearchBox →
  * (error) → SearchExamples → Filters → Heading → cards).
  *
- * FE-10a: the list comes from `useFeedInfinite`, which returns an infinite-query
- * `FeedPage` union. Which adapter produced it (`mock` | `api`) is decided by
- * `EXPO_PUBLIC_DS_FEED` and never by this screen.
+ * FE-10a Paket C v2: the list comes from `useFeedInfinite`, which returns an
+ * infinite-query `FeedPage` union. Which adapter produced it (`mock` | `api`)
+ * is decided by `EXPO_PUBLIC_DS_FEED` and never by this screen.
+ *
+ * The effective feed filters (including country fallback from `targetCountries`)
+ * are computed in one place — `useFeedFilters()` — and shared with `FeedFilters`
+ * so there is never a second, divergent country calculation.
  *
  * FlatList handles the infinite scroll via `onEndReached` → `fetchNextPage`.
  * `removeClippedSubviews` improves scroll perf on low-end devices.
@@ -34,14 +39,9 @@ import { useAppStore } from '@/store/useAppStore';
 export default function ExploreScreen() {
   const router = useRouter();
 
-  // Granular selectors: typing only re-renders what depends on `query`.
-  const query = useAppStore((s) => s.query);
-  const feedRole = useAppStore((s) => s.feedRole);
-  const feedLocation = useAppStore((s) => s.feedLocation);
-  const recentOnly = useAppStore((s) => s.recentOnly);
   const error = useAppStore((s) => s.error);
 
-  const feed = useFeedInfinite({ query, role: feedRole, location: feedLocation, recentOnly });
+  const feed = useFeedInfinite(useFeedFilters());
   const pages = feed.data?.pages ?? [];
   const items = pages.flatMap((page: FeedPage) => page.items);
   const totalCount = feed.data?.pageParams.length ? feed.data.pages[0].totalCount : 0;
@@ -91,9 +91,11 @@ export default function ExploreScreen() {
     [analyze, router],
   );
 
+  const feedFilters = useFeedFilters();
+
   const headingLabel: 'FEATURED THIS WEEK' | 'SEARCH RESULTS' = useMemo(
-    () => (query === '' && feedRole === 'All' && recentOnly === false ? 'FEATURED THIS WEEK' : 'SEARCH RESULTS'),
-    [query, feedRole, recentOnly],
+    () => (feedFilters.query === '' && feedFilters.role === 'All' && feedFilters.recentOnly === false ? 'FEATURED THIS WEEK' : 'SEARCH RESULTS'),
+    [feedFilters.query, feedFilters.role, feedFilters.recentOnly],
   );
 
   const renderHeader = useCallback(

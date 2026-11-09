@@ -14,6 +14,8 @@ export function openGithubUrl(url: string): boolean {
 
 /**
  * Opens an HTTPS URL after validating against an allowlist of hosts.
+ * Host matching uses exact allowlist membership (not a suffix check), so
+ * look-alike domains such as `evilgithub.com` or `notgithub.com` are rejected.
  * Returns true when the URL was handed to `Linking.openURL`.
  */
 export function openHttpsUrl(url: string, allowedHosts?: Iterable<string>): boolean {
@@ -25,8 +27,10 @@ export function openHttpsUrl(url: string, allowedHosts?: Iterable<string>): bool
   }
 
   if (parsed.protocol !== 'https:') return false;
-  const hosts = allowedHosts ?? ALLOWED_HOSTS;
-  if (!Array.from(hosts).some((h) => parsed.hostname.toLowerCase().endsWith(h.toLowerCase()))) {
+  const hosts = new Set(
+    Array.from(allowedHosts ?? ALLOWED_HOSTS).map((h: string) => h.toLowerCase()),
+  );
+  if (!hosts.has(parsed.hostname.toLowerCase())) {
     return false;
   }
 

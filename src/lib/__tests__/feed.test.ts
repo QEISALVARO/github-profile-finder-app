@@ -6,6 +6,8 @@ const base: FeedFilters = {
   role: 'All',
   location: 'All locations',
   recentOnly: false,
+  countries: [],
+  city: '',
 };
 
 const ids = (projects: FeedProject[]): number[] => projects.map((p) => p.id);

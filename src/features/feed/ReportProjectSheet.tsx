@@ -1,15 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { FeedItem } from '@/api/contracts';
 import { feedAdapter } from '@/api/feed';
 import { describeError } from '@/api/errors';
-import type { ColorToken } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 import { Icon } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
-import { hitSlopFor } from '@/components/ui/hit-slop';
+
 
 export type ReportReasonPreset =
   | 'spam'
@@ -18,10 +17,7 @@ export type ReportReasonPreset =
   | 'inappropriate'
   | 'other';
 
-export const REPORT_REASON_PRESETS: Array<{
-  value: ReportReasonPreset;
-  label: string;
-}> = [
+export const REPORT_REASON_PRESETS: { value: ReportReasonPreset; label: string }[] = [
   { value: 'spam', label: 'Spam / promosi ilegal' },
   { value: 'plagiarism', label: 'Plagiarisme / kerja orang lain' },
   { value: 'fake', label: 'Project palsu / tidak ada' },
