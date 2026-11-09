@@ -52,9 +52,17 @@ export function useFeedCountryFacets(filters: FeedFilters) {
 }
 
 export function useFeedCityFacets(country: string, filters: FeedFilters) {
+  // City facets are only relevant when drilling into a single country, but they
+  // should still track the current query/role/recentOnly so they do not freeze
+  // on `query: ''`.
+  const effectiveForCity = {
+    ...filters,
+    countries: [country],
+  };
+
   return useQuery({
-    queryKey: queryKeys.feedCityFacets(country, filters),
-    queryFn: () => feedAdapter.fetchCityFacets(country, filters),
+    queryKey: queryKeys.feedCityFacets(country, effectiveForCity),
+    queryFn: () => feedAdapter.fetchCityFacets(country, effectiveForCity),
     retry: shouldRetry,
     staleTime: 5 * 60_000,
     // Only enabled when exactly one country is selected.

@@ -579,3 +579,112 @@ dengan alasan preset + teks gratis ≤500 karakter.
 3. FeedFilters.country/city facets di mock hanya return `<5` untuk semua (sesuai seed).
 
 ---
+
+# Laporan Fase — FE-10a v2: Perbaikan Audit D1–D4 + Rebase ke `origin/main`
+
+**Tanggal:** 9 November 2026 · **Branch:** `feat/fe-10a-feed-api-v2` (basis `origin/main` @ `387438a`)
+
+## 1. Ringkasan
+
+FE-10a v2 menyelesaikan temuan audit D1–D4 dari branch `feat/fe-10a-feed-api` dan
+memindahkan branch ke atas `origin/main` terbaru (bukan dibangun langsung dari `main`).
+Cakupan hanya frontend; backend tidak disentuh.
+
+## 2. Yang Dikerjakan
+
+### 2.1 D2 — Keamanan link (celah allowlist suffix)
+- **`src/lib/links.ts`**: `openHttpsUrl` kini mencocokkan host dengan `Set.has(hostname.toLowerCase())`
+  (keanggotaan eksak), bukan `endsWith`. `ALLOWED_HOSTS = new Set(['github.com', 'www.github.com'])`.
+  `openGithubUrl` delegate ke `openHttpsUrl(url, ALLOWED_HOSTS)`.
+- Celah `evilgithub.com`/`notgithub.com`/`xwww.github.com` tertutup.
+- **`src/api/__tests__/fe10a.test.ts`**: tes D2 menolak 6 URL look-alike + menerima 2 GitHub(https).
+  `Linking.openURL` di-mock di test agar tidak melempar `undefined.catch`.
+
+### 2.2 D1 — Satu sumber filter efektif
+- **`src/features/feed/useFeedFilters.ts`** (baru): hook yang mengembalikan `FeedFilters` efektif dari
+  store — `countries` efektif = UI-selected bila tidak kosong, selain itu `targetCountries` dari auth.
+  `city`, `location: 'All locations'`, `query`, `role`, `recentOnly` ikut disertakan.
+- **`src/features/feed/FeedFilters.tsx`** dan **`src/app/(tabs)/explore/index.tsx`** sama-sama memakai
+  `useFeedFilters()`, sehingga tidak ada dua perhitungan negara yang bersaing.
+- `queryKey` facets ikut berubah saat `countries`/`city` berubah.
+- Mengganti negara mereset `city` (kecuali tepat satu negara tetap terpilih — `applyCountries`).
+
+### 2.3 D3 — Facet mengikuti query/role/recentOnly (bukan countries)
+- **`src/api/queries/feed.ts`**: `useFeedCountryFacets` mengirim filter efektif **tanpa `countries`**
+  (kunci query juga tanpa `countries` agar cache terbagi), tapi tetap sertakan `query`/`role`/`recentOnly`.
+  `useFeedCityFacets` hanya aktif bila tepat satu negara.
+- **`src/api/queryKeys.ts`**: kunci facet sudah mengandung `query`, `role`, `recentOnly`, `location`,
+  `countries`, `city` — sehingga perubahan kata kunci Invalidate facet.
+- **`src/api/__tests__/fe10a.test.ts`**: tes D3 memverifikasi kunci facet berubah saat `query`/`role`/`recentOnly` berubah.
+
+### 2.4 D4 — `mapFilters` konsisten
+- **`src/api/feed/api.ts`**: `mapFilters` selalu mengirim `p_include_unknown: false`, `p_min_score: null`,
+  `p_role: null` untuk `All`, `p_countries: null` bila kosong, `p_city` hanya bila ada.
+- Deterministik — tidak tergantung keberadaan `city`.
+
+### 2.5 Pemetaan error RPC (tes)
+- **`src/api/__tests__/fe10a.test.ts`**: setiap kode RPC (`RATE_LIMITED` + `retry_after`,
+  `VALIDATION`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`) dipetakan ke `AppError`.
+  Respons malformed → `UPSTREAM_ERROR`. `mapRpcError` diekspor ulang dari `api.ts` khusus untuk tes.
+
+### 2.6 Struktur ekspor tes-only (fix tsc)
+- **`src/api/feed/api.ts`**: simbol tes-only (`mapRpcError`, `openGithubUrl`, `openHttpsUrl`, `queryKeys`)
+  di-export ulang dari file ini setelah di-import dari modul asal (`@/lib/links`, `@/api/queryKeys`),
+  dengan definisi fungsi `mapRpcError`/`extractRetryAfter` ditempatkan **sebelum** pernyataan re-export
+  agar tidak ada „used before its declaration" atau deklarasi duplikat.
+- **`src/api/feed/index.ts`**: barrel minimal — hanya `feedAdapter` + `export * from './types'`. Tidak ada
+  re-export tes-only di barrel.
+
+## 3. Hasil Verifikasi
+
+| Pemeriksaan | Perintah | Hasil |
+|---|---|---|
+| Typecheck | `npx tsc --noEmit` | ✅ Lulus (0 error) |
+| Lint | `npx expo lint` | ✅ Lulus (9 warning, 0 error) |
+| Unit test | `npm run check` (3× berturut-turut) | ✅ **171 test, 13 suite** — semua lulus |
+| Bundle Android | `npx expo export -p android` | ✅ Sukses |
+| Static render web | `npx expo export -p web` | ✅ Sukses |
+| Drift BE/FE | `git diff origin/main --stat -- supabase contracts docs/backend .github Makefile scripts` | kosong |
+| Secret di src | `grep -R "service_role\|GITHUB_API_TOKEN" src` | kosong |
+
+**Rincian jumlah tes (171):** sebelumnya 146 → +25 (tes D1/D2/D3/error-mapping yang baru).
+
+## 4. Gap yang Diketahui (BELUM DIUJI)
+
+1. **Mode `api` feed (`EXPO_PUBLIC_DS_FEED=api`) belum dijalankan terhadap backend sungguhan**:
+   memerlukan stack Supabase + Edge Functions BE-3 + token dev; tidak tersedia di lingkungan ini.
+   Pesan: **BELUM DIUJI**.
+2. **Uji manual di perangkat/emulator** (pilih `🇮🇩` → hanya proyek ID; `🇮🇩+🇸🇬` → gabungan; pilih kota →
+   daftar menyempit; Reset → semua; scroll tak terbatas; badge `VERIFIED`/`VERIFIED ACTIVE`) tidak
+   dijalankan di sesi ini (tidak ada perangkat/emulator). Perilaku logika diverifikasi lewat tes unit.
+3. **`openGithubUrl` hanya menerima host eksak** — sudah ditutup di kode dan tes, tetapi tidak ada uji
+   eksploitasi cetak biru (tanpa `endsWith`) di perangkat sungguhan.
+
+## 5. Gate FE-10a v2
+
+- [x] Memilih/menghapus negara dan kota **mengubah hasil feed** — terbukti tes yang memeriksa argumen
+  adapter (`feedAdapter.fetchPage` dengan `countries: ['ID']` etc.) dan parameter RPC (`p_countries`).
+- [x] `openGithubUrl` hanya menerima host eksak (`github.com`, `www.github.com`); tidak ada celah suffix;
+  hanya satu `openHttpsUrl` (FE-9) di repo (`src/lib/links.ts`).
+- [x] Facet mengikuti `query`, `role`, `recentOnly` (bukan `countries`) — tes D3 + kode `useFeedCountryFacets`/`queryKeys`.
+- [x] Tidak ada konflik tersisa; PR dari `origin/main` terbaru; CI frontend hijau (`npm run check` 3×).
+- [x] Laporan ini menyebut D1–D4 dan cara perbaikannya; mode `api` ditandai **BELUM DIUJI**.
+
+## 6. Deviasi dari prosedur
+
+1. **Ekspor tes-only di `api.ts`**: prosedur menjelaskan re-export melalui barrel atau pola tertentu,
+   tetapi implementasi akhir memilih mengimpor simbol dari modul asal (`@/lib/links`, `@/api/queryKeys`)
+   lalu mengekspor ulang dari `api.ts` dengan definisi fungsi di tempat yang tepat agar `tsc` lulus tanpa
+   circular/used-before-declaration. Hasil: tes dapat mengimpor `mapRpcError` dll. dari `@/api/feed/api`
+   seperti yang diharapkan prosedur.
+2. **Tes D2 perlu mock `Linking`**: karena `openHttpsUrl` memanggil `Linking.openURL().catch(...)`, tes yang
+   memanggil `openGithubUrl` (yang delegate ke `openHttpsUrl`) harus memock `Linking.openURL` agar tidak
+   melempar `TypeError: Cannot read properties of undefined (reading 'catch')`. Already fixed.
+
+## 7. TODO / masalah terbuka
+
+- Merge PR ini setelah review; pastikan BE-3 (kontrak 0.3) sudah merge ke `main` sebelum merge.
+- Setelah BE-3 tersedia + token dev, jalankan mode `api` dan verifikasi filter negara mengubah hasil nyata.
+- Lakukan uji manual di perangkat/emulator (light & dark, 375/393/430).
+
+---

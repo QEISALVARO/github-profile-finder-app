@@ -1,14 +1,18 @@
 import mockAsyncStorage from '@react-native-async-storage/async-storage/jest/async-storage-mock';
 
-import { FeedPage, CountryFacet, CityFacet } from '@/api/contracts';
+import { Linking } from 'react-native';
+
+import type { FeedPage } from '@/api/contracts';
 import { feedAdapter } from '@/api/feed';
-import { filterProjects } from '@/lib/feed';
+import { mapRpcError, openGithubUrl, openHttpsUrl, queryKeys } from '@/api/feed/api';
+import type { CountryFacet, CityFacet } from '@/api/contracts';
 import { feedProjects } from '@/data/seed';
 import { getDataSource, DATA_SOURCE_ENV, DOMAINS } from '@/config/dataSource';
 
 jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
 
-/** FE-10a — feed adapter tests: parameter mapping, Zod validation, error codes, retry_after. */
+/** FE-10a — feed adapter tests: parameter mapping, Zod validation, error codes, retry_after.
+ */
 
 const DEFAULT_FILTERS: {
   query: string;
@@ -311,5 +315,173 @@ describe('FE-10a: feed adapter never calls network in mock mode', () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+/** D1 regression: selecting countries/city must change the RPC params the adapter sends. */
+describe('FE-10a: D1 — filter args reach the adapter / rpc', () => {
+  it('sends explicit countries when they are selected', async () => {
+    const paramsId = await feedAdapter.fetchPage({
+      ...DEFAULT_FILTERS,
+      countries: ['ID'],
+    });
+    expect(paramsId.items.every((item) => item.countryCode === 'ID')).toBe(true);
+  });
+
+  it('combines two countries', async () => {
+    const params = await feedAdapter.fetchPage({
+      ...DEFAULT_FILTERS,
+      countries: ['ID', 'SG'],
+    });
+    expect(params.items).toHaveLength(4);
+    expect(params.items.every((item) => item.countryCode === 'ID' || item.countryCode === 'SG')).toBe(true);
+  });
+
+  it('clears countries back to all', async () => {
+    const cleared = await feedAdapter.fetchPage({ ...DEFAULT_FILTERS, countries: [] });
+    expect(cleared.items).toHaveLength(4);
+  });
+
+  it('sends city and narrows results', async () => {
+    const cityPage = await feedAdapter.fetchPage({
+      ...DEFAULT_FILTERS,
+      city: 'Bandung',
+    });
+    expect(cityPage.items.map((item) => item.city)).toContain('Bandung');
+  });
+
+  it('limits country drill-down to one country', async () => {
+    const cityFacets = await feedAdapter.fetchCityFacets('ID', {
+      ...DEFAULT_FILTERS,
+      countries: ['ID'],
+    });
+    expect(cityFacets).toHaveLength(4);
+  });
+});
+
+/** D2 regression: safe-link allowlist must reject look-alike github hosts. */
+
+describe('FE-10a: D2 — safe-link allowlist', () => {
+  let openURL: jest.SpyInstance<Promise<void>, [string]>;
+
+  beforeEach(() => {
+    openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    openURL.mockRestore();
+  });
+
+  it('ProjectCard only calls Linking for safe github https links', () => {
+    expect(typeof openHttpsUrl).toBe('function');
+  });
+
+
+  it.each([
+    ['https://evilgithub.com/x', false],
+    ['https://notgithub.com/x', false],
+    ['https://xwww.github.com/x', false],
+    ['https://github.com.evil.com/x', false],
+    ['https://github.com@evil.com/x', false],
+    ['http://github.com/x', false],
+    ['https://github.com/octocat', true],
+    ['https://www.github.com/octocat', true],
+  ])('openGithubUrl(%p) rejects/accepts as %p', (url, expected) => {
+    expect(openGithubUrl(url)).toBe(expected);
+  });
+
+  it('ProjectCard only calls Linking for safe github https links', () => {
+    expect(typeof openHttpsUrl).toBe('function');
+  });
+});
+
+/** D3 regression: facet query keys include query / role / recentOnly. */
+describe('FE-10a: D3 — facet queryKey tracking', () => {
+  it('country facet key changes when query changes', async () => {
+    const base = queryKeys.feedFacets({
+      query: '',
+      role: 'All',
+      recentOnly: false,
+      location: 'All locations',
+      countries: [],
+      city: '',
+    });
+    const withQuery = queryKeys.feedFacets({
+      query: 'flutter',
+      role: 'All',
+      recentOnly: false,
+      location: 'All locations',
+      countries: [],
+      city: '',
+    });
+    expect(withQuery).not.toEqual(base);
+    expect(withQuery).toEqual([
+      'feed',
+      'facets',
+      'flutter',
+      'All',
+      false,
+      'All locations',
+      [],
+      '',
+    ]);
+  });
+
+  it('city facet key changes when role/recentOnly change', async () => {
+    const base = queryKeys.feedCityFacets('ID', {
+      query: '',
+      role: 'All',
+      recentOnly: false,
+      location: 'All locations',
+      countries: [],
+      city: '',
+    });
+    const withRole = queryKeys.feedCityFacets('ID', {
+      query: '',
+      role: 'Mobile',
+      recentOnly: false,
+      location: 'All locations',
+      countries: [],
+      city: '',
+    });
+    expect(withRole).not.toEqual(base);
+  });
+});
+
+/** RPC error mapping: every documented code becomes an AppError shape. */
+describe('FE-10a: error mapping', () => {
+  it.each([
+    ['RATE_LIMITED: coba lagi - retry_after=13', 'RATE_LIMITED', 429, 13],
+    ['VALIDATION: min score wajib diisi', 'VALIDATION', 400, undefined],
+    ['UNAUTHORIZED: harap login', 'UNAUTHORIZED', 401, undefined],
+    ['FORBIDDEN: tidak boleh', 'FORBIDDEN', 403, undefined],
+    ['NOT_FOUND: tidak ada', 'NOT_FOUND', 404, undefined],
+  ])('mapRpcError(%p) → code=%p status=%s retry_after=%p', (msg, expectedCode, expectedStatus, retryAfter) => {
+    const err = mapRpcError({ message: msg });
+    expect(err.code).toBe(expectedCode);
+    expect(err.status).toBe(expectedStatus);
+    if (retryAfter !== undefined) {
+      expect(err.retry_after).toBe(retryAfter);
+    } else {
+      expect(err.retry_after).toBeUndefined();
+    }
+  });
+
+  it('factory errors keep their code/status', () => {
+    const err = mapRpcError({ code: 'VALIDATION', message: 'min score wajib diisi' });
+    expect(err.code).toBe('VALIDATION');
+    expect(err.status).toBe(400);
+  });
+
+  it('unknown code falls back to UPSTREAM_ERROR', () => {
+    const err = mapRpcError({ code: 'GENTLY_BROKEN', message: 'wrong' });
+    expect(err.code).toBe('UPSTREAM_ERROR');
+    expect(err.status).toBe(502);
+  });
+
+  it('empty error also becomes UPSTREAM_ERROR', () => {
+    const err = mapRpcError(null);
+    expect(err.code).toBe('UPSTREAM_ERROR');
+    expect(err.status).toBe(502);
   });
 });

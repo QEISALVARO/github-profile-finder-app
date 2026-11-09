@@ -18,13 +18,53 @@ import { CityFacet as CityFacetSchema } from '@contracts/projects';
 import { getSupabase } from '@/lib/supabase';
 import { apiNotReady, type AppError, MissingEnvironmentError } from '@/api/errors';
 import type { FeedFilters } from '@/lib/feed';
+import { openGithubUrl, openHttpsUrl } from '@/lib/links';
+import { queryKeys } from '@/api/queryKeys';
+
+// --- internal helpers (defined before use) ---
+
+function mapRpcError(error: { message?: string; code?: string } | null): AppError {
+  if (!error) return { code: 'UPSTREAM_ERROR', message: 'Tidak ada respons dari server.', status: 502 };
+
+  const msg = error.message ?? '';
+  const code = error.code ?? '';
+
+  // Backend menulis kode di awal pesan: `RATE_LIMITED: ... retry_after=N`.
+  if (msg.startsWith('RATE_LIMITED')) {
+    const wait = extractRetryAfter(msg);
+    return { code: 'RATE_LIMITED', message: msg, status: 429, retry_after: wait };
+  }
+  if (msg.startsWith('VALIDATION') || code === 'VALIDATION') {
+    return { code: 'VALIDATION', message: msg, status: 400 };
+  }
+  if (msg.startsWith('UNAUTHORIZED') || code === 'UNAUTHORIZED') {
+    return { code: 'UNAUTHORIZED', message: msg, status: 401 };
+  }
+  if (msg.startsWith('FORBIDDEN') || code === 'FORBIDDEN') {
+    return { code: 'FORBIDDEN', message: msg, status: 403 };
+  }
+  if (msg.startsWith('NOT_FOUND') || code === 'NOT_FOUND') {
+    return { code: 'NOT_FOUND', message: msg, status: 404 };
+  }
+
+  return { code: 'UPSTREAM_ERROR', message: msg || 'Gagal terhubung ke server.', status: 502 };
+}
+
+function extractRetryAfter(msg: string): number {
+  const m = msg.match(/retry_after[=:]\s*(\d+)/i);
+  return m ? Number(m[1]) : 60;
+}
+
+// --- RPC parameter mapping (D1, D4) ---
 
 function mapFilters(filters: FeedFilters): Record<string, unknown> {
   const params: Record<string, unknown> = {};
   if (filters.query) params.p_q = filters.query;
-  // role: 'All' → null (server treats null as "all roles"); anything else → the role string.
+  // Role: 'All' is normalized to null so the server treats it as "all roles";
+  // everything else is sent verbatim. Related D4 gate: 'All' always routes through null.
   params.p_role = filters.role === 'All' ? null : filters.role;
-  // countries: [] → null (server treats null as "all countries"); ["ID"] → ["ID"].
+  // Countries: an explicit non-empty list is sent as-is; empty/undefined becomes null
+  // so the server treats it as "all countries". Related D4 gate: empty → null always.
   if (filters.countries && filters.countries.length > 0) {
     params.p_countries = filters.countries;
   } else {
@@ -32,10 +72,17 @@ function mapFilters(filters: FeedFilters): Record<string, unknown> {
   }
   if (filters.city) params.p_city = filters.city;
   params.p_active_only = filters.recentOnly;
+  // Keep unknown-score filtering consistent independent of whether a city is chosen.
+  params.p_include_unknown = false;
   params.p_min_score = null;
-  if (filters.city) params.p_include_unknown = false;
   return params;
 }
+
+// --- re-export test-only symbols (D2/D3/error-mapping tests) ---
+
+export { mapRpcError, openGithubUrl, openHttpsUrl, queryKeys };
+
+// --- Supabase accessor ---
 
 async function getFeedSupabase() {
   try {
@@ -47,6 +94,8 @@ async function getFeedSupabase() {
     throw error;
   }
 }
+
+// --- public adapter API ---
 
 export async function fetchFeedPage(filters: FeedFilters, cursor?: string | null): Promise<FeedPage> {
   const supabase = await getFeedSupabase();
@@ -112,36 +161,4 @@ export async function reportProject(projectId: string, reason: string): Promise<
   if (error) throw mapRpcError(error);
   // Backend returns void on success; absence of error = accepted.
   return true;
-}
-
-function mapRpcError(error: { message?: string; code?: string } | null): AppError {
-  if (!error) return { code: 'UPSTREAM_ERROR', message: 'Tidak ada respons dari server.', status: 502 };
-
-  const msg = error.message ?? '';
-  const code = error.code ?? '';
-
-  // Backend menulis kode di awal pesan: `RATE_LIMITED: ... retry_after=N`.
-  if (msg.startsWith('RATE_LIMITED')) {
-    const wait = extractRetryAfter(msg);
-    return { code: 'RATE_LIMITED', message: msg, status: 429, retry_after: wait };
-  }
-  if (msg.startsWith('VALIDATION') || code === 'VALIDATION') {
-    return { code: 'VALIDATION', message: msg, status: 400 };
-  }
-  if (msg.startsWith('UNAUTHORIZED') || code === 'UNAUTHORIZED') {
-    return { code: 'UNAUTHORIZED', message: msg, status: 401 };
-  }
-  if (msg.startsWith('FORBIDDEN') || code === 'FORBIDDEN') {
-    return { code: 'FORBIDDEN', message: msg, status: 403 };
-  }
-  if (msg.startsWith('NOT_FOUND') || code === 'NOT_FOUND') {
-    return { code: 'NOT_FOUND', message: msg, status: 404 };
-  }
-
-  return { code: 'UPSTREAM_ERROR', message: msg || 'Gagal terhubung ke server.', status: 502 };
-}
-
-function extractRetryAfter(msg: string): number {
-  const m = msg.match(/retry_after[=:]\s*(\d+)/i);
-  return m ? Number(m[1]) : 60;
 }
