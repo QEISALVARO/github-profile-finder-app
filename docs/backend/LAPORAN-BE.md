@@ -51,7 +51,7 @@ Fondasi backend Gitscope (Fase BE-0) dan modul Otentikasi & Profil (Fase BE-1) t
 **Status verifikasi 5 Nov 2026 — HIJAU (lokal, Docker):**
 27 berkas migrasi (001–028; nomor 0016 dilewati sesuai ADR-016) + 3 seed berhasil pada database baru (`migtest`) dengan `ON_ERROR_STOP=1`, 0 gagal. Rangkaian pgTAP: **14 berkas, 190 asersi, `Result: PASS`** lewat `npx supabase@2.122.0 test db` (rincian di `evidence/pgtap-local-2026-11-05.txt`). Commit ini **belum dijalankan di CI**; tidak ada URL run untuk klaim ini.
 
-**Pembaruan 10 Nov 2026:** migrasi 0029 (`bias_report_v1`) + `14_be4_bias_v1.sql` (13 asersi) → **15 berkas, 203 asersi, `Result: PASS`** pada DB bersih (`npx supabase@2.122.0 db reset` + `test db`, exit 0). Transkrip: `evidence/pgtap-local-2026-11-10.txt` (15 berkas, 203 asersi, `Result: PASS`).
+**Pembaruan 10 Nov 2026:** migrasi 0029 (`bias_report_v1`) + `14_be4_bias_v1.sql` (13 asersi) → **15 berkas, 203 asersi, `Result: PASS`** pada DB bersih (`npx supabase@2.122.0 db reset` + `test db`, exit 0). Transkrip: `evidence/pgtap-local-2026-11-10.txt` (15 berkas, 203 asersi, `Result: PASS`). Backend CI untuk commit `13f8c27`: https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42831190932 (Database & Contracts + Static Checks hijau).
 
 - `01_rls_enabled.sql`: Memeriksa katalog sistem bahwa **seluruh** tabel di skema `public` memiliki RLS aktif.
 - `02_default_deny.sql`: Membuktikan peran anon dan authenticated tanpa hak tidak bisa mengakses data sensitif atau menulis ke tabel service-role.
