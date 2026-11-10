@@ -127,6 +127,10 @@ async function main(): Promise<void> {
   const result = {
     generatedAt: new Date().toISOString(),
     environment: "local-supabase",
+    // 220 panggilan + halaman dalam melewati batas 300/jam, jadi batas laju
+    // dinaikkan untuk run ini. Pemeriksaan rate limit TETAP dieksekusi tiap
+    // panggilan (satu upsert), sehingga latensi tetap representatif.
+    notes: "app_rate_limits discover_developers dinaikkan agar run 330 panggilan tidak kena RATE_LIMITED.",
     calls: samples.length,
     p50Ms: percentile(times, 50),
     p95Ms: percentile(times, 95),

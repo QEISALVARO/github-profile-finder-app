@@ -25,6 +25,23 @@ Deno.test("bias formatter: menulis header, masking, dan tanpa identitas", () => 
   assertNotMatch(md, /login|avatar|github/i);
 });
 
+Deno.test("bias formatter: kelompok dengan selisih median > 10 ditandai", () => {
+  const md = renderBiasMarkdown({
+    ...report,
+    byCountry: [
+      ...(report.byCountry ?? []),
+      { key: "US", n: 40, mean: 86, median: 85, p25: 80, p75: 90 },
+    ],
+  }, "sintetis");
+  assert(md.includes("## Perlu tinjauan"));
+  assert(md.includes("| Negara/wilayah | US | 40 | 85 | +15 |"));
+});
+
+Deno.test("bias formatter: tanpa selisih berarti menampilkan placeholder", () => {
+  const md = renderBiasMarkdown(report, "sintetis");
+  assert(md.includes("_Tidak ada kelompok dengan selisih median > 10 poin._"));
+});
+
 Deno.test("bias formatter: kelompok kosong ditandai", () => {
   const md = renderBiasMarkdown({ ...report, byLanguage: [] }, "sintetis");
   assertEquals(md.includes("_Tidak ada kelompok._"), true);

@@ -24,6 +24,36 @@ function cell(value: number | string | undefined): string {
   return value === undefined ? "—" : String(value);
 }
 
+const REVIEW_THRESHOLD = 10;
+
+function reviewSection(
+  overall: BiasStats | undefined,
+  dimensions: Array<[string, BiasStats[] | undefined]>,
+): string {
+  const baseline = overall?.median;
+  if (baseline === undefined) return "";
+  const rows: string[] = [];
+  for (const [title, groups] of dimensions) {
+    for (const g of groups ?? []) {
+      if (typeof g.median !== "number") continue;
+      const delta = Math.round((g.median - baseline) * 10) / 10;
+      if (Math.abs(delta) > REVIEW_THRESHOLD) {
+        rows.push(
+          `| ${title} | ${cell(g.key)} | ${cell(g.n)} | ${cell(g.median)} | ${delta > 0 ? "+" : ""}${delta} |`,
+        );
+      }
+    }
+  }
+  const body = rows.length === 0
+    ? ["_Tidak ada kelompok dengan selisih median > " + REVIEW_THRESHOLD + " poin._"]
+    : [
+      "| Dimensi | Kelompok | n | median | selisih vs keseluruhan |",
+      "|---|---|---|---|---|",
+      ...rows,
+    ];
+  return ["## Perlu tinjauan (indikator, bukan bukti diskriminasi)", "", ...body, ""].join("\n");
+}
+
 function groupRows(title: string, groups: BiasStats[] | undefined): string {
   const rows = groups ?? [];
   if (rows.length === 0) return `### ${title}\n\n_Tidak ada kelompok._\n`;
@@ -55,6 +85,11 @@ export function renderBiasMarkdown(report: BiasReport, note: string): string {
     `n = ${cell(o.n)}, mean = ${cell(o.mean)}, median = ${cell(o.median)}, ` +
     `p25 = ${cell(o.p25)}, p75 = ${cell(o.p75)}`,
     "",
+    reviewSection(report.overall, [
+      ["Negara/wilayah", report.byCountry],
+      ["Bahasa utama", report.byLanguage],
+      ["Role", report.byRole],
+    ]),
     groupRows("Negara/wilayah", report.byCountry),
     groupRows("Bahasa utama", report.byLanguage),
     groupRows("Role", report.byRole),

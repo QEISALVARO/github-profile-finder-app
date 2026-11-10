@@ -1,0 +1,14 @@
+                              set_config                               
+-----------------------------------------------------------------------
+ {"sub":"55555555-5555-4555-a555-555555555555","role":"authenticated"}
+(1 row)
+
+SET
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Result  (cost=0.00..0.26 rows=1 width=32) (actual time=52.624..52.625 rows=1 loops=1)
+   Buffers: shared hit=69305 dirtied=1
+ Planning Time: 0.013 ms
+ Execution Time: 52.640 ms
+(4 rows)
+

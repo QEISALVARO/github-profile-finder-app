@@ -1,11 +1,14 @@
 # Audit Bias v0 (AIR-4)
 
-Status 5 Nov 2026: **BELUM DIUJI / BELUM DIUKUR.**
-Fungsi `bias_report_v0()` dan skrip `scripts/backend/bias-report.ts` sudah ada,
-tetapi **belum dijalankan** karena tidak ada database lokal (Docker tidak aktif)
-dan tidak ada data sintetis yang dimuat di lingkungan ini. Tidak ada angka pada
-dokumen ini sampai `docs/backend/evidence/bias-v0-<tanggal>.md` dihasilkan dari
-run nyata.
+Status 10 Nov 2026: **SUDAH DIJALANKAN pada data sintetis.**
+`bias_report_v0()` + `scripts/backend/bias-report.ts` dijalankan di Supabase
+lokal dengan 5.200 skor sintetis; hasil lengkap di
+`docs/backend/evidence/bias-v0-2026-11-10.md`. Ringkas: n=5200, mean 74,1,
+median 74, p25 64, p75 84. Tidak ada kelompok yang median-nya berbeda > 10
+poin dari keseluruhan, **kecuali** `NG` (median 62, -12) yang memang sengaja
+digeser -14 di seed untuk membuktikan indikator tinjauan menyala. Kelompok
+dengan n < 10 tampil sebagai `<10` tanpa statistik. Ini **bukan** bukti bias
+populasi nyata maupun klaim kualitas engineer.
 
 ## 1. Tujuan
 
@@ -49,10 +52,9 @@ dari `analyses.authenticity` (analisis **terbaru** per login, `score_version = 2
 ```bash
 # 1. Data (butuh Docker + Supabase lokal)
 make up && make reset
-make bench-seed                 # >= 10 rb proyek sintetis
 
-# 2. Tambahkan >= 5.000 developer listed beranalisis sintetis
-#    (lihat scripts/backend/bench-discover.ts untuk pola seed)
+# 2. >= 5.000 developer listed beranalisis sintetis (idempoten)
+psql "$DATABASE_URL" -f supabase/seed/bench-talent.sql
 
 # 3. Jalankan laporan (service role; admin-only di RPC)
 SUPABASE_URL=http://127.0.0.1:54321 \
@@ -61,6 +63,10 @@ deno run --allow-net --allow-env --allow-write scripts/backend/bias-report.ts
 
 # Output: docs/backend/evidence/bias-v0-<tanggal>.md
 ```
+
+Seed `bench-talent.sql` memakai hash per atribut supaya negara/bahasa/role/skor
+saling independen, dan sengaja menggeser satu grup (`NG`) -14 poin sebagai uji
+positif untuk indikator tinjauan.
 
 ## 6. Akses
 

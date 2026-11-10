@@ -1,7 +1,7 @@
 # Makefile — Gitscope Backend baku
 # Prasyarat: Docker, Supabase CLI (npx supabase / supabase), Deno
 
-.PHONY: up down reset test test-db test-contracts types lint help bench-seed
+.PHONY: up down reset test test-db test-contracts types lint help bench-seed bench-talent
 
 SUPABASE ?= npx supabase
 DENO ?= deno
@@ -17,6 +17,7 @@ help:
 	@echo "  make types       - Generate TypeScript definitions to contracts/src/database.types.ts"
 	@echo "  make lint        - Lint local Supabase database migrations"
 	@echo "  make bench-seed  - Load 10k proyek sintetis utk bench feed (BUKAN bagian reset)"
+	@echo "  make bench-talent- Load 5.2k developer sintetis utk bench Discover & bias v0"
 
 up:
 	$(SUPABASE) start
@@ -46,3 +47,7 @@ lint:
 # Bench feed: TIDAK otomatis di reset; muat manual sebelum bench-feed.ts.
 bench-seed:
 	$(SUPABASE) db execute --local -f supabase/seed/bench.sql
+
+# Bench talent: developer sintetis + analisis v2 (BUKAN bagian reset).
+bench-talent:
+	$(SUPABASE) db execute --local -f supabase/seed/bench-talent.sql

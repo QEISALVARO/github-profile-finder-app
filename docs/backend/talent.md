@@ -121,10 +121,19 @@ if (error) {
 | `NOT_FOUND` | Login tidak listed dan tidak ada di pipeline (D4) |
 | `RATE_LIMITED: retry_after=N` | Melewati batas laju |
 
-## 6. Batasan yang belum diukur
+## 6. Hasil pengukuran (10 Nov 2026)
 
-- **p95 Discover < 500 ms: BELUM DIUKUR.** Jalankan `make bench-seed`, tambah
-  ≥ 5.000 developer listed beranalisis sintetis, lalu
-  `scripts/backend/bench-discover.ts` (≥ 200 panggilan + `EXPLAIN (ANALYZE,
-  BUFFERS)`), simpan ke `docs/backend/evidence/discover-bench-<tanggal>.json`.
-- **Laporan bias v0: BELUM DIUJI** pada data sintetis (lihat `bias-audit.md`).
+Data: `supabase/seed/bench-talent.sql` — 5.200 developer sintetis `listed`
+beranalisis v2 (4.889 di antaranya memenuhi D1). Dimuat manual setelah
+`make reset`; tidak ikut reset.
+
+- **p95 Discover: 69,0 ms** (target < 500 ms) dari 308 panggilan REST,
+  p50 35,1 ms, maks 113,1 ms — `evidence/discover-bench-2026-11-10.json`.
+  `EXPLAIN (ANALYZE, BUFFERS)` satu panggilan penuh: 52,6 ms / 69.305 buffer
+  hit — `evidence/discover-explain-2026-11-10.txt`.
+- **Laporan bias v0: teruji** pada 5.200 skor — `evidence/bias-v0-2026-11-10.md`.
+  Median keseluruhan 74; indikator tinjauan menyala hanya untuk grup yang
+  sengaja digeser di seed (`NG`, -12), kelompok n<10 dimasking.
+- Batas: hasil ini sintetis dan lokal (satu instance Postgres), bukan klaim
+  performa produksi. Rate limit dinaikkan khusus run bench agar 308 panggilan
+  tidak kena `RATE_LIMITED`; pemeriksaan rate limit tetap dieksekusi.
