@@ -292,21 +292,21 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 |---|---|
 | `deno check` handler/modul strict + kontrak | **Lulus lokal** (5 Nov 2026) |
 | Deno test kontrak (20), fungsi (64), formatter bias (5) | **Lulus lokal** (10 Nov 2026): 20 + 64 + 5, 0 gagal |
-| pgTAP 01–13 (190 asersi) | **HIJAU lokal 5 Nov 2026** — `evidence/pgtap-local-2026-11-05.txt`; CI PR belum dijalankan |
-| Migrasi 001–028 dijalankan | **Lulus lokal 5 Nov 2026** (27 migrasi + 3 seed, 0 gagal) |
+| pgTAP 01–13 (190 asersi) | **HIJAU lokal 10 Nov 2026 pada DB bersih** (`Result: PASS`, exit 0) — `evidence/pgtap-local-2026-11-10.txt`; CI PR belum dijalankan |
+| Migrasi 001–028 dijalankan | **Lulus lokal 10 Nov 2026** (27 migrasi + 3 seed, 0 gagal, DB baru) |
 | p95 Discover < 500 ms | **LULUS 10 Nov 2026**: p50 35,1 ms / p95 69,0 ms / maks 113,1 ms pada 308 panggilan — `evidence/discover-bench-2026-11-10.json` |
 | Laporan bias v0 | **LULUS 10 Nov 2026** pada 5.200 skor sintetis — `evidence/bias-v0-2026-11-10.md` |
-| `make reset && make test` | pgTAP hijau 5 Nov, Deno test hijau 10 Nov. Reset penuh belum diulang 10 Nov: CLI 3.1.0 menolak `[inbucket]` di `config.toml`; gunakan `npx supabase@2.122.0` |
+| `make reset && make test` | `db reset` + pgTAP hijau 10 Nov (CLI 2.122.0; CLI 3.1.0 menolak `[inbucket]`), Deno test hijau 10 Nov. `make` tidak tersedia di mesin ini, perintah setara dijalankan langsung |
 
 ### Gate C
-- [ ] Discover listed/negara/v2 + filter + kursor — pgTAP 11 ditulis; **belum terbukti CI**.
-- [ ] Facet ter-mask, rate limit, tanpa email/breakdown — pgTAP 11 ditulis; **belum terbukti CI**.
-- [ ] Pipeline kepemilikan/batas/summary/tanpa grant tulis — pgTAP 12 ditulis; **belum terbukti CI**.
-- [ ] Compare memakai metrik nyata + D4 — pgTAP 12 ditulis; **belum terbukti CI**.
-- [ ] Retensi & purge aman — pgTAP 13 ditulis; **belum terbukti CI**.
+- [x] Discover listed/negara/v2 + filter + kursor — pgTAP 11 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
+- [x] Facet ter-mask, rate limit, tanpa email/breakdown — pgTAP 11 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
+- [x] Pipeline kepemilikan/batas/summary/tanpa grant tulis — pgTAP 12 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
+- [x] Compare memakai metrik nyata + D4 — pgTAP 12 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
+- [x] Retensi & purge aman — pgTAP 13 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
 - [x] Bias v0 tersedia (sintetis) — **teruji 10 Nov 2026**: 5.200 skor, kelompok n<10 dimasking, grup NG yang digeser -14 ter-flag `-12` (indikator tinjauan menyala).
 - [x] p95 Discover < 500 ms — **terukur 10 Nov 2026**: p95 69,0 ms (308 panggilan, 4.889 developer listed).
-- [ ] `make reset && make test` hijau + drift nol + secret scan + CI hijau — **BELUM**; kontrak & Deno lulus lokal, pgTAP hijau lokal 5 Nov.
+- [ ] `make reset && make test` hijau + drift nol + secret scan + CI hijau — **BELUM**; kontrak & Deno lulus lokal, pgTAP hijau lokal 10 Nov pada DB bersih.
 - [ ] L2 (regulasi AI rekrutmen & metodologi bias) — **belum selesai**; Discover belum boleh dibuka ke pengguna eksternal.
 
 ### Deviasi
@@ -321,9 +321,10 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 - Rencana kueri: `evidence/discover-explain-2026-11-10.txt` — `Execution Time: 52,6 ms`, 69.305 buffer hit untuk satu panggilan penuh 4.889 baris.
 - Bias: `deno run … scripts/backend/bias-report.ts` → n=5200, median keseluruhan 74; tidak ada kelompok yang berbeda > 10 poin kecuali `NG` (median 62, selisih -12) yang **sengaja** digeser -14 di seed untuk menguji indikator tinjauan. Tidak ada login/nama pada keluaran.
 - Batasan: angka hanya berlaku untuk data sintetis di mesin lokal (satu kontainer Postgres); bukan klaim produksi maupun klaim bias populasi nyata.
+- pgTAP diulang pada DB bersih hasil `db reset` (27 migrasi, seed `countries`/`cities`/`keyword_aliases`): **14 berkas, 190 asersi, `Result: PASS`** — `evidence/pgtap-local-2026-11-10.txt`. Seed `dev.sql` tidak dimuat karena fixture-nya menggeser hitungan yang diharapkan tes.
 
 ### Masalah terbuka / TODO
-- Jalankan pgTAP 10–13 pada DB bersih via CI (atau `npx supabase@2.122.0 test db` setelah reset) — data bench di DB lokal saat ini akan menggeser asersi hitungan.
+- Jalankan suite yang sama di CI PR agar ada URL run (bukti lokal 10 Nov sudah ada).
 - Tinjauan L2 (regulasi AI perekrutan) sebelum Discover dibuka eksternal.
 
 ## Deviasi
