@@ -139,3 +139,6 @@ beranalisis v2 (4.889 di antaranya memenuhi D1). Dimuat manual setelah
 - Batas: hasil ini sintetis dan lokal (satu instance Postgres), bukan klaim
   performa produksi. Rate limit dinaikkan khusus run bench agar 308 panggilan
   tidak kena `RATE_LIMITED`; pemeriksaan rate limit tetap dieksekusi.
+- Kepatuhan: Discover belum boleh dibuka eksternal. Klasifikasi AI Act,
+kewajiban GDPR/UU PDP, batasan LL 144/FEHA, dan rencana aksi ada di
+`l2-review.md`.

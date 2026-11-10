@@ -68,7 +68,17 @@ Seed `bench-talent.sql` memakai hash per atribut supaya negara/bahasa/role/skor
 saling independen, dan sengaja menggeser satu grup (`NG`) -14 poin sebagai uji
 positif untuk indikator tinjauan.
 
-## 6. Akses
+## 6. Tindak lanjut (dari tinjauan L2)
+
+`l2-review.md` mencatat 7 kelemahan metodologi v0: heuristik median > 10 poin
+tanpa interval kepercayaan, tidak ada impact ratio (pembanding LL 144/4-5
+rule), masking n<10 terlalu rendah, tanpa koreksi multiplisitas, tanpa atribut
+terlindungi (sehingga tidak boleh disebut audit diskriminasi), baseline hanya
+sintetis, dan tanpa uji stabilitas antar versi. Audit v1 harus menambahkan
+impact ratio pada ambang skor tetap, confidence interval, Benjamini–Hochberg,
+ambang pelaporan n >= 30, serta mengunci `score_version` dan dataset.
+
+## 7. Akses
 
 `bias_report_v0()` hanya untuk klaim JWT `app_metadata.role = 'admin'` atau
 `service_role`. Non-admin → `FORBIDDEN` (pgTAP `13_be4_retention_bias.sql`).

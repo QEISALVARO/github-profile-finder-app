@@ -307,7 +307,7 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 - [x] Bias v0 tersedia (sintetis) — **teruji 10 Nov 2026**: 5.200 skor, kelompok n<10 dimasking, grup NG yang digeser -14 ter-flag `-12` (indikator tinjauan menyala).
 - [x] p95 Discover < 500 ms — **terukur 10 Nov 2026**: p95 66,8 ms (308 panggilan, 4.889 developer listed).
 - [x] `make reset && make test` hijau + drift nol + secret scan + CI hijau — Backend CI [#27](https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42754735980) sukses untuk commit `c1948cf`: pgTAP, drift types, db lint, secret scan, dan Deno check/test semua hijau.
-- [ ] L2 (regulasi AI rekrutmen & metodologi bias) — **belum selesai**; Discover belum boleh dibuka ke pengguna eksternal.
+- [x] L2 (regulasi AI rekrutmen & metodologi bias) — **tinjauan selesai 10 Nov 2026** di `l2-review.md`: klasifikasi AI Act, GDPR/UU PDP, LL 144/FEHA/Title VII, serta 7 temuan metodologi audit. Discover **tetap belum boleh** dibuka eksternal sampai aksi A1–A7 di dokumen itu selesai.
 
 ### Deviasi
 - `DiscoverItem.role` di kontrak tetap `string` (Lampiran A); backend hanya mengeluarkan 4 nilai FeedRole.
@@ -326,7 +326,7 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 
 ### Masalah terbuka / TODO
 - Jalankan suite yang sama di CI PR agar ada URL run (bukti lokal 10 Nov sudah ada).
-- Tinjauan L2 (regulasi AI perekrutan) sebelum Discover dibuka eksternal.
+- Jalankan aksi A1–A7 dari `l2-review.md` (pendapat hukum AI Act, DPIA/LIA, ToS/privacy, audit bias v1, pembatasan pasar NYC/California, template notifikasi + retensi 4 tahun, system card) sebelum Discover dibuka eksternal.
 
 ## Deviasi
 - Fallback fuzzy trigram DITUNDA (opsional setelah gate hijau) sesuai prompt.
