@@ -19,6 +19,13 @@ major_version = 17
 [db.pooler]
 enabled = false
 
+# Seed default: hanya data referensi yang dibutuhkan tes/migrasi.
+# `seed/dev.sql` (akun contoh) dan `seed/bench*.sql` sengaja TIDAK dimuat karena
+# menambah baris yang menggeser hitungan yang diharapkan pgTAP.
+[db.seed]
+enabled = true
+sql_paths = ["./seed/countries.sql", "./seed/cities.sql", "./seed/keyword_aliases.sql"]
+
 [realtime]
 enabled = true
 ip_version = "IPv6"

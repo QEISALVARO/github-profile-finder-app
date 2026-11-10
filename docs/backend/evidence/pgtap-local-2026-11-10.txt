@@ -10,13 +10,19 @@ laporan sebelumnya; CLI 3.1.0 menolak `[inbucket]` di `supabase/config.toml`).
 ```
 $ npx supabase@2.122.0 db reset
 Applying migration 20261001000001 … 20261001000028 (27 berkas, 0 gagal)
+Seeding data from supabase/seed/countries.sql...        # 152 baris
+Seeding data from supabase/seed/cities.sql...           # 139 baris
+Seeding data from supabase/seed/keyword_aliases.sql...  # 14 baris
 Finished supabase db reset on branch feat/be-4-talent.
-
-$ psql -v ON_ERROR_STOP=1 -f supabase/seed/countries.sql        # 152 baris
-$ psql -v ON_ERROR_STOP=1 -f supabase/seed/cities.sql           # 139 baris
-$ psql -v ON_ERROR_STOP=1 -f supabase/seed/keyword_aliases.sql  # 14 baris
 # profiles = 0, projects = 0 (fixture dibuat oleh masing-masing berkas tes)
 ```
+
+Ketiga seed itu sekarang didaftarkan di `supabase/config.toml` (`[db.seed]
+sql_paths`), jadi `db reset` sendiri sudah cukup. Sebelumnya reset tidak
+memuat seed apa pun dan suite gagal: `insert or update on table "profiles"
+violates foreign key constraint "profiles_country_code_fkey"`, hanya 44 dari
+190 asersi yang sempat jalan (`Result: FAIL`). Inilah yang juga terjadi di run
+Backend CI #26 dan diperbaiki di commit setelahnya.
 
 Seed `dev.sql` **tidak** dimuat: 6 profil + 3 proyek contoh di dalamnya
 menambah baris yang tidak diharapkan tes (`03`, `08`, `09`, `11`, `12` gagal

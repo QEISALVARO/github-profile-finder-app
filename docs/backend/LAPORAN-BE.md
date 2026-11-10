@@ -321,7 +321,7 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 - Rencana kueri: `evidence/discover-explain-2026-11-10.txt` — `Execution Time: 52,6 ms`, 69.305 buffer hit untuk satu panggilan penuh 4.889 baris.
 - Bias: `deno run … scripts/backend/bias-report.ts` → n=5200, median keseluruhan 74; tidak ada kelompok yang berbeda > 10 poin kecuali `NG` (median 62, selisih -12) yang **sengaja** digeser -14 di seed untuk menguji indikator tinjauan. Tidak ada login/nama pada keluaran.
 - Batasan: angka hanya berlaku untuk data sintetis di mesin lokal (satu kontainer Postgres); bukan klaim produksi maupun klaim bias populasi nyata.
-- pgTAP diulang pada DB bersih hasil `db reset` (27 migrasi, seed `countries`/`cities`/`keyword_aliases`): **14 berkas, 190 asersi, `Result: PASS`** — `evidence/pgtap-local-2026-11-10.txt`. Seed `dev.sql` tidak dimuat karena fixture-nya menggeser hitungan yang diharapkan tes.
+- pgTAP diulang pada DB bersih hasil `db reset` (27 migrasi + seed `countries`/`cities`/`keyword_aliases` yang kini terdaftar di `[db.seed]`): **14 berkas, 190 asersi, `Result: PASS`** — `evidence/pgtap-local-2026-11-10.txt`. Sebelum `[db.seed]` didaftarkan, reset tidak memuat seed dan suite gagal karena FK `profiles_country_code_fkey` (ini juga yang menggagalkan Backend CI #26). Seed `dev.sql` tetap tidak dimuat karena fixture-nya menggeser hitungan yang diharapkan tes.
 
 ### Masalah terbuka / TODO
 - Jalankan suite yang sama di CI PR agar ada URL run (bukti lokal 10 Nov sudah ada).
