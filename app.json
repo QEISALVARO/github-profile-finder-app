@@ -39,6 +39,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ffe21932-fa63-49bb-8ba6-bd4aad1b0a94"
+      }
+    },
+    "owner": "farrosalwarisi"
   }
 }
