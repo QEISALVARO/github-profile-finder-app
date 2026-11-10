@@ -134,6 +134,9 @@ beranalisis v2 (4.889 di antaranya memenuhi D1). Dimuat manual setelah
   `EXPLAIN (ANALYZE, BUFFERS)` satu panggilan penuh: 52,6 ms / 69.305 buffer
   hit — `evidence/discover-explain-2026-11-10.txt`.
 - **Laporan bias v0: teruji** pada 5.200 skor — `evidence/bias-v0-2026-11-10.md`.
+- **Laporan bias v1: teruji** pada 5.200 skor — impact ratio + Wilson/Katz CI +
+  Benjamini–Hochberg, masking n ≥ 30; 39 kelompok, 1 adverse (`NG`) —
+  `evidence/bias-v1-2026-11-10.md`.
   Median keseluruhan 74; indikator tinjauan menyala hanya untuk grup yang
   sengaja digeser di seed (`NG`, -12), kelompok n<10 dimasking.
 - Batas: hasil ini sintetis dan lokal (satu instance Postgres), bukan klaim

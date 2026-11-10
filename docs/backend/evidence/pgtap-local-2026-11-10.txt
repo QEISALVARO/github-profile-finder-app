@@ -1,73 +1,21 @@
-# pgTAP lokal — 2026-11-10
-
-Lingkungan: Docker 29.9.2, container `supabase_db_github-profile-finder-app`
-dari image Supabase Postgres (PostgreSQL 17.11, pgTAP 1.3.3, pg_trgm, pgcrypto,
-unaccent), port host 54322. CLI: `npx supabase@2.122.0` (versi yang dipakai
-laporan sebelumnya; CLI 3.1.0 menolak `[inbucket]` di `supabase/config.toml`).
-
-## 1. Database bersih
-
-```
-$ npx supabase@2.122.0 db reset
-Applying migration 20261001000001 … 20261001000028 (27 berkas, 0 gagal)
-Seeding data from supabase/seed/countries.sql...        # 152 baris
-Seeding data from supabase/seed/cities.sql...           # 139 baris
-Seeding data from supabase/seed/keyword_aliases.sql...  # 14 baris
-Finished supabase db reset on branch feat/be-4-talent.
-# profiles = 0, projects = 0 (fixture dibuat oleh masing-masing berkas tes)
-```
-
-Ketiga seed itu sekarang didaftarkan di `supabase/config.toml` (`[db.seed]
-sql_paths`), jadi `db reset` sendiri sudah cukup. Sebelumnya reset tidak
-memuat seed apa pun dan suite gagal: `insert or update on table "profiles"
-violates foreign key constraint "profiles_country_code_fkey"`, hanya 44 dari
-190 asersi yang sempat jalan (`Result: FAIL`). Inilah yang juga terjadi di run
-Backend CI #26 dan diperbaiki di commit setelahnya.
-
-Seed `dev.sql` **tidak** dimuat: 6 profil + 3 proyek contoh di dalamnya
-menambah baris yang tidak diharapkan tes (`03`, `08`, `09`, `11`, `12` gagal
-dengan hitungan `have: 4 / want: 1` saat `dev.sql` ikut dimuat). Seed
-`bench.sql`/`bench-talent.sql` juga tidak dimuat karena bukan bagian reset.
-
-## 2. pgTAP — jalur resmi CLI
-
-```
-$ set -o pipefail; npx supabase@2.122.0 test db
 Connecting to local database...
-supabase/tests/01_rls_enabled.sql ............ ok
-supabase/tests/02_default_deny.sql ........... ok
-supabase/tests/03_rls_policies.sql ........... ok
-supabase/tests/04_pol9_enforcement.sql ....... ok
-supabase/tests/05_location_normalize.sql ..... ok
-supabase/tests/06_rpcs.sql ................... ok
-supabase/tests/07_be2_ingestion.sql .......... ok
-supabase/tests/08_be3_projects.sql ........... ok
-supabase/tests/09_be3_facets_moderation.sql .. ok
-supabase/tests/10_be3_projects_rpc_only.sql .. ok
-supabase/tests/10_be3b_my_projects.sql ....... ok
-supabase/tests/11_be4_discover.sql ........... ok
-supabase/tests/12_be4_pipeline_compare.sql ... ok
-supabase/tests/13_be4_retention_bias.sql ..... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/01_rls_enabled.sql ............ ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/02_default_deny.sql ........... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/03_rls_policies.sql ........... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/04_pol9_enforcement.sql ....... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/05_location_normalize.sql ..... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/06_rpcs.sql ................... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/07_be2_ingestion.sql .......... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/08_be3_projects.sql ........... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/09_be3_facets_moderation.sql .. ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/10_be3_projects_rpc_only.sql .. ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/10_be3b_my_projects.sql ....... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/11_be4_discover.sql ........... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/12_be4_pipeline_compare.sql ... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/13_be4_retention_bias.sql ..... ok
+/Users/User/Downloads/github-profile-finder-app/supabase/tests/14_be4_bias_v1.sql ............ ok
 All tests successful.
-Files=14, Tests=190,  1 wallclock secs
+Files=15, Tests=203,  2 wallclock secs ( 0.09 usr  0.02 sys +  0.16 cusr  0.07 csys =  0.34 CPU)
 Result: PASS
-```
-
-Rincian asersi per berkas: 01=2, 02=4, 03=7, 04=4, 05=10, 06=6, 07=8,
-08=30, 09=18, 10_be3=11, 10_be3b=19, 11=27, 12=29, 13=15 (total 190).
-
-Hasil ini mengulang transkrip `pgtap-local-2026-11-05.txt` pada DB yang
-di-reset dari nol, termasuk migrasi `028_fix_sync_projects_definer.sql` dan
-seed yang sama.
-
-## 3. Run CI resmi (setelah `[db.seed]` diperbaiki)
-
-Backend CI run #27, commit `c1948cf` — **success**:
-https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42754735980
-
-Langkah hijau: *Run Database Migrations & Seeds from scratch*, *Run pgTAP
-Database Tests*, *Check Database Types Drift*, *Lint Database*, serta job
-*Static Checks* (secret scan, encoding, Deno check + test).
-
-Catatan: `make` tidak tersedia di mesin lokal, jadi perintah dijalankan
-langsung (setara `make reset` + `make test-db`).
+A new version of Supabase CLI is available: v3.1.0 (currently installed v2.122.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

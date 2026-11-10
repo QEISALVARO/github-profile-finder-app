@@ -51,6 +51,8 @@ Fondasi backend Gitscope (Fase BE-0) dan modul Otentikasi & Profil (Fase BE-1) t
 **Status verifikasi 5 Nov 2026 — HIJAU (lokal, Docker):**
 27 berkas migrasi (001–028; nomor 0016 dilewati sesuai ADR-016) + 3 seed berhasil pada database baru (`migtest`) dengan `ON_ERROR_STOP=1`, 0 gagal. Rangkaian pgTAP: **14 berkas, 190 asersi, `Result: PASS`** lewat `npx supabase@2.122.0 test db` (rincian di `evidence/pgtap-local-2026-11-05.txt`). Commit ini **belum dijalankan di CI**; tidak ada URL run untuk klaim ini.
 
+**Pembaruan 10 Nov 2026:** migrasi 0029 (`bias_report_v1`) + `14_be4_bias_v1.sql` (13 asersi) → **15 berkas, 203 asersi, `Result: PASS`** pada DB bersih (`npx supabase@2.122.0 db reset` + `test db`, exit 0). Transkrip: `evidence/pgtap-local-2026-11-10.txt` (15 berkas, 203 asersi, `Result: PASS`).
+
 - `01_rls_enabled.sql`: Memeriksa katalog sistem bahwa **seluruh** tabel di skema `public` memiliki RLS aktif.
 - `02_default_deny.sql`: Membuktikan peran anon dan authenticated tanpa hak tidak bisa mengakses data sensitif atau menulis ke tabel service-role.
 - `03_rls_policies.sql`: Pengujian granular kebijakan `profiles`, `projects`, `conversations`, dan penolakan pengiriman pesan pada status percakapan yang diblokir.
@@ -278,9 +280,10 @@ Pekerjaan Fase BE-2 selesai penuh. Berhenti sesuai aturan kualitas (§6/§10) hi
 
 ### Berkas
 - Migrasi: `0024_be4_retention.sql` (retensi listed + purge aman + indeks + view internal + pembersihan pipeline saat akun dihapus), `0025_be4_discover.sql` (`feed_role`, `discover_developers`, `discover_country_facets`, rate limit), `0026_be4_pipeline_compare.sql` (hardening pipeline_entries + `pipeline_list/upsert/remove` + `compare_developers`), `0027_be4_bias.sql` (`bias_stats`, `bias_report_v0`).
-- pgTAP: `11_be4_discover.sql` (27 asersi), `12_be4_pipeline_compare.sql` (29), `13_be4_retention_bias.sql` (15).
+- pgTAP: `11_be4_discover.sql` (27 asersi), `12_be4_pipeline_compare.sql` (29), `13_be4_retention_bias.sql` (15), `14_be4_bias_v1.sql` (13).
 - Dokumen: `talent.md` (signature, D1–D6, kursor, masking, contoh, error), `bias-audit.md`, pembaruan `policies.md` (AIR-1/3/4/5, POL-3/5/8) dan `decisions.md` (ADR-017).
-- Skrip: `scripts/backend/bias-format.ts` (+test), `bias-report.ts`, `bench-discover.ts`.
+- Skrip: `scripts/backend/bias-format.ts` (+test), `bias-report.ts`, `bias-report-v1.ts` + `bias-v1.ts` (+test), `bench-discover.ts`.
+- Migrasi v1: `0029_be4_bias_v1.sql` (`bias_group_stats`, `bias_report_v1`).
 - Kontrak: v0.3.0 (`PipelineItem`, `PipelineList`, `CompareResult`, fixture).
 - Perbaikan bug: `analyze-developer` kini menulis ke kolom `analyses` yang benar (`breakdown`, `metrics`, `heatmap`, …). Sebelumnya insert memakai kolom tidak ada dan gagal senyap sehingga Discover/Compare tidak akan punya data.
 
@@ -291,11 +294,12 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 | Item | Status |
 |---|---|
 | `deno check` handler/modul strict + kontrak | **Lulus lokal** (5 Nov 2026) |
-| Deno test kontrak (20), fungsi (64), formatter bias (5) | **Lulus lokal** (10 Nov 2026): 20 + 64 + 5, 0 gagal |
+| Deno test kontrak (20), fungsi (64), formatter bias (5), statistik bias v1 (11) | **Lulus lokal** (10 Nov 2026): 20 + 64 + 5 + 11, 0 gagal |
 | pgTAP 01–13 (190 asersi) | **HIJAU lokal + CI**: lokal 10 Nov 2026 pada DB bersih (`Result: PASS`, exit 0) — `evidence/pgtap-local-2026-11-10.txt`; Backend CI [#27](https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42754735980) sukses (commit `c1948cf`) |
 | Migrasi 001–028 dijalankan | **Lulus lokal 10 Nov 2026** (27 migrasi + 3 seed, 0 gagal, DB baru) |
 | p95 Discover < 500 ms | **LULUS 10 Nov 2026**: p50 34,2 ms / p95 66,8 ms / p99 84,3 ms / maks 99,3 ms pada 308 panggilan (DB bersih) — `evidence/discover-bench-2026-11-10.json` |
 | Laporan bias v0 | **LULUS 10 Nov 2026** pada 5.200 skor sintetis — `evidence/bias-v0-2026-11-10.md` |
+| Laporan bias v1 (impact ratio, CI, BH) | **LULUS 10 Nov 2026** pada 5.200 skor sintetis: 39 kelompok reportable, 1 adverse (`NG`, IR 0,42, q=2,5e-5) — `evidence/bias-v1-2026-11-10.md`; unit test 11 kasus |
 | `make reset && make test` | `db reset` + pgTAP hijau 10 Nov (CLI 2.122.0; CLI 3.1.0 menolak `[inbucket]`), Deno test hijau 10 Nov. `make` tidak tersedia di mesin ini, perintah setara dijalankan langsung |
 
 ### Gate C

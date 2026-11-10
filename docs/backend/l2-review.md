@@ -193,6 +193,13 @@ ambang, sehingga tidak ada klaim bias yang tidak berdasar.
 | A7 | System card: tujuan, batasan, metrik, data, versi, log perubahan bobot | dokumen versi 1 | Backend |
 | A8 | Tinjauan berkala: audit kuartalan, pemantauan regulasi (Perpres AI, omnibus lanjutan) | jadwal + pemilik | Kepatuhan |
 
+**Status A4 (10 Nov 2026): mesin selesai, evidence beta belum.**
+`bias_report_v1` + `scripts/backend/bias-report-v1.ts` sudah menghitung impact
+ratio, Wilson/Katz CI, dan Benjamini–Hochberg dengan masking n ≥ 30; evidence
+sintetis ada di `evidence/bias-v1-2026-11-10.md` (39 kelompok, 1 adverse `NG`).
+A4 baru tertutup setelah laporan yang sama dijalankan pada data beta dengan
+dataset dan `score_version` terkunci.
+
 Beta tertutup boleh jalan sekarang selama A3 (pengungkapan), A6 (retensi), dan
 A7 (system card) selesai lebih dulu; A1–A2 wajib sebelum ada pengguna EU.
 
