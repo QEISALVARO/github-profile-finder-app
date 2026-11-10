@@ -294,7 +294,7 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 | Deno test kontrak (20), fungsi (64), formatter bias (5) | **Lulus lokal** (10 Nov 2026): 20 + 64 + 5, 0 gagal |
 | pgTAP 01–13 (190 asersi) | **HIJAU lokal + CI**: lokal 10 Nov 2026 pada DB bersih (`Result: PASS`, exit 0) — `evidence/pgtap-local-2026-11-10.txt`; Backend CI [#27](https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42754735980) sukses (commit `c1948cf`) |
 | Migrasi 001–028 dijalankan | **Lulus lokal 10 Nov 2026** (27 migrasi + 3 seed, 0 gagal, DB baru) |
-| p95 Discover < 500 ms | **LULUS 10 Nov 2026**: p50 35,1 ms / p95 69,0 ms / maks 113,1 ms pada 308 panggilan — `evidence/discover-bench-2026-11-10.json` |
+| p95 Discover < 500 ms | **LULUS 10 Nov 2026**: p50 34,2 ms / p95 66,8 ms / p99 84,3 ms / maks 99,3 ms pada 308 panggilan (DB bersih) — `evidence/discover-bench-2026-11-10.json` |
 | Laporan bias v0 | **LULUS 10 Nov 2026** pada 5.200 skor sintetis — `evidence/bias-v0-2026-11-10.md` |
 | `make reset && make test` | `db reset` + pgTAP hijau 10 Nov (CLI 2.122.0; CLI 3.1.0 menolak `[inbucket]`), Deno test hijau 10 Nov. `make` tidak tersedia di mesin ini, perintah setara dijalankan langsung |
 
@@ -305,7 +305,7 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 - [x] Compare memakai metrik nyata + D4 — pgTAP 12 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
 - [x] Retensi & purge aman — pgTAP 13 hijau pada DB bersih 10 Nov 2026; CI PR belum dijalankan.
 - [x] Bias v0 tersedia (sintetis) — **teruji 10 Nov 2026**: 5.200 skor, kelompok n<10 dimasking, grup NG yang digeser -14 ter-flag `-12` (indikator tinjauan menyala).
-- [x] p95 Discover < 500 ms — **terukur 10 Nov 2026**: p95 69,0 ms (308 panggilan, 4.889 developer listed).
+- [x] p95 Discover < 500 ms — **terukur 10 Nov 2026**: p95 66,8 ms (308 panggilan, 4.889 developer listed).
 - [x] `make reset && make test` hijau + drift nol + secret scan + CI hijau — Backend CI [#27](https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42754735980) sukses untuk commit `c1948cf`: pgTAP, drift types, db lint, secret scan, dan Deno check/test semua hijau.
 - [ ] L2 (regulasi AI rekrutmen & metodologi bias) — **belum selesai**; Discover belum boleh dibuka ke pengguna eksternal.
 
@@ -317,7 +317,7 @@ D1–D6 dan riset Postgres dicatat di `decisions.md` (ADR-017). Ringkas: Discove
 
 ### Bukti pengukuran 10 Nov 2026
 - Seed: `supabase/seed/bench-talent.sql` (5.200 developer `listed` + analisis v2; 5% tidak listed, ~1% tanpa negara, 104 analisis v1 lama berskor 99 untuk membuktikan aturan "analisis terbaru"). Dimuat manual, tidak ikut `db reset`.
-- Bench: `deno run … scripts/backend/bench-discover.ts` → 308 panggilan (termasuk halaman dalam 2–5), p50 35,1 ms, p95 69,0 ms, maks 113,1 ms, `targetMet: true`. Batas laju dinaikkan khusus run ini agar 308 panggilan tidak kena `RATE_LIMITED`; pemeriksaan rate limit tetap dieksekusi tiap panggilan (dicatat di field `notes` evidence).
+- Bench (DB bersih: `db reset` → 3 seed referensi → `bench-talent.sql` → `dev.sql` untuk akun recruiter `sari_rec`): `deno run … scripts/backend/bench-discover.ts` → 308 panggilan (termasuk halaman dalam 2–5), p50 34,2 ms, p95 66,8 ms, p99 84,3 ms, maks 99,3 ms, `targetMet: true`. Batas laju dinaikkan khusus run ini agar 308 panggilan tidak kena `RATE_LIMITED`; pemeriksaan rate limit tetap dieksekusi tiap panggilan (dicatat di field `notes` evidence).
 - Rencana kueri: `evidence/discover-explain-2026-11-10.txt` — `Execution Time: 52,6 ms`, 69.305 buffer hit untuk satu panggilan penuh 4.889 baris.
 - Bias: `deno run … scripts/backend/bias-report.ts` → n=5200, median keseluruhan 74; tidak ada kelompok yang berbeda > 10 poin kecuali `NG` (median 62, selisih -12) yang **sengaja** digeser -14 di seed untuk menguji indikator tinjauan. Tidak ada login/nama pada keluaran.
 - Batasan: angka hanya berlaku untuk data sintetis di mesin lokal (satu kontainer Postgres); bukan klaim produksi maupun klaim bias populasi nyata.

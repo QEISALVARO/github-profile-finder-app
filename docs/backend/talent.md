@@ -125,10 +125,12 @@ if (error) {
 
 Data: `supabase/seed/bench-talent.sql` — 5.200 developer sintetis `listed`
 beranalisis v2 (4.889 di antaranya memenuhi D1). Dimuat manual setelah
-`make reset`; tidak ikut reset.
+`make reset`; tidak ikut reset. Pemanggil memakai recruiter `sari_rec` dari
+`seed/dev.sql`.
 
-- **p95 Discover: 69,0 ms** (target < 500 ms) dari 308 panggilan REST,
-  p50 35,1 ms, maks 113,1 ms — `evidence/discover-bench-2026-11-10.json`.
+- **p95 Discover: 66,8 ms** (target < 500 ms) dari 308 panggilan REST pada DB
+  bersih, p50 34,2 ms, p99 84,3 ms, maks 99,3 ms —
+  `evidence/discover-bench-2026-11-10.json`.
   `EXPLAIN (ANALYZE, BUFFERS)` satu panggilan penuh: 52,6 ms / 69.305 buffer
   hit — `evidence/discover-explain-2026-11-10.txt`.
 - **Laporan bias v0: teruji** pada 5.200 skor — `evidence/bias-v0-2026-11-10.md`.
