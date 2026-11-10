@@ -60,6 +60,14 @@ Hasil ini mengulang transkrip `pgtap-local-2026-11-05.txt` pada DB yang
 di-reset dari nol, termasuk migrasi `028_fix_sync_projects_definer.sql` dan
 seed yang sama.
 
-Catatan: suite ini dijalankan lokal; belum ada URL run GitHub Actions untuk
-hasil di atas. `make` tidak tersedia di mesin ini, jadi perintah dijalankan
+## 3. Run CI resmi (setelah `[db.seed]` diperbaiki)
+
+Backend CI run #27, commit `c1948cf` — **success**:
+https://github.com/QEISALVARO/github-profile-finder-app/actions/runs/42754735980
+
+Langkah hijau: *Run Database Migrations & Seeds from scratch*, *Run pgTAP
+Database Tests*, *Check Database Types Drift*, *Lint Database*, serta job
+*Static Checks* (secret scan, encoding, Deno check + test).
+
+Catatan: `make` tidak tersedia di mesin lokal, jadi perintah dijalankan
 langsung (setara `make reset` + `make test-db`).
