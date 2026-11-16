@@ -12,6 +12,8 @@ jobs:
   build-apk:
     name: Build APK (EAS)
     runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -40,8 +42,6 @@ jobs:
 
       - name: Build Android APK (preview)
         run: eas build --platform android --profile preview --non-interactive
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Get latest Android build
         id: latest_build
