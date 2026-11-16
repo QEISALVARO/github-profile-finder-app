@@ -1,0 +1,80 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build APK (EAS)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+
+      - name: Build Android APK (preview)
+        run: eas build --platform android --profile preview --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Get latest Android build
+        id: latest_build
+        run: |
+          BUILD_JSON=$(eas build:list --platform android --limit 10 --json)
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.[0].id')
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK
+        id: download
+        run: |
+          eas build:download --build-id ${{ steps.latest_build.outputs.build_id }} --json > eas-download.json
+          APK_PATH=$(jq -r '.path' eas-download.json)
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Stage APK as gitscope-1.0.0.apk
+        run: |
+          APK_PATH="${{ steps.download.outputs.apk_path }}"
+          cp "$APK_PATH" ./gitscope-1.0.0.apk
+          chmod 755 ./gitscope-1.0.0.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitscope-android-apk
+          path: ./gitscope-1.0.0.apk
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: gitscope v1.0.0
+          asset_paths: ./gitscope-1.0.0.apk
+          generate_release_notes: true
+          fail_on_unmatched_files: true

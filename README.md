@@ -41,6 +41,68 @@ This command will move the starter code to the **app-example** directory and cre
 - If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
 - Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
+## Download APK (Android)
+
+Aplikasi **gitscope** tersedia sebagai APK Android yang dapat langsung diunduh dan di-install:
+
+- **GitHub Releases (versi terbaru):** [https://github.com/QEISALVARO/github-profile-finder-app/releases/latest](https://github.com/QEISALVARO/github-profile-finder-app/releases/latest)
+- **Release langsung (versi 1.0.0):** [https://github.com/QEISALVARO/github-profile-finder-app/releases/tag/v1.0.0](https://github.com/QEISALVARO/github-profile-finder-app/releases/tag/v1.0.0)
+- **Download langsung file APK:** [https://github.com/QEISALVARO/github-profile-finder-app/releases/download/v1.0.0/gitscope-1.0.0.apk](https://github.com/QEISALVARO/github-profile-finder-app/releases/download/v1.0.0/gitscope-1.0.0.apk)
+
+### Cara meng-install APK di Android
+
+1. Download file `gitscope-1.0.0.apk` dari link di atas.
+2. Buka file tersebut di browser Android (Chrome) atau transfer file ke device.
+3. Saat browser meminta, izinkan **mem install file dari sumber yang tidak dikenal** (Peringatan: *“Install unknown apps”*).
+4. Buka aplikasi **gitscope**.
+
+Catatan: repository ini **public**, sehingga link download dapat diakses tanpa login GitHub. Jika suatu saat repository diubah menjadi **private**, unduhan memerlukan login GitHub untuk diakses.
+
+### Cara menjalankan proyek dari source code
+
+```bash
+npm ci
+cp .env.example .env   # sesuaikan nilai lokal jika memakai backend
+npx expo start
+```
+
+### Cara membuat build baru
+
+Build APK Android dilakukan lewat EAS Build (profile `preview` → distribusi `internal`, `android.buildType: "apk"`):
+
+```bash
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Alternatif lokal (perlu Android SDK + Gradle):
+
+```bash
+npx expo run:android
+```
+
+### Mode default aplikasi
+
+Mode default aplikasi **gitscope** menggunakan **mock data** jika backend belum dikonfigurasi. Tidak ada secret backend (Supabase / GitHub API) yang diperlukan untuk menjalankan aplikasi.
+
+### Environment variable (mode API)
+
+Daftar variabel yang dibutuhkan untuk mode `api` (backend):
+
+| Variabel | Keterangan |
+| --- | --- |
+| `EXPO_PUBLIC_SUPABASE_URL` | URL endpoint Supabase |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Kunci anon Supabase (RLS) |
+| `EXPO_PUBLIC_DS_AUTH` | `mock` \| `api` (auth) |
+| `EXPO_PUBLIC_DS_FEED` | `mock` \| `api` (feed) |
+| `EXPO_PUBLIC_DS_ANALYSIS` | `mock` \| `api` (analysis) |
+| `EXPO_PUBLIC_DS_TALENT` | `mock` \| `api` (talent) |
+| `EXPO_PUBLIC_DS_CHAT` | `mock` \| `api` (chat) |
+| `EXPO_PUBLIC_DS_REPORTS` | `mock` \| `api` (reports) |
+
+Nilai tambahan backend (lokal): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STUDIO_PORT`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_API_TOKEN`.
+
+Detail lengkap: lihat `.env.example` dan `docs/backend/README.md`.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:

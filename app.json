@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.gitscope.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#2dd86f",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -39,6 +40,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ffe21932-fa63-49bb-8ba6-bd4aad1b0a94"
+      }
+    },
+    "owner": "farrosalwarisi"
   }
 }
