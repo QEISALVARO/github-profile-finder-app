@@ -17,12 +17,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -39,6 +39,29 @@ jobs:
 
       - name: Install EAS CLI
         run: npm install --global eas-cli
+
+      - name: Check EAS environment for preview
+        continue-on-error: true
+        run: |
+          eas env:list --environment preview \
+            | sed -n 's/^\([A-Z0-9_]*\)=.*/\1/p' \
+            | sort > eas-env-names.txt
+          echo "EAS env (preview):"
+          cat eas-env-names.txt
+          missing=0
+          for name in EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_DS_AUTH; do
+            if ! grep -qx "$name" eas-env-names.txt; then
+              echo "::warning title=EAS env::$name belum diset untuk environment preview"
+              missing=1
+            fi
+          done
+          if ! grep -qxE 'EXPO_PUBLIC_SUPABASE_(ANON_KEY|PUBLISHABLE_KEY)' eas-env-names.txt; then
+            echo "::warning title=EAS env::EXPO_PUBLIC_SUPABASE_ANON_KEY / PUBLISHABLE_KEY belum diset"
+            missing=1
+          fi
+          if [ "$missing" = "1" ]; then
+            echo "Tanpa env di atas, APK memakai sesi demo lokal — lihat docs/auth-github-oauth.md."
+          fi
 
       - name: Build Android APK (preview)
         run: eas build --platform android --profile preview --non-interactive
@@ -64,17 +87,18 @@ jobs:
           chmod 755 ./gitscope-1.0.0.apk
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gitscope-android-apk
           path: ./gitscope-1.0.0.apk
           if-no-files-found: error
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v1.0.0
           name: gitscope v1.0.0
-          asset_paths: ./gitscope-1.0.0.apk
+          files: ./gitscope-1.0.0.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
+          overwrite_files: true

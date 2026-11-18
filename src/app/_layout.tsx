@@ -83,6 +83,11 @@ function RootNavigatorSlot() {
         <Stack.Screen name="welcome" />
       </Stack.Protected>
 
+      {/* Deep link balik dari GitHub OAuth (gitscope://auth/callback).
+          Tidak ikut di-guard: app bisa dibuka dingin lewat link ini sebelum
+          sesi sempat direhidrasi. */}
+      <Stack.Screen name="auth/callback" />
+
       <Stack.Protected guard={session !== null && !onboarded}>
         <Stack.Screen name="onboarding" />
       </Stack.Protected>

@@ -91,7 +91,8 @@ Daftar variabel yang dibutuhkan untuk mode `api` (backend):
 | Variabel | Keterangan |
 | --- | --- |
 | `EXPO_PUBLIC_SUPABASE_URL` | URL endpoint Supabase |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Kunci anon Supabase (RLS) |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Kunci anon Supabase (RLS) — nama baru: `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (keduanya didukung) |
+| `EXPO_PUBLIC_AUTH_REDIRECT_URL` | Opsional, timpa deep link `gitscope://auth/callback` |
 | `EXPO_PUBLIC_DS_AUTH` | `mock` \| `api` (auth) |
 | `EXPO_PUBLIC_DS_FEED` | `mock` \| `api` (feed) |
 | `EXPO_PUBLIC_DS_ANALYSIS` | `mock` \| `api` (analysis) |
@@ -102,6 +103,13 @@ Daftar variabel yang dibutuhkan untuk mode `api` (backend):
 Nilai tambahan backend (lokal): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STUDIO_PORT`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_API_TOKEN`.
 
 Detail lengkap: lihat `.env.example` dan `docs/backend/README.md`.
+
+### Login GitHub asli di APK
+
+APK dari EAS **tidak** membaca `.env`. Untuk menyalakan OAuth GitHub asli
+(termasuk redirect `gitscope://auth/callback` dan env EAS), ikuti panduan
+langkah demi langkah: [`docs/auth-github-oauth.md`](docs/auth-github-oauth.md).
+Tanpa konfigurasi itu, tombol *Continue with GitHub* memakai sesi demo lokal.
 
 ## Learn more
 

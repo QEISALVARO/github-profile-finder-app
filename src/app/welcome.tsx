@@ -32,28 +32,48 @@ export default function WelcomeScreen() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const [signingIn, setSigningIn] = useState(false);
 
+  /** Sesi demo lokal — dipakai bila OAuth tidak bisa dijalankan di build ini. */
+  const startDemoSession = () => {
+    signIn({
+      login: DEMO_LOGIN,
+      name: 'Octo Cat',
+      avatarUrl: 'https://github.com/octocat.png?size=128',
+      githubId: 583231,
+      bio: 'Akun demo Gitscope — OAuth GitHub aktif setelah backend R0 terpasang.',
+      locationText: 'San Francisco',
+    });
+    router.replace(onboarded ? '/explore' : '/onboarding');
+  };
+
   const handleSignIn = async () => {
     if (signingIn) return;
     setSigningIn(true);
     setAuthError(null);
     try {
-      const { error } = await signInWithGitHub();
+      const { error, cancelled, reason } = await signInWithGitHub();
       if (error) {
-        // Backend belum hidup / dibatalkan user → sesi demo lokal agar alur
-        // onboarding tetap bisa dicoba; OAuth asli dipakai saat R0 siap.
         setAuthError(error);
-        signIn({
-          login: DEMO_LOGIN,
-          name: 'Octo Cat',
-          avatarUrl: 'https://github.com/octocat.png?size=128',
-          githubId: 583231,
-          bio: 'Akun demo Gitscope — OAuth GitHub aktif setelah backend R0 terpasang.',
-          locationText: 'San Francisco',
-        });
+        // User menutup browser sendiri → jangan paksa sesi demo, cukup
+        // tampilkan pesan agar tombol tetap bisa dicoba lagi.
+        if (cancelled) return;
+        // Build tanpa env Supabase / flag `api` → sesi demo lokal agar alur
+        // onboarding tetap bisa dicoba.
+        if (reason === 'not_configured') {
+          startDemoSession();
+          return;
+        }
+        // OAuth benar-benar gagal (redirect belum diizinkan, provider mati,
+        // jaringan) → tampilkan penyebabnya, jangan sembunyikan di balik demo.
+        return;
       }
       // Sukses OAuth: sesi Supabase → useAuthStore via onAuthStateChange di
       // DataProvider; guard root layout menentukan tujuan akhir.
       router.replace(onboarded ? '/explore' : '/onboarding');
+    } catch (error) {
+      // Jaring pengaman terakhir: apa pun yang melempar (mis. env Supabase
+      // tidak ikut ter-bundle di APK release) tidak boleh membuat tombol diam.
+      setAuthError(error instanceof Error ? error.message : 'Login GitHub gagal. Coba lagi.');
+      startDemoSession();
     } finally {
       setSigningIn(false);
     }
@@ -118,17 +138,18 @@ export default function WelcomeScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Continue with GitHub"
+            accessibilityState={{ disabled: signingIn, busy: signingIn }}
             android_ripple={{ color: 'transparent' }}
             disabled={signingIn}
             onPress={handleSignIn}
             style={({ pressed }) => [
               styles.cta,
               { backgroundColor: theme.colors.accent, borderColor: theme.colors.ink },
-              pressed && styles.pressed,
+              (pressed || signingIn) && styles.pressed,
             ]}>
             <Icon name="github" size={20} color={theme.colors.onAccent} />
             <T size={13} weight="800" color="onAccent">
-              Continue with GitHub
+              {signingIn ? 'Menghubungkan…' : 'Continue with GitHub'}
             </T>
           </Pressable>
 

@@ -34,7 +34,11 @@ if (Platform.OS !== 'web') {
 function readSupabaseEnv(): { url: string | undefined; anonKey: string | undefined } {
   return {
     url: process.env.EXPO_PUBLIC_SUPABASE_URL,
-    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    // Supabase menamai ulang anon key → publishable key. Keduanya didukung
+    // supaya build lama (EXPO_PUBLIC_SUPABASE_ANON_KEY) tetap jalan.
+    anonKey:
+      process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   };
 }
 
@@ -44,7 +48,9 @@ export function missingSupabaseEnv(): string[] {
   const env = readSupabaseEnv();
   const missing: string[] = [];
   if (!env.url) missing.push('EXPO_PUBLIC_SUPABASE_URL');
-  if (!env.anonKey) missing.push('EXPO_PUBLIC_SUPABASE_ANON_KEY');
+  if (!env.anonKey) {
+    missing.push('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (atau EXPO_PUBLIC_SUPABASE_ANON_KEY)');
+  }
   return missing;
 }
 
@@ -114,7 +120,12 @@ export async function getSupabase(): Promise<SupabaseClient> {
       storage: selectStorage(),
       autoRefreshToken: true,
       persistSession: true,
+      // Native tidak punya URL halaman untuk dibaca saat cold start; deep link
+      // ditangani eksplisit oleh lib/auth (exchange code PKCE).
       detectSessionInUrl: false,
+      // PKCE wajib agar `exchangeCodeForSession(code)` bisa memakai verifier
+      // yang disimpan saat signInWithOAuth.
+      flowType: 'pkce',
     },
     global: {
       headers: { 'x-client-info': 'gitscope-expo' },
