@@ -29,9 +29,12 @@ export interface AuthSession {
   login: string;
   name: string;
   avatarUrl: string;
+  /** 0 = akun Google yang belum menautkan GitHub (gerbang sebelum onboarding). */
   githubId: number;
   bio: string | null;
   locationText: string | null;
+  /** Metode login utama. Tidak diisi = sesi lama (dianggap GitHub). */
+  provider?: 'github' | 'google';
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {

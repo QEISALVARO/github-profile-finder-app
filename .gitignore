@@ -34,8 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
-# supabase local runtime (containers, temp CLI state)
+# supabase local runtime (containers, temp CLI state, branch metadata)
 supabase/.temp/
+supabase/.branches/
 
 # typescript
 *.tsbuildinfo

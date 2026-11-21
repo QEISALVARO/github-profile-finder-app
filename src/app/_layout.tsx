@@ -69,6 +69,9 @@ function RootNavigatorSlot() {
   const hydrated = useAuthStore((s) => s.hydrated);
   const session = useAuthStore((s) => s.session);
   const onboarded = useAuthStore((s) => s.onboarded);
+  // Akun Google harus menautkan GitHub dulu; githubId berasal dari metadata
+  // sesi (lihat lib/auth mapSupabaseSession + linkGitHubIdentity).
+  const githubConnected = (session?.githubId ?? 0) > 0;
 
   // Tunggu persist auth selesai direhydrate (cold start) supaya guard tidak
   // sempat melempar user ke halaman yang salah.
@@ -88,7 +91,12 @@ function RootNavigatorSlot() {
           sesi sempat direhidrasi. */}
       <Stack.Screen name="auth/callback" />
 
-      <Stack.Protected guard={session !== null && !onboarded}>
+      {/* Akun Google: GitHub wajib ditautkan sebelum onboarding. */}
+      <Stack.Protected guard={session !== null && !onboarded && !githubConnected}>
+        <Stack.Screen name="connect-github" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={session !== null && !onboarded && githubConnected}>
         <Stack.Screen name="onboarding" />
       </Stack.Protected>
 

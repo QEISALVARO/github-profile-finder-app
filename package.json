@@ -76,6 +76,7 @@
     "lint": "expo lint",
     "test": "jest",
     "typecheck": "tsc --noEmit",
+    "oauth:check": "node ./scripts/check-oauth-config.mjs",
     "check": "npm run typecheck && npm run lint && npm test -- --ci"
   },
   "jest": {

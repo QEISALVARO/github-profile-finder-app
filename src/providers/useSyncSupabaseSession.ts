@@ -34,9 +34,11 @@ export function useSyncSupabaseSession() {
           if (!session) {
             const current = useAuthStore.getState().session;
             // Hanya logout remote yang menghapus sesi lokal; signOut manual sudah
-            // mengosongkan store duluan.
-            if (current && current.githubId === 0) return;
-            if (current && current.login !== 'octocat') useAuthStore.getState().signOut();
+            // mengosongkan store duluan. Sesi demo lokal (tanpa backend) tidak
+            // boleh ikut terhapus — akun Google yang belum menautkan GitHub tetap
+            // punya sesi remote sah meski githubId 0, jadi tidak dikecualikan.
+            if (!current) return;
+            if (current.login !== 'octocat') useAuthStore.getState().signOut();
             return;
           }
           const mapped = mapSupabaseSession(session as never);

@@ -5,6 +5,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
 
 import WelcomeScreen from '../welcome';
+import ConnectGitHubScreen from '../connect-github';
 import OnboardingScreen from '../onboarding';
 import ProfileScreen from '../(tabs)/profile/index';
 import SettingsScreen from '../(tabs)/profile/settings';
@@ -95,8 +96,27 @@ describe('R1 screens render', () => {
     const text = textOf(tree.toJSON());
     expect(text).toContain('Discover talent through work.');
     expect(text).toContain('Continue with GitHub');
+    expect(text).toContain('Continue with Google');
     expect(text).toContain('18+');
     expect(text).toContain('POL-1');
+  });
+
+  it('gates a Google account on linking GitHub before onboarding', () => {
+    useAuthStore.getState().signIn({
+      ...SESSION,
+      login: 'rina',
+      name: 'Rina',
+      avatarUrl: '',
+      githubId: 0,
+      bio: null,
+      provider: 'google',
+    });
+
+    const tree = render(<ConnectGitHubScreen />);
+    const text = textOf(tree.toJSON());
+    expect(text).toContain('Hubungkan GitHub Anda.');
+    expect(text).toContain('Hubungkan GitHub');
+    expect(text).toContain('read:user');
   });
 
   it('renders the onboarding role step before roles are chosen', () => {

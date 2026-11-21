@@ -57,6 +57,8 @@ enable_email_signup = false
 enable_email_autoconfirm = false
 minimum_password_length = 8
 password_requirements = ""
+# Akun Google wajib menautkan GitHub lewat linkIdentity() (manual linking).
+enable_manual_linking = true
 
 [auth.email]
 enable_signup = false
@@ -69,9 +71,17 @@ enable_signup = false
 # GitHub OAuth — scope minimal read:user (tanpa email, POL-2)
 [auth.external.github]
 enabled = true
-client_id = "env(SUPABASE_AUTH_GITHUB_CLIENT_ID)"
-secret = "env(SUPABASE_AUTH_GITHUB_SECRET)"
+client_id = "env(GITHUB_CLIENT_ID)"
+secret = "env(GITHUB_CLIENT_SECRET)"
 redirect_uri = ""
+
+# Google OAuth — login alternatif; GitHub tetap wajib ditautkan sebelum onboarding.
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+redirect_uri = ""
+skip_nonce_check = false
 
 [edge_runtime]
 enabled = true

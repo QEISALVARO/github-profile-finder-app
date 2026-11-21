@@ -26,10 +26,22 @@ export default function AuthCallbackScreen() {
   const handledUrl = useRef<string | null>(null);
   const timedOut = useRef(false);
 
-  /** Tujuan setelah callback: ikuti sesi yang sudah ada di store. */
+  /**
+   * Tujuan setelah callback: ikuti sesi yang sudah ada di store. Akun Google
+   * yang belum menautkan GitHub mendarat di gerbang /connect-github (bisa juga
+   * terjadi bila app di-kill saat penautan).
+   */
   const goToNextScreen = () => {
     const { session, onboarded } = useAuthStore.getState();
-    router.replace(session ? (onboarded ? '/explore' : '/onboarding') : '/welcome');
+    if (!session) {
+      router.replace('/welcome');
+      return;
+    }
+    if (onboarded) {
+      router.replace('/explore');
+      return;
+    }
+    router.replace(session.githubId > 0 ? '/onboarding' : '/connect-github');
   };
 
   // Fallback bila URL tidak pernah datang (mis. route dibuka tanpa deep link).
@@ -87,7 +99,7 @@ export default function AuthCallbackScreen() {
       ]}>
       <ActivityIndicator color={theme.colors.accent} />
       <T size={12} color="muted" style={styles.label}>
-        Menyelesaikan login GitHub…
+        Menyelesaikan login…
       </T>
     </View>
   );

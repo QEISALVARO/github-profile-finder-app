@@ -8,7 +8,7 @@ import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { signInWithGitHub } from '@/lib/auth';
+import { signInWithGitHub, signInWithGoogle } from '@/lib/auth';
 import { useTheme } from '@/theme/useTheme';
 
 /**
@@ -43,6 +43,34 @@ export default function WelcomeScreen() {
       locationText: 'San Francisco',
     });
     router.replace(onboarded ? '/explore' : '/onboarding');
+  };
+
+  /**
+   * Login Google. Akun Google belum punya identitas GitHub, jadi onboarding
+   * tetap terkunci sampai user menautkan GitHub di /connect-github.
+   */
+  const handleGoogleSignIn = async () => {
+    if (signingIn) return;
+    setSigningIn(true);
+    setAuthError(null);
+    try {
+      const { error, cancelled, reason } = await signInWithGoogle();
+      if (error) {
+        setAuthError(error);
+        if (cancelled) return;
+        if (reason === 'not_configured') startDemoSession();
+        return;
+      }
+      const current = useAuthStore.getState().session;
+      // Sesi Google-only ditangani guard root (→ /connect-github).
+      if (current && current.githubId > 0) {
+        router.replace(onboarded ? '/explore' : '/onboarding');
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Login Google gagal. Coba lagi.');
+    } finally {
+      setSigningIn(false);
+    }
   };
 
   const handleSignIn = async () => {
@@ -153,9 +181,28 @@ export default function WelcomeScreen() {
             </T>
           </Pressable>
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
+            accessibilityState={{ disabled: signingIn, busy: signingIn }}
+            android_ripple={{ color: 'transparent' }}
+            disabled={signingIn}
+            onPress={handleGoogleSignIn}
+            style={({ pressed }) => [
+              styles.cta,
+              styles.ctaSecondary,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.line },
+              (pressed || signingIn) && styles.pressed,
+            ]}>
+            <T size={13} weight="800">
+              {signingIn ? 'Menghubungkan…' : 'Continue with Google'}
+            </T>
+          </Pressable>
+
           <T size={8} color="muted" lh={1.6} style={styles.ctaNote}>
             Login OAuth GitHub (Supabase, scope <T mono size={8}>read:user</T> — tanpa akses email).
-            Bila backend belum hidup, dipakai sesi demo lokal.
+            Masuk dengan Google juga bisa, tetapi akun GitHub tetap wajib ditautkan sebelum
+            onboarding. Bila backend belum hidup, dipakai sesi demo lokal.
           </T>
           {authError !== null && authError !== '' ? (
             <T size={8} color="error" lh={1.6} style={styles.ctaNote}>
@@ -257,6 +304,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 9,
     borderWidth: 1.5,
+  },
+  ctaSecondary: {
+    marginTop: 10,
+    height: 46,
   },
   ctaNote: {
     marginTop: 12,
