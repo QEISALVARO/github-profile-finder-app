@@ -80,6 +80,9 @@ jobs:
       - name: Test
         run: npm test -- --ci
 
+      - name: Auth config preflight (no secrets)
+        run: npm run auth:check
+
       # Tanpa jaringan karena runner tidak punya .env/.env.local: probe ke Supabase
       # hanya menghasilkan WARN, dan `--strict` tidak dipakai supaya ketiadaan
       # secret lokal tidak menggagalkan CI.

@@ -103,14 +103,17 @@ jobs:
       - name: Start Supabase Local Stack
         timeout-minutes: 25
         run: |
-          supabase start 2>&1 | tail -n 40
+          set -euo pipefail
+          supabase start 2>&1 | tee /tmp/supabase-start.log | tail -n 40
 
       - name: Run Database Migrations & Seeds from scratch
         run: |
-          supabase db reset --debug 2>&1 | tail -n 60
+          set -euo pipefail
+          supabase db reset --debug 2>&1 | tee /tmp/migration.log | tail -n 60
 
       - name: Run pgTAP Database Tests (RLS, POL-9, RPCs)
         run: |
+          set -euo pipefail
           supabase test db --debug 2>&1 | tee /tmp/pgtap.log | tail -n 80
           echo '### pgTAP tail' >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -128,4 +131,17 @@ jobs:
 
       - name: Lint Database
         run: |
-          supabase db lint
+          set -euo pipefail
+          supabase db lint 2>&1 | tee /tmp/db-lint.log
+
+      - name: Upload backend failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-failure-logs
+          if-no-files-found: ignore
+          path: |
+            /tmp/supabase-start.log
+            /tmp/migration.log
+            /tmp/pgtap.log
+            /tmp/db-lint.log

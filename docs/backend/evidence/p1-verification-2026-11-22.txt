@@ -1,0 +1,40 @@
+P1 verification — 2026-11-22
+Environment: Windows, bash (Git Bash), Node via project npm, no Docker daemon,
+no Deno, no local Supabase runtime.
+
+FRONTEND
+- npm run typecheck: PASS
+- npm run lint: PASS
+- npm test -- --ci --runInBand: PASS (23 suites, 262 tests)
+  Jest prints an existing open-handle warning after the run; all suites pass.
+- npm run auth:check: PASS (5 OK, 0 warning, 0 failed)
+  Checks env format, redirect/recovery configuration, placeholders,
+  service_role leakage, and production data-source flags. It does NOT prove
+  hosted project settings.
+- npm run oauth:check: FAIL (10 OK, 5 warning, 1 failed)
+  - Hosted Google authorize returns 400 "Unsupported provider: provider is not
+    enabled". Enable Google in Supabase hosted or hide the Google button.
+  - Hosted GitHub authorize currently requests user:email (POL-2 warning).
+    Remove user:email from the GitHub provider scope.
+  These are hosted Dashboard settings; no secret was printed.
+- git diff --check: PASS
+
+BACKEND
+- bash scripts/backend/preflight.sh: BLOCKED (exit 2)
+  Docker daemon unavailable and Deno unavailable.
+- make up / make reset / make test / make types / make lint: NOT RUN.
+- supabase/tests/10_email_auth.sql and 11_auth_security.sql: NOT EXECUTED.
+- Migration 20261001000023_recruiter_email_auth.sql: NOT APPLIED in this
+  environment.
+- Migration/pgTAP status must be reported as BLOCKED, not passed.
+- Repeatable path: make preflight && make up && make reset && make test
+  CI: .github/workflows/backend.yml starts Supabase, resets DB, runs pgTAP,
+  Deno checks/tests, DB lint, and uploads logs on failure.
+
+HOSTED AUTH
+- Hosted email confirmation and password recovery: NOT VERIFIED.
+- Manual checklist: docs/auth-hosted-setup.md (section 7 must be filled only
+  after testing a real hosted project).
+
+No service role key, SMTP password, OAuth secret, or recovery token is stored
+in this file.
