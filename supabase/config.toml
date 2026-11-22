@@ -44,25 +44,37 @@ enabled = true
 site_url = "gitscope://auth/callback"
 additional_redirect_urls = [
   "gitscope://auth/callback",
+  # Tautan reset password memakai route khusus agar app tahu konteks recovery.
+  "gitscope://auth/update-password",
   "exp://localhost:8081",
   "exp://127.0.0.1:8081",
+  # Web / Expo web: emailRedirectUrl() memakai window.location.origin.
+  "http://localhost:8081",
+  "http://127.0.0.1:8081",
+  "http://localhost:8081/auth/callback",
+  "http://127.0.0.1:8081/auth/callback",
+  "http://localhost:8081/auth/update-password",
+  "http://127.0.0.1:8081/auth/update-password",
 ]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
 enable_anonymous_sign_ins = false
-# Tidak ada email — POL-2
-enable_email_signup = false
+# P0 — email/password untuk recruiter. POL-2 tetap berlaku: alamat email tidak
+# pernah masuk kolom publik profiles, hanya di auth.users + sesi lokal klien.
+enable_email_signup = true
 enable_email_autoconfirm = false
 minimum_password_length = 8
 password_requirements = ""
-# Akun Google wajib menautkan GitHub lewat linkIdentity() (manual linking).
+# Akun Google boleh menautkan GitHub lewat linkIdentity() (manual linking).
 enable_manual_linking = true
 
 [auth.email]
-enable_signup = false
+enable_signup = true
 double_confirm_changes = true
+# Konfirmasi email aktif (konsisten dengan default project hosted): layar
+# register menampilkan state "cek inbox" + tombol kirim ulang konfirmasi.
 enable_confirmations = true
 
 [auth.sms]
@@ -75,7 +87,8 @@ client_id = "env(GITHUB_CLIENT_ID)"
 secret = "env(GITHUB_CLIENT_SECRET)"
 redirect_uri = ""
 
-# Google OAuth — login alternatif; GitHub tetap wajib ditautkan sebelum onboarding.
+# Google OAuth — login alternatif; penautan GitHub kini opsional (hanya wajib
+# untuk fitur developer yang butuh identitas GitHub, lihat migrasi 023).
 [auth.external.google]
 enabled = true
 client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
