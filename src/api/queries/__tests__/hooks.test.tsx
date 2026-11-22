@@ -131,15 +131,25 @@ describe('useFeed', () => {
 });
 
 describe('useAnalysis', () => {
-  it('returns the octocat VM for a null login (PRD §7.2 AC)', async () => {
+  it('never fetches a default candidate when login is null', async () => {
     const analysis = await renderHook(useAnalysis, null);
 
     expect(analysis.current.isLoading).toBe(false);
     expect(analysis.current.error).toBeNull();
-    expect(analysis.current.data?.user.login).toBe('octocat');
-    expect(analysis.current.data?.authenticity).toBe(73);
-    expect(analysis.current.source).toBe('fresh');
-    expect(analysis.current.isStale).toBe(false);
+    expect(analysis.current.data).toBeNull();
+    expect(analysis.current.source).toBeNull();
+
+    analysis.unmount();
+  });
+
+  it('does not fetch until the caller enables the query', async () => {
+    const analysis = await renderHook(
+      (props: { login: string; enabled: boolean }) => useAnalysis(props.login, props),
+      { login: 'angga-risky', enabled: false },
+    );
+
+    expect(analysis.current.data).toBeNull();
+    expect(analysis.current.error).toBeNull();
 
     analysis.unmount();
   });

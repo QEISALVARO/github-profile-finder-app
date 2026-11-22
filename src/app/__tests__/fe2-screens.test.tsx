@@ -1,11 +1,13 @@
 import mockAsyncStorage from '@react-native-async-storage/async-storage/jest/async-storage-mock';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import type { ReactElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { analysisAdapter } from '@/api/analysis';
 import { resetChat } from '@/api/chat/mock';
 import { useAppStore } from '@/store/useAppStore';
+import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
 
 import ExploreScreen from '../(tabs)/explore/index';
 import AnalysisScreen from '../(tabs)/explore/analysis';
@@ -19,28 +21,62 @@ jest.mock('react-native-safe-area-context', () => ({
   ).default,
 }));
 
-const mockParams: { login?: string } = {};
-const mockPush = jest.fn();
+const mockParams: { login?: string; confirmed?: string } = {};
 
-jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => mockParams,
-  router: {
-    push: mockPush,
+jest.mock('expo-router', () => {
+  const mockRouter = {
+    push: jest.fn(),
     replace: jest.fn(),
+    setParams: jest.fn(),
     back: jest.fn(),
     canGoBack: () => false,
-  },
-  useRouter: () => ({
-    push: mockPush,
-    replace: jest.fn(),
-    back: jest.fn(),
-    canGoBack: () => false,
-  }),
-}));
+  };
+  return {
+    useLocalSearchParams: () => mockParams,
+    router: mockRouter,
+    useRouter: () => mockRouter,
+  };
+});
+
+const mockPush = router.push as jest.Mock;
+const mockReplace = router.replace as jest.Mock;
+const mockSetParams = router.setParams as jest.Mock;
 
 jest.useFakeTimers();
 
 const mounted: ReactTestRenderer[] = [];
+
+const RECRUITER_SESSION: AuthSession = {
+  login: 'user-abc123',
+  name: 'Rina Recruiter',
+  avatarUrl: '',
+  githubId: 0,
+  bio: null,
+  locationText: null,
+  provider: 'email',
+  email: 'rina@company.com',
+};
+
+function signInRecruiter() {
+  const store = useAuthStore.getState();
+  store.signIn(RECRUITER_SESSION);
+  store.setRoles(['recruiter']);
+  store.completeOnboarding();
+}
+
+function signInDeveloper(login = 'dev-owner') {
+  const store = useAuthStore.getState();
+  store.signIn({
+    ...RECRUITER_SESSION,
+    login,
+    name: 'Developer',
+    provider: 'github',
+    githubId: 42,
+    email: null,
+  });
+  store.setRoles(['developer']);
+  store.completeOnboarding();
+}
 
 function render(node: ReactElement): ReactTestRenderer {
   const client = new QueryClient({
@@ -70,6 +106,11 @@ afterEach(() => {
     act(() => tree?.unmount());
   }
   mockPush.mockReset();
+  mockReplace.mockReset();
+  mockSetParams.mockReset();
+  mockParams.login = undefined;
+  mockParams.confirmed = undefined;
+  useAuthStore.getState().deleteAccount();
   resetChat();
 });
 
@@ -94,8 +135,14 @@ function findButton(tree: ReactTestRenderer, label: string) {
     .find((node) => typeof node.props.onPress === 'function');
 }
 
-async function openAnalysis(login: string): Promise<ReactTestRenderer> {
+async function openAnalysis(
+  login: string,
+  confirmed = true,
+  auth: 'recruiter' | 'none' = 'recruiter',
+): Promise<ReactTestRenderer> {
+  if (auth === 'recruiter') signInRecruiter();
   mockParams.login = login;
+  mockParams.confirmed = confirmed ? '1' : undefined;
   const tree = render(<AnalysisScreen />);
   await flush();
   return tree;
@@ -103,7 +150,9 @@ async function openAnalysis(login: string): Promise<ReactTestRenderer> {
 
 describe('Analysis screen states (FE-2)', () => {
   it('renders the skeleton while the VM is loading', async () => {
+    signInRecruiter();
     mockParams.login = 'octocat';
+    mockParams.confirmed = '1';
     const tree = render(<AnalysisScreen />);
 
     const skeletons = tree.root.findAllByProps({ accessibilityLabel: 'Memuat' });
@@ -161,6 +210,81 @@ describe('Analysis screen states (FE-2)', () => {
 
     expect(text).toContain('Limited verifiable evidence');
     expect(text).toContain('0%');
+  });
+
+  it('redirects an unauthenticated deep link to login with a safe return URL', async () => {
+    const spy = jest.spyOn(analysisAdapter, 'fetchAnalysis');
+
+    const tree = await openAnalysis('angga-risky', true, 'none');
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/login',
+      params: { next: '/explore/analysis?login=angga-risky' },
+    });
+    expect(textOf(tree.toJSON())).toContain('Masuk untuk menganalisis');
+    spy.mockRestore();
+  });
+
+  it('redirects a deep link without any login to login and never fetches', async () => {
+    const spy = jest.spyOn(analysisAdapter, 'fetchAnalysis');
+
+    const tree = await openAnalysis('', true, 'none');
+    await flush();
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith('/login');
+    expect(textOf(tree.toJSON())).toContain('Masuk untuk menganalisis');
+    spy.mockRestore();
+  });
+
+  it('rejects an invalid username before calling the analysis API', async () => {
+    signInRecruiter();
+    const spy = jest.spyOn(analysisAdapter, 'fetchAnalysis');
+
+    const tree = await openAnalysis('not a login');
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(textOf(tree.toJSON())).toContain('Username tidak valid');
+    spy.mockRestore();
+  });
+
+  it('waits for candidate confirmation before calling the analysis API', async () => {
+    signInRecruiter();
+    const spy = jest.spyOn(analysisAdapter, 'fetchAnalysis');
+
+    const tree = await openAnalysis('angga-risky', false);
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(textOf(tree.toJSON())).toContain('Konfirmasi kandidat');
+
+    const confirm = findButton(tree, 'Analisis @angga-risky');
+    await act(async () => {
+      confirm?.props.onPress();
+    });
+    expect(mockSetParams).toHaveBeenCalledWith({ confirmed: '1' });
+    spy.mockRestore();
+  });
+
+  it('forbids a developer from analysing another GitHub account', async () => {
+    signInDeveloper('dev-owner');
+    const spy = jest.spyOn(analysisAdapter, 'fetchAnalysis');
+
+    const tree = await openAnalysis('someone-else', true, 'none');
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(textOf(tree.toJSON())).toContain('Akses ditolak');
+    spy.mockRestore();
+  });
+
+  it('allows a recruiter to analyse a valid candidate after confirmation', async () => {
+    signInRecruiter();
+
+    const tree = await openAnalysis('angga-risky');
+
+    const text = textOf(tree.toJSON());
+    expect(text).toContain('Candidate evidence');
+    expect(text).toContain('Angga');
   });
 });
 
@@ -223,7 +347,7 @@ describe('Explore feed Analyze (FE-2)', () => {
 
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/explore/analysis',
-      params: { login: 'angga-risky' },
+      params: { login: 'angga-risky', confirmed: '1' },
     });
   });
 });

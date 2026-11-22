@@ -16,7 +16,8 @@ export type { AnalysisVM, AnalyzeRequest, Evidence };
  *  - `project` — the feed card that was tapped (mock adapters reuse it).
  *  - `person` — a Talent candidate tapped from Discover/Pipeline/Compare.
  *
- * `login: null` means "the octocat default" in mock mode (PRD §7.2 AC).
+ * Login kosong bukan target default: adapter menolaknya sampai route memilih
+ * kandidat dan user terautentikasi.
  */
 export type AnalysisTarget = {
   login: string | null;
@@ -24,14 +25,9 @@ export type AnalysisTarget = {
   project?: FeedItem | null;
 };
 
-/** Resolve the login the adapter will analyse (octocat when unset). */
+/** Resolve the login the adapter will analyse; string kosong = belum dipilih. */
 export function analysisLogin(target: AnalysisTarget): string {
-  return (
-    target.project?.developer.login ??
-    target.person?.login ??
-    target.login ??
-    'octocat'
-  );
+  return (target.project?.developer.login ?? target.person?.login ?? target.login ?? '').trim();
 }
 
 /** Stable cache key — one entry per developer. */

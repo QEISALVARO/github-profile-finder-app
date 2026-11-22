@@ -369,6 +369,13 @@ function scenarioError(login: string): AppError | null {
 /** Offline analysis; throws `AppError` for the failure scenarios. */
 export async function fetchAnalysis(target: AnalysisTarget): Promise<AnalysisVM> {
   const login = analysisLogin(target);
+  if (!login) {
+    throw {
+      code: 'VALIDATION',
+      message: 'Pilih kandidat terlebih dahulu.',
+      status: 400,
+    } satisfies AppError;
+  }
 
   const failure = scenarioError(login);
   if (failure) throw failure;

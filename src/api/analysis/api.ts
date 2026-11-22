@@ -15,6 +15,9 @@ import { analysisLogin, type AnalysisTarget } from './types';
 
 export async function fetchAnalysis(target: AnalysisTarget): Promise<AnalysisVM> {
   const login = analysisLogin(target);
+  if (!login) {
+    throw toAppError({ code: 'VALIDATION', message: 'Pilih kandidat terlebih dahulu.', status: 400 });
+  }
   const result = await analyzeDeveloper(login);
 
   if (result.error) throw toAppError(result.error);

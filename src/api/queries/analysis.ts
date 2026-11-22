@@ -30,20 +30,28 @@ export type AnalysisState = {
   refetch: () => void;
 };
 
-export function useAnalysis(login: string | null): AnalysisState {
-  const normalized = login?.trim() || 'octocat';
+export function useAnalysis(
+  login: string | null,
+  options: { enabled?: boolean } = {},
+): AnalysisState {
+  const normalized = login?.trim() || null;
+  const enabled = Boolean(normalized) && (options.enabled ?? true);
 
   const query = useQuery({
-    queryKey: queryKeys.analysis(normalized),
-    queryFn: (): Promise<AnalysisVM> => analysisAdapter.fetchAnalysis({ login: normalized }),
+    queryKey: queryKeys.analysis(normalized ?? '__none__'),
+    queryFn: (): Promise<AnalysisVM> =>
+      analysisAdapter.fetchAnalysis({ login: normalized as string }),
     staleTime: ANALYSIS_STALE_TIME,
     retry: shouldRetry,
+    // Tanpa kandidat terpilih tidak ada request — jangan pernah jatuh ke
+    // profil contoh yang bukan pilihan user.
+    enabled,
   });
 
   return {
     data: query.data ?? null,
     source: query.data?.source ?? null,
-    isLoading: query.isPending,
+    isLoading: query.isLoading,
     isStale: query.data?.source === 'stale',
     staleSince: query.data?.staleSince,
     error: query.error ? toAppError(query.error) : null,

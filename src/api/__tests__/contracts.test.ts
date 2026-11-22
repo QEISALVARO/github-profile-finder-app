@@ -122,7 +122,7 @@ describe('feed mock adapter → FeedPage', () => {
 
 describe('analysis mock adapter → AnalysisVM', () => {
   it('parses the default (octocat) VM against the contract', async () => {
-    const vm = await analysisAdapter.fetchAnalysis({ login: null });
+    const vm = await analysisAdapter.fetchAnalysis({ login: 'octocat' });
     expect(() => AnalysisVM.parse(vm)).not.toThrow();
     expect(vm.user.login).toBe('octocat');
     // PRD §7.2 AC: originalRatio 100, demoRatio 50, authenticity 73.
@@ -130,6 +130,13 @@ describe('analysis mock adapter → AnalysisVM', () => {
     expect(vm.metrics.demoRatio).toBe(50);
     expect(vm.authenticity).toBe(73);
     expect(vm.heatmap).toHaveLength(84);
+  });
+
+  it('rejects an empty login instead of analysing a default profile', async () => {
+    await expect(analysisAdapter.fetchAnalysis({ login: null })).rejects.toMatchObject({
+      code: 'VALIDATION',
+      status: 400,
+    });
   });
 
   it('describes the developer that was actually tapped (D1)', async () => {
@@ -302,7 +309,7 @@ describe('reports mock adapter', () => {
 describe('mode mock = tanpa jaringan', () => {
   it('never calls fetch while exercising every mock adapter', async () => {
     await feedAdapter.fetchPage(DEFAULT_FEED_FILTERS);
-    await analysisAdapter.fetchAnalysis({ login: null });
+    await analysisAdapter.fetchAnalysis({ login: 'octocat' });
     await talentAdapter.discover(DEFAULT_TALENT_FILTERS);
     await talentAdapter.pipeline();
     await getChatAdapter().conversations();

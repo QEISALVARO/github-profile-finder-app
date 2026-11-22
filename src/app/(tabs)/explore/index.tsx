@@ -49,7 +49,10 @@ export default function ExploreScreen() {
     async (item: FeedItem) => {
       const result = await analyze(item);
       if (!result.ok) return;
-      router.push({ pathname: '/explore/analysis', params: { login: item.developer.login } });
+      router.push({
+        pathname: '/explore/analysis',
+        params: { login: item.developer.login, confirmed: '1' },
+      });
     },
     [analyze, router],
   );
