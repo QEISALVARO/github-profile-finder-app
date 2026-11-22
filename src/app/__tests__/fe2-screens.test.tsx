@@ -10,7 +10,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
 
 import ExploreScreen from '../(tabs)/explore/index';
-import AnalysisScreen from '../(tabs)/explore/analysis';
+import AnalysisScreen from '../explore/analysis';
 
 jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
 

@@ -162,8 +162,10 @@ describe('RootLayout — guard navigasi', () => {
     expect(guards['connect-github']).toBe(false);
     expect(guards.onboarding).toBe(false);
     expect(guards['(tabs)']).toBe(false);
-    // Deep link OAuth tidak ikut di-guard.
+    // Deep link OAuth dan analysis tidak ikut di-guard; analysis memvalidasi
+    // sesi/kandidat sendiri lalu mengarahkan ke login.
     expect(guards['auth/callback']).toBeUndefined();
+    expect(guards['explore/analysis']).toBeUndefined();
   });
 
   it('does not force a Google recruiter without GitHub to link before onboarding', () => {

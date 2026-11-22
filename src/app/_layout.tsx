@@ -99,6 +99,11 @@ function RootNavigatorSlot() {
           tanpa token valid user hanya melihat pesan minta tautan baru. */}
       <Stack.Screen name="auth/update-password" />
 
+      {/* Analysis sengaja di luar guard tabs: deep link tanpa sesi harus bisa
+          mendarat di layar ini untuk diarahkan ke login dengan return URL,
+          bukan dipantulkan ke Welcome oleh guard root. */}
+      <Stack.Screen name="explore/analysis" />
+
       {/* Opsional: penautan GitHub untuk sesi yang sudah masuk. Tidak lagi
           menjadi gerbang onboarding — akun email/Google boleh mencari talent
           tanpa GitHub dan baru menautkannya saat fitur developer dibutuhkan. */}
