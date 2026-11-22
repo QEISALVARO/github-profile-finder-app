@@ -4,12 +4,15 @@
 // Every domain can be flipped independently through an EXPO_PUBLIC_ flag so
 // the backend integration can land domain by domain without touching the UI:
 //
-//   EXPO_PUBLIC_DS_AUTH=mock|api   (default: mock)
+//   EXPO_PUBLIC_DS_AUTH=mock|api   (default: mock di dev/test)
 //   EXPO_PUBLIC_DS_FEED=mock|api
 //   EXPO_PUBLIC_DS_ANALYSIS=mock|api
 //   EXPO_PUBLIC_DS_TALENT=mock|api
 //   EXPO_PUBLIC_DS_CHAT=mock|api
 //   EXPO_PUBLIC_DS_REPORTS=mock|api
+//
+// P0: production build tidak pernah memakai mock — lihat `getDataSource` dan
+// `isProductionBuild` di bawah.
 //
 // NOTE: Metro only inlines *static* `process.env.EXPO_PUBLIC_*` member reads,
 // so the values are collected in a literal record below instead of being read
@@ -48,18 +51,52 @@ export const DATA_SOURCE_ENV: Record<DomainKey, string> = {
 };
 
 /**
- * Resolve the adapter for one domain. Missing flag → `mock`; an unrecognised
- * value falls back to `mock` with a warning (never a crash) so a typo in the
- * env file cannot take the app down.
+ * Production build? `__DEV__` di-inline oleh Metro saat build (bukan flag yang
+ * bisa diubah user lewat UI), jadi aman dipakai sebagai gerbang kebijakan
+ * data-source. Fallback `NODE_ENV` menutup kasus non-RN (tools/CI).
+ */
+export function isProductionBuild(): boolean {
+  if (typeof __DEV__ !== 'undefined') return !__DEV__;
+  return process.env.NODE_ENV === 'production';
+}
+
+/**
+ * Resolve the adapter for one domain.
+ *
+ * Kebijakan P0 (anti data-mock menyesatkan):
+ *  - development/test: flag kosong/`mock`/tidak dikenal → `mock` (dengan
+ *    warning untuk nilai tidak dikenal), supaya unit test & demo tetap jalan.
+ *  - production: **tidak pernah** `mock`. Flag kosong/`mock`/tidak dikenal
+ *    dipaksa ke `api` — adapter `api` lalu melempar `MissingEnvironmentError`
+ *    (konfigurasi belum diisi) atau `apiNotReady` ("Fitur ini belum tersedia
+ *    di backend"), yaitu state jujur, bukan seed palsu.
  */
 export function getDataSource(domain: DomainKey): DataSource {
   const raw = (readFlags()[domain] ?? '').trim().toLowerCase();
-  if (raw === '' || raw === 'mock') return 'mock';
+  const env = DATA_SOURCE_ENV[domain];
+
   if (raw === 'api') return 'api';
 
-  console.warn(
-    `[dataSource] nilai tidak dikenal untuk ${DATA_SOURCE_ENV[domain]}: "${raw}" — memakai "mock".`,
-  );
+  if (raw === '' || raw === 'mock') {
+    if (isProductionBuild()) {
+      console.warn(
+        `[dataSource] ${env} tidak di-set "api" pada production build — ` +
+          'memakai adapter api (mock dilarang di production).',
+      );
+      return 'api';
+    }
+    return 'mock';
+  }
+
+  if (isProductionBuild()) {
+    console.warn(
+      `[dataSource] nilai tidak dikenal untuk ${env}: "${raw}" — memakai "api" ` +
+        '(production tanpa mock).',
+    );
+    return 'api';
+  }
+
+  console.warn(`[dataSource] nilai tidak dikenal untuk ${env}: "${raw}" — memakai "mock".`);
   return 'mock';
 }
 

@@ -5,13 +5,23 @@ import {
   AUTH_SETUP_MESSAGES,
   completeOAuthFromUrl,
   completeOAuthWithCode,
+  completePasswordRecoveryFromUrl,
+  friendlyEmailAuthError,
+  friendlyRecoveryError,
+  passwordRecoveryRedirectUrl,
   isOAuthCallbackUrl,
+  isPasswordRecoveryUrl,
   linkGitHubIdentity,
   mapSupabaseSession,
   probeAuthorizeUrl,
   resetOAuthExchangeCache,
+  resendSignupConfirmation,
+  resetPasswordForEmail,
+  signInWithEmail,
   signInWithGitHub,
   signInWithGoogle,
+  signUpWithEmail,
+  updatePassword,
 } from '@/lib/auth';
 import { getSupabase } from '@/lib/supabase';
 
@@ -29,7 +39,9 @@ const fetchMock = jest.fn();
 // melempar error sebelum skenario OAuth diuji. Deep link-nya sendiri sudah
 // didaftarkan di app.json (`scheme: "gitscope"`).
 jest.mock('expo-auth-session', () => ({
-  makeRedirectUri: jest.fn(() => 'gitscope://auth/callback'),
+  makeRedirectUri: jest.fn(({ path }: { path?: string } = {}) =>
+    path ? `gitscope://${path}` : 'gitscope://auth/callback',
+  ),
 }));
 
 type AuthStub = {
@@ -40,6 +52,11 @@ type AuthStub = {
     setSession: jest.Mock;
     getUser: jest.Mock;
     updateUser: jest.Mock;
+    signUp: jest.Mock;
+    signInWithPassword: jest.Mock;
+    resetPasswordForEmail: jest.Mock;
+    resend: jest.Mock;
+    signOut: jest.Mock;
   };
   rpc: jest.Mock;
 };
@@ -390,5 +407,172 @@ describe('linkGitHubIdentity', () => {
 
     expect(result.error).toBe(AUTH_SETUP_MESSAGES.manualLinking);
     expect(mockedOpenAuthSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('email auth', () => {
+  afterEach(() => jest.clearAllMocks());
+
+  it('maps invalid credentials to an actionable message', () => {
+    const mapped = friendlyEmailAuthError('Invalid login credentials', 'invalid_credentials');
+    expect(mapped.reason).toBe('invalid_credentials');
+    expect(mapped.message).toMatch(/Email atau password salah/i);
+  });
+
+  it('maps an unconfirmed email to the confirmation reason', () => {
+    const mapped = friendlyEmailAuthError('Email not confirmed', 'email_not_confirmed');
+    expect(mapped.reason).toBe('email_not_confirmed');
+    expect(mapped.message).toMatch(/belum dikonfirmasi/i);
+  });
+
+  it('signs up with email and reports the confirmation state without a session', async () => {
+    const supabase = await authStub();
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: 'u-1', email: 'rina@company.com' }, session: null },
+      error: null,
+    });
+
+    await expect(signUpWithEmail('rina@company.com', 'rahasia123')).resolves.toEqual({
+      error: null,
+      needsEmailConfirmation: true,
+    });
+    expect(supabase.auth.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'rina@company.com', password: 'rahasia123' }),
+    );
+  });
+
+  it('surfaces a duplicate email as already_registered', async () => {
+    const supabase = await authStub();
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { message: 'User already registered', code: 'user_already_exists' },
+    });
+
+    const result = await signUpWithEmail('rina@company.com', 'rahasia123');
+    expect(result.reason).toBe('email_taken');
+    expect(result.error).toMatch(/sudah terdaftar/i);
+  });
+
+  it('signs in with email and persists a mapped session without GitHub identity', async () => {
+    const supabase = await authStub();
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u-1',
+          email: 'rina@company.com',
+          app_metadata: { provider: 'email' },
+          user_metadata: { full_name: 'Rina' },
+        },
+        session: { access_token: 'token' },
+      },
+      error: null,
+    });
+
+    await expect(signInWithEmail('rina@company.com', 'rahasia123')).resolves.toEqual({
+      error: null,
+    });
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: 'rina@company.com',
+      password: 'rahasia123',
+    });
+  });
+
+  it('returns a configuration error instead of a fake email session', async () => {
+    (getSupabase as jest.Mock).mockRejectedValueOnce(
+      new MissingEnvironmentError(['EXPO_PUBLIC_SUPABASE_URL']),
+    );
+
+    const result = await signInWithEmail('rina@company.com', 'rahasia123');
+    expect(result.reason).toBe('not_configured');
+    expect(result.error).toMatch(/konfigurasi Supabase/i);
+  });
+
+  it('builds a dedicated recovery redirect, separate from OAuth callback', () => {
+    expect(passwordRecoveryRedirectUrl()).toBe('gitscope://auth/update-password');
+  });
+
+  it('sends reset and resend requests through Supabase Auth', async () => {
+    const supabase = await authStub();
+    supabase.auth.resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: null });
+    supabase.auth.resend.mockResolvedValueOnce({ data: {}, error: null });
+
+    await expect(resetPasswordForEmail('rina@company.com')).resolves.toEqual({ error: null });
+    await expect(resendSignupConfirmation('rina@company.com')).resolves.toEqual({ error: null });
+
+    expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+      'rina@company.com',
+      expect.objectContaining({ redirectTo: expect.stringContaining('auth/update-password') }),
+    );
+    expect(supabase.auth.resend).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'signup', email: 'rina@company.com' }),
+    );
+  });
+});
+
+describe('password recovery', () => {
+  beforeEach(() => {
+    resetOAuthExchangeCache();
+  });
+  afterEach(() => jest.clearAllMocks());
+
+  it('recognises the custom-scheme recovery deep link without type=recovery', () => {
+    expect(isPasswordRecoveryUrl('gitscope://auth/update-password?code=abc')).toBe(true);
+    expect(isPasswordRecoveryUrl('https://app.example.com/auth/update-password?code=abc')).toBe(true);
+    expect(isPasswordRecoveryUrl('gitscope://auth/callback?code=abc')).toBe(false);
+  });
+
+  it('maps expired and reused links to the same safe message', () => {
+    const expired = friendlyRecoveryError('Email link is invalid or has expired');
+    const reused = friendlyRecoveryError('invalid flow state, code already used');
+    expect(expired.reason).toBe('link_expired');
+    expect(reused.reason).toBe('link_expired');
+    expect(expired.message).toBe(reused.message);
+    expect(expired.message).toMatch(/kedaluwarsa atau pernah dipakai/i);
+  });
+
+  it('maps a missing recovery session without leaking token details', () => {
+    const mapped = friendlyRecoveryError('Auth session missing!');
+    expect(mapped.reason).toBe('session_expired');
+    expect(mapped.message).toMatch(/Sesi reset tidak valid/);
+    expect(mapped.message).not.toMatch(/eyJ|access_token|refresh_token/i);
+  });
+
+  it('exchanges a PKCE recovery code through the existing OAuth callback helper', async () => {
+    const supabase = await authStub();
+    supabase.auth.exchangeCodeForSession.mockResolvedValueOnce({ data: {}, error: null });
+
+    await expect(
+      completePasswordRecoveryFromUrl('gitscope://auth/update-password?code=recovery-code'),
+    ).resolves.toEqual({ error: null });
+    expect(supabase.auth.exchangeCodeForSession).toHaveBeenCalledWith('recovery-code', undefined);
+  });
+
+  it('rejects a recovery deep link without a token', async () => {
+    const result = await completePasswordRecoveryFromUrl(
+      'gitscope://auth/update-password?type=recovery',
+    );
+    expect(result.error).toMatch(/tidak valid atau tidak membawa token/i);
+  });
+
+  it('returns the Supabase update error instead of success', async () => {
+    const supabase = await authStub();
+    supabase.auth.updateUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: 'Auth session missing!', code: 'session_not_found' },
+    });
+
+    await expect(updatePassword('rahasia-baru-123')).resolves.toEqual({
+      error: 'Sesi reset tidak valid atau sudah berakhir. Minta tautan reset baru.',
+      reason: 'session_expired',
+    });
+    expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'rahasia-baru-123' });
+  });
+
+  it('updates the password through Supabase Auth', async () => {
+    const supabase = await authStub();
+    supabase.auth.updateUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+
+    await expect(updatePassword('rahasia-baru-123')).resolves.toEqual({ error: null });
+    expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'rahasia-baru-123' });
   });
 });

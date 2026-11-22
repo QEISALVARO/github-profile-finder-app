@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { API_NOT_READY_MESSAGE } from '@/api/errors';
 import { PageContainer } from '@/components/PageContainer';
 import { Chip } from '@/components/ui/Chip';
 import { T } from '@/components/ui/T';
@@ -8,8 +9,8 @@ import { hitSlopFor } from '@/components/ui/hit-slop';
 import { useTheme } from '@/theme/useTheme';
 
 /**
- * Placeholder screen used by M0 for all four tabs (Gate M0: "4 tab kosong
- * dengan judul placeholder"). Feature milestones replace these bodies.
+ * Layar domain yang backend-nya belum tersedia. Tidak menampilkan data seed
+ * seolah-olah kandidat/pesan nyata; hanya menjelaskan fitur belum aktif.
  * In development it also links to the internal /dev design-system showcase.
  */
 export function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
@@ -25,8 +26,11 @@ export function PlaceholderScreen({ title, subtitle }: { title: string; subtitle
           {subtitle}
         </T>
         <Chip variant="soft" style={styles.chip}>
-          M0 · PLACEHOLDER
+          BELUM TERSEDIA
         </Chip>
+        <T size={10} color="muted" lh={1.6} style={styles.subtitle}>
+          {API_NOT_READY_MESSAGE}
+        </T>
 
         {__DEV__ ? (
           <Link href="/dev" asChild>

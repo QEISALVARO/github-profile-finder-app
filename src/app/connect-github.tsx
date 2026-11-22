@@ -10,12 +10,13 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useTheme } from '@/theme/useTheme';
 
 /**
- * Gerbang sebelum onboarding — akun Google wajib menautkan GitHub dulu.
+ * Penautan GitHub opsional untuk sesi yang sudah masuk (akun email/Google).
  *
- * Route ini hanya tersedia selama `session !== null && !onboarded && githubId
- * === 0` (lihat src/app/_layout.tsx), jadi user GitHub langsung tidak pernah
- * melihatnya. Penautan memakai Supabase `linkIdentity()` (manual linking);
- * identitas GitHub yang sudah diverifikasi server disalin ke profiles lewat RPC
+ * Route ini tersedia selama `session !== null` dan TIDAK lagi menjadi gerbang
+ * onboarding: recruiter tanpa GitHub boleh mencari talent. Penautan dipakai
+ * saat fitur developer membutuhkan identitas GitHub (mis. listing).
+ * Penautan memakai Supabase `linkIdentity()` (manual linking); identitas
+ * GitHub yang sudah diverifikasi server disalin ke profiles lewat RPC
  * `connect_github_identity`, sehingga login GitHub tidak bisa dipalsukan klien.
  */
 export default function ConnectGitHubScreen() {
@@ -38,10 +39,8 @@ export default function ConnectGitHubScreen() {
         return;
       }
 
-      // Perbarui sesi lokal supaya guard root membuka onboarding tanpa menunggu
-      // event auth berikutnya (metadata sudah ikut diperbarui di lib/auth).
-      // Sengaja tidak `router.replace('/onboarding')`: route itu baru terdaftar
-      // setelah guard mengevaluasi ulang sesi, jadi guard yang memindahkan.
+      // Perbarui sesi lokal tanpa menunggu event auth berikutnya (metadata
+      // sudah ikut diperbarui di lib/auth), lalu kembali ke alur yang sesuai.
       const current = useAuthStore.getState().session;
       if (current) {
         signIn({
@@ -53,6 +52,7 @@ export default function ConnectGitHubScreen() {
           provider: current.provider ?? 'google',
         });
       }
+      router.replace(useAuthStore.getState().onboarded ? '/profile' : '/onboarding');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Penautan GitHub gagal. Coba lagi.');
     } finally {
@@ -91,9 +91,9 @@ export default function ConnectGitHubScreen() {
             Hubungkan GitHub Anda.
           </T>
           <T size={13} color="muted" lh={1.6} style={styles.lede}>
-            Akun Google Anda sudah masuk{session?.name ? ` sebagai ${session.name}` : ''}, tetapi
-            Gitscope membaca karya dan kontribusi dari GitHub. Tautkan akun GitHub dulu sebelum
-            mengisi profil.
+            Anda sudah masuk{session?.name ? ` sebagai ${session.name}` : ''}. Menautkan GitHub
+            membuka fitur developer yang membutuhkan identitas GitHub (mis. tampil di Feed).
+            Mencari talent sebagai recruiter tetap bisa dilakukan tanpa GitHub.
           </T>
 
           <Pressable

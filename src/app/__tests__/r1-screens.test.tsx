@@ -2,7 +2,11 @@ import mockAsyncStorage from '@react-native-async-storage/async-storage/jest/asy
 import type { ReactElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
-import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
+import {
+  GITHUB_REQUIRED_LISTING_MESSAGE,
+  useAuthStore,
+  type AuthSession,
+} from '@/store/useAuthStore';
 
 import WelcomeScreen from '../welcome';
 import ConnectGitHubScreen from '../connect-github';
@@ -147,6 +151,33 @@ describe('R1 screens render', () => {
     expect(text).toContain('KETERSEDIAAN');
   });
 
+  it('disables developer listing and explains GitHub is required for email accounts', () => {
+    const store = useAuthStore.getState();
+    store.signIn({
+      login: 'user-abc123',
+      name: 'Rina',
+      avatarUrl: '',
+      githubId: 0,
+      bio: null,
+      locationText: null,
+      provider: 'email',
+      email: 'rina@company.com',
+    });
+    store.setRoles(['developer']);
+    store.setResidence({ countryCode: 'ID' });
+
+    const tree = render(<OnboardingScreen />);
+    press(tree, 'Lanjut');
+
+    expect(textOf(tree.toJSON())).toContain(GITHUB_REQUIRED_LISTING_MESSAGE);
+    const toggle = tree.root.find(
+      (n) =>
+        n.props.accessibilityLabel === 'Tampil di Feed dan Discover' &&
+        typeof n.props.onValueChange === 'function',
+    );
+    expect(toggle.props.disabled).toBe(true);
+  });
+
   it('blocks Continue on an empty role selection', () => {
     useAuthStore.getState().signIn(SESSION);
     const tree = render(<OnboardingScreen />);
@@ -162,12 +193,13 @@ describe('R1 screens render', () => {
     const tree = render(<ProfileScreen />);
     const text = textOf(tree.toJSON());
     expect(text).toContain('Octo Cat');
-    expect(text).toContain('@octocat · GitHub connected');
+    expect(text).toContain('@octocat · GitHub terhubung');
     expect(text).toContain('DEVELOPER · RECRUITER');
-    expect(text).toContain('GitHub API connected');
+    expect(text).toContain('GitHub terhubung');
     expect(text).toContain('Reports');
-    expect(text).toContain('Shortlisted');
+    expect(text).toContain('Shortlisted (lokal)');
     expect(text).toContain('Interviews');
+    expect(text).toContain('REPORTS & INTERVIEWS BELUM TERSEDIA DI BACKEND');
     expect(text).toContain('Skor adalah sinyal bantu');
   });
 

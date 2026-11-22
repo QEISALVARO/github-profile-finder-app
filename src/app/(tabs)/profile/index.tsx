@@ -9,7 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Switch } from '@/components/ui/Switch';
 import { T } from '@/components/ui/T';
 import { useAppStore } from '@/store/useAppStore';
-import { summarizeRoles, useAuthStore } from '@/store/useAuthStore';
+import { isGitHubConnected, summarizeRoles, useAuthStore } from '@/store/useAuthStore';
 import { withAlpha } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
@@ -39,6 +39,12 @@ export default function ProfileScreen() {
         : '{ developer_mode: true }';
 
   const isDark = themeMode === 'dark';
+  const githubConnected = isGitHubConnected(session);
+  const accountLine = githubConnected
+    ? `@${session.login} · GitHub terhubung`
+    : session.email
+      ? `${session.email} · GitHub belum terhubung`
+      : 'Akun email · GitHub belum terhubung';
 
   return (
     <PageContainer paddingTop={8}>
@@ -93,7 +99,7 @@ export default function ProfileScreen() {
           {session.name || session.login}
         </T>
         <T size={9} color="muted">
-          @{session.login} · GitHub connected
+          {accountLine}
         </T>
       </View>
 
@@ -101,7 +107,7 @@ export default function ProfileScreen() {
       <View style={[styles.stats, { borderTopColor: theme.colors.line, borderBottomColor: theme.colors.line }]}>
         <View style={[styles.statCell, styles.statDivider, { borderRightColor: theme.colors.line }]}>
           <T size={16} weight="700">
-            0
+            —
           </T>
           <T size={8} color="muted" style={styles.statLabel}>
             Reports
@@ -110,18 +116,21 @@ export default function ProfileScreen() {
         <View style={[styles.statCell, styles.statDivider, { borderRightColor: theme.colors.line }]}>
           <T size={16} weight="700">{savedUsernames.length}</T>
           <T size={8} color="muted" style={styles.statLabel}>
-            Shortlisted
+            Shortlisted (lokal)
           </T>
         </View>
         <View style={styles.statCell}>
           <T size={16} weight="700">
-            0
+            —
           </T>
           <T size={8} color="muted" style={styles.statLabel}>
             Interviews
           </T>
         </View>
       </View>
+      <T size={7} mono color="muted" ls={0.6} style={styles.statsNote}>
+        REPORTS & INTERVIEWS BELUM TERSEDIA DI BACKEND
+      </T>
 
       {/* Section title */}
       <View style={styles.sectionTitle}>
@@ -177,24 +186,50 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
-      {/* GitHub connect card */}
-      <View style={[styles.githubCard, { backgroundColor: theme.colors.ink }]}>
-        <Icon name="github" size={27} color={theme.colors.surface} />
-        <View style={styles.githubCopy}>
-          <T size={10} weight="700" color="surface">
-            GitHub API connected
-          </T>
-          <T size={8} color="githubCardMuted" style={styles.githubSub}>
-            @{session.login} · scope read:user (tanpa email)
-          </T>
+      {/* GitHub connect card — jujur soal status koneksi */}
+      {githubConnected ? (
+        <View style={[styles.githubCard, { backgroundColor: theme.colors.ink }]}>
+          <Icon name="github" size={27} color={theme.colors.surface} />
+          <View style={styles.githubCopy}>
+            <T size={10} weight="700" color="surface">
+              GitHub terhubung
+            </T>
+            <T size={8} color="githubCardMuted" style={styles.githubSub}>
+              @{session.login} · scope read:user (tanpa email)
+            </T>
+          </View>
+          <View style={[styles.activePill, { backgroundColor: theme.colors.connectedPillBg }]}>
+            <View style={[styles.activeDot, { backgroundColor: theme.colors.accent }]} />
+            <T size={6} mono color="accent">
+              ACTIVE
+            </T>
+          </View>
         </View>
-        <View style={[styles.activePill, { backgroundColor: theme.colors.connectedPillBg }]}>
-          <View style={[styles.activeDot, { backgroundColor: theme.colors.accent }]} />
-          <T size={6} mono color="accent">
-            ACTIVE
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Hubungkan GitHub"
+          android_ripple={{ color: 'transparent' }}
+          onPress={() => router.push('/connect-github')}
+          style={({ pressed }) => [
+            styles.githubCard,
+            { backgroundColor: theme.colors.ink },
+            pressed && styles.pressed,
+          ]}>
+          <Icon name="github" size={27} color={theme.colors.surface} />
+          <View style={styles.githubCopy}>
+            <T size={10} weight="700" color="surface">
+              GitHub belum terhubung
+            </T>
+            <T size={8} color="githubCardMuted" style={styles.githubSub}>
+              Opsional — hanya untuk fitur developer (mis. tampil di Feed).
+            </T>
+          </View>
+          <T size={8} mono color="accent">
+            HUBUNGKAN
           </T>
-        </View>
-      </View>
+        </Pressable>
+      )}
 
       {/* Trust note — penafian skor (AIR-1, AIR-2) */}
       <View style={[styles.trust, { borderColor: theme.colors.line }]}>
@@ -211,7 +246,7 @@ export default function ProfileScreen() {
       </View>
 
       <T size={7} mono color="muted" ls={1} style={styles.version}>
-        GITSCOPE v{APP_VERSION} · DATA PUBLIK GITHUB
+        GITSCOPE v{APP_VERSION} · {githubConnected ? 'DATA PUBLIK GITHUB' : 'AKUN EMAIL'}
       </T>
     </PageContainer>
   );
@@ -272,6 +307,11 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     marginTop: 3,
+  },
+  statsNote: {
+    marginTop: -18,
+    marginBottom: 22,
+    textAlign: 'center',
   },
   sectionTitle: {
     marginBottom: 11,

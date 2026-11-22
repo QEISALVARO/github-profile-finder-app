@@ -83,6 +83,15 @@ const GOOGLE_SESSION: AuthSession = {
   provider: 'google',
 };
 
+const EMAIL_SESSION: AuthSession = {
+  ...GITHUB_SESSION,
+  login: 'user-abc123',
+  name: 'Rina Recruiter',
+  githubId: 0,
+  provider: 'email',
+  email: 'rina@company.com',
+};
+
 type GuardMap = Record<string, boolean | undefined>;
 
 /** Peta nama screen → nilai `guard` milik Stack.Protected pembungkusnya. */
@@ -131,10 +140,11 @@ afterEach(() => {
 });
 
 /**
- * Guard root (R1) menentukan route mana yang hidup pada satu waktu: tamu →
- * Welcome, sesi Google tanpa GitHub → connect-github, sesi dengan GitHub →
- * onboarding, dan setelah onboarding → tabs. Callback deep link harus selalu
- * terdaftar karena app bisa dibuka dingin lewat link itu.
+ * Guard root menentukan route mana yang hidup pada satu waktu: tamu →
+ * Welcome, sesi mana pun yang belum onboarded → onboarding (GitHub tidak lagi
+ * menjadi gerbang), setelah onboarding → tabs, dan connect-github selalu
+ * tersedia untuk sesi aktif sebagai penautan opsional. Callback deep link harus
+ * selalu terdaftar karena app bisa dibuka dingin lewat link itu.
  */
 describe('RootLayout — guard navigasi', () => {
   it('renders nothing until the persisted auth state is rehydrated', () => {
@@ -156,15 +166,41 @@ describe('RootLayout — guard navigasi', () => {
     expect(guards['auth/callback']).toBeUndefined();
   });
 
-  it('keeps a Google account without GitHub on the link gate', () => {
+  it('does not force a Google recruiter without GitHub to link before onboarding', () => {
     useAuthStore.getState().signIn(GOOGLE_SESSION);
 
     const guards = guardsOf(renderLayout());
 
-    expect(guards['connect-github']).toBe(true);
+    expect(guards.onboarding).toBe(true);
     expect(guards.welcome).toBe(false);
-    expect(guards.onboarding).toBe(false);
     expect(guards['(tabs)']).toBe(false);
+    // Route penautan tetap tersedia, tetapi tidak menggantikan onboarding.
+    expect(guards['connect-github']).toBe(true);
+  });
+
+  it('sends an email recruiter without GitHub to onboarding', () => {
+    useAuthStore.getState().signIn(EMAIL_SESSION);
+
+    const guards = guardsOf(renderLayout());
+
+    expect(guards.onboarding).toBe(true);
+    expect(guards.welcome).toBe(false);
+    expect(guards['(tabs)']).toBe(false);
+    expect(guards['connect-github']).toBe(true);
+  });
+
+  it('opens the tabs for an onboarded email recruiter', () => {
+    const store = useAuthStore.getState();
+    store.signIn(EMAIL_SESSION);
+    store.setRoles(['recruiter']);
+    store.completeOnboarding();
+
+    const guards = guardsOf(renderLayout());
+
+    expect(guards['(tabs)']).toBe(true);
+    expect(guards.onboarding).toBe(false);
+    expect(guards.welcome).toBe(false);
+    expect(guards['connect-github']).toBe(true);
   });
 
   it('opens onboarding for a GitHub account that is not onboarded yet', () => {
@@ -173,7 +209,7 @@ describe('RootLayout — guard navigasi', () => {
     const guards = guardsOf(renderLayout());
 
     expect(guards.onboarding).toBe(true);
-    expect(guards['connect-github']).toBe(false);
+    expect(guards['connect-github']).toBe(true);
     expect(guards['(tabs)']).toBe(false);
     expect(guards.welcome).toBe(false);
   });
@@ -189,21 +225,20 @@ describe('RootLayout — guard navigasi', () => {
     expect(guards['(tabs)']).toBe(true);
     expect(guards.dev).toBe(true);
     expect(guards.onboarding).toBe(false);
-    expect(guards['connect-github']).toBe(false);
+    expect(guards['connect-github']).toBe(true);
     expect(guards.welcome).toBe(false);
   });
 
-  it('re-evaluates the gate as soon as GitHub gets linked', () => {
+  it('keeps onboarding open when GitHub gets linked before onboarding', () => {
     useAuthStore.getState().signIn(GOOGLE_SESSION);
     const target = renderLayout();
-    expect(guardsOf(target)['connect-github']).toBe(true);
 
     act(() => {
       useAuthStore.getState().signIn({ ...GOOGLE_SESSION, login: 'octocat', githubId: 583231 });
     });
 
     const guards = guardsOf(target);
-    expect(guards['connect-github']).toBe(false);
     expect(guards.onboarding).toBe(true);
+    expect(guards['connect-github']).toBe(true);
   });
 });

@@ -18,6 +18,7 @@ import { getSupabase } from '@/lib/supabase';
 WebBrowser.maybeCompleteAuthSession();
 
 const AUTH_CALLBACK_PATH = 'auth/callback';
+const UPDATE_PASSWORD_PATH = 'auth/update-password';
 
 /**
  * Deep link yang didaftarkan di app.json scheme + Supabase redirect allowlist.
@@ -28,6 +29,29 @@ export function authCallbackUrl(): string {
   const override = (process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL ?? '').trim();
   if (override.length > 0) return override;
   return makeRedirectUri({ path: AUTH_CALLBACK_PATH });
+}
+
+/**
+ * Tautan reset password sengaja kembali ke route khusus, bukan ke callback
+ * login. Dengan begitu aplikasi tahu konteks recovery dari URL dan tidak
+ * pernah membuka tabs sebelum password baru disimpan.
+ */
+export function passwordRecoveryRedirectUrl(): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `${window.location.origin}/${UPDATE_PASSWORD_PATH}`;
+  }
+
+  const override = (process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL ?? '').trim();
+  if (override.length > 0) {
+    // Dev build/Expo Go memakai override agar tetap di allowlist Supabase.
+    // Ganti path callback dengan path recovery tanpa menyentuh host/scheme.
+    if (override.includes(AUTH_CALLBACK_PATH)) {
+      return override.replace(AUTH_CALLBACK_PATH, UPDATE_PASSWORD_PATH);
+    }
+    return override;
+  }
+
+  return makeRedirectUri({ path: UPDATE_PASSWORD_PATH });
 }
 
 /**
@@ -86,12 +110,48 @@ export type SupabaseAuthSession = {
   login: string;
   name: string;
   avatarUrl: string;
+  /** 0 = tidak ada identitas GitHub tertaut (akun email / Google murni). */
   githubId: number;
   bio: string | null;
   locationText: string | null;
-  /** Metode login: GitHub langsung, atau Google (GitHub ditautkan setelahnya). */
-  provider?: 'github' | 'google';
+  /**
+   * Metode login: GitHub langsung, Google, atau email/password.
+   * Akun email TIDAK pernah diberi identitas GitHub palsu.
+   */
+  provider?: 'github' | 'google' | 'email';
+  /** Label lokal untuk akun email (tidak pernah dikirim ke tabel publik). */
+  email?: string | null;
 };
+
+/** Hasil operasi email/password + kode yang bisa ditindaklanjuti layar. */
+export type EmailAuthReason =
+  | 'not_configured'
+  | 'email_not_confirmed'
+  | 'invalid_credentials'
+  | 'email_taken'
+  | 'weak_password'
+  | 'rate_limited'
+  | 'signup_disabled'
+  | 'failed';
+
+export interface EmailAuthResult {
+  error: string | null;
+  reason?: EmailAuthReason;
+  /** true bila Supabase meminta konfirmasi email sebelum sesi dibuat. */
+  needsEmailConfirmation?: boolean;
+}
+
+export type PasswordUpdateReason =
+  | 'not_configured'
+  | 'weak_password'
+  | 'session_expired'
+  | 'link_expired'
+  | 'failed';
+
+export interface PasswordUpdateResult {
+  error: string | null;
+  reason?: PasswordUpdateReason;
+}
 
 type SessionLike = {
   user: {
@@ -107,14 +167,17 @@ type SessionLike = {
  *
  * - GitHub (atau Google yang sudah menautkan GitHub): `githubId > 0`, profil
  *   bisa langsung dipakai.
- * - Google tanpa GitHub: sesi tetap dikembalikan dengan `githubId: 0` supaya
- *   root layout bisa menahan user di gerbang "Hubungkan GitHub".
- * - Sesi lain (mis. email lama): `null`.
+ * - Google tanpa GitHub: sesi tetap dikembalikan dengan `githubId: 0`.
+ * - Email/password: sesi dengan `githubId: 0`, `provider: 'email'`, dan login
+ *   placeholder — bukan identitas GitHub dan bukan local-part email.
+ * - Provider lain: `null`.
  */
 export function mapSupabaseSession(session: SessionLike): SupabaseAuthSession | null {
   const meta = session.user.user_metadata ?? {};
   const appMeta = session.user.app_metadata ?? {};
-  const isGoogle = appMeta.provider === 'google';
+  const provider = typeof appMeta.provider === 'string' ? appMeta.provider : null;
+  const isEmail = provider === 'email' || provider === 'password';
+  const isGoogle = provider === 'google';
 
   const githubLogin =
     typeof meta.user_name === 'string' && meta.user_name.length > 0
@@ -150,11 +213,39 @@ export function mapSupabaseSession(session: SessionLike): SupabaseAuthSession | 
     };
   }
 
+  const email = typeof session.user.email === 'string' ? session.user.email : null;
+
+  // Email/password — tidak ada identitas GitHub. `login` mengikuti placeholder
+  // trigger database ('user-' + 6 karakter id) supaya UI tidak pernah menyiratkan
+  // bahwa local-part email adalah username GitHub.
+  if (isEmail) {
+    const idText = String(session.user.id ?? '');
+    const suffix = idText.replace(/-/g, '').slice(0, 6) || 'email';
+    const name =
+      (typeof meta.full_name === 'string' && meta.full_name.length > 0 && meta.full_name) ||
+      (typeof meta.name === 'string' && meta.name.length > 0 && meta.name) ||
+      'Akun email';
+    return {
+      login: `user-${suffix}`,
+      name,
+      avatarUrl:
+        typeof meta.avatar_url === 'string'
+          ? meta.avatar_url
+          : typeof meta.picture === 'string'
+            ? meta.picture
+            : '',
+      githubId: 0,
+      bio: typeof meta.bio === 'string' ? meta.bio : null,
+      locationText: null,
+      provider: 'email',
+      email,
+    };
+  }
+
   if (!isGoogle) return null;
 
   // Akun Google sebelum penautan. Email hanya dipakai sebagai label lokal
   // (bukan dikirim ke database — POL-2).
-  const email = typeof session.user.email === 'string' ? session.user.email : null;
   const localPart = email ? email.split('@')[0] : '';
   const login = localPart.length > 0 ? localPart : 'user';
   const name =
@@ -176,6 +267,7 @@ export function mapSupabaseSession(session: SessionLike): SupabaseAuthSession | 
     bio: typeof meta.bio === 'string' ? meta.bio : null,
     locationText: null,
     provider: 'google',
+    email,
   };
 }
 
@@ -235,6 +327,112 @@ function toAuthError(error: unknown): string {
       ? error.message
       : 'Login GitHub gagal. Coba lagi.',
   );
+}
+
+/**
+ * Alamat balik untuk tautan email (konfirmasi / reset password). Web memakai
+ * origin halaman supaya Supabase bisa mengembalikan user ke aplikasi web;
+ * native memakai deep link `gitscope://auth/callback`.
+ */
+function emailRedirectUrl(): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') return window.location.origin;
+  return authCallbackUrl();
+}
+
+/**
+ * Supabase mengirim pesan teknis berbahasa Inggris. Terjemahkan yang punya
+ * aksi jelas; sisanya dikembalikan apa adanya agar tidak menyesatkan.
+ */
+export function friendlyEmailAuthError(
+  message: string,
+  code?: string,
+): { message: string; reason: EmailAuthReason } {
+  const lower = `${code ?? ''} ${message}`.toLowerCase();
+
+  if (
+    lower.includes('missing environment') ||
+    lower.includes('environment variable') ||
+    lower.includes('expo_public_')
+  ) {
+    return {
+      message:
+        'Build ini belum membawa konfigurasi Supabase (EXPO_PUBLIC_*). ' +
+        'Login email/password tidak bisa dipakai sebelum env diisi.',
+      reason: 'not_configured',
+    };
+  }
+  if (lower.includes('email_not_confirmed') || lower.includes('email not confirmed')) {
+    return {
+      message: 'Email belum dikonfirmasi. Buka tautan di kotak masuk, atau kirim ulang konfirmasi.',
+      reason: 'email_not_confirmed',
+    };
+  }
+  if (lower.includes('invalid_credentials') || lower.includes('invalid login credentials')) {
+    return { message: 'Email atau password salah.', reason: 'invalid_credentials' };
+  }
+  if (
+    lower.includes('user_already_exists') ||
+    lower.includes('already registered') ||
+    lower.includes('already been registered')
+  ) {
+    return {
+      message: 'Email ini sudah terdaftar. Masuk atau gunakan lupa password.',
+      reason: 'email_taken',
+    };
+  }
+  if (
+    lower.includes('weak_password') ||
+    lower.includes('password should be') ||
+    lower.includes('password is too short')
+  ) {
+    return { message: 'Password minimal 8 karakter.', reason: 'weak_password' };
+  }
+  if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    return {
+      message: 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.',
+      reason: 'rate_limited',
+    };
+  }
+  if (
+    lower.includes('signups not allowed') ||
+    lower.includes('signup is disabled') ||
+    lower.includes('email signups are disabled')
+  ) {
+    return {
+      message: 'Pendaftaran email belum diaktifkan di project Supabase.',
+      reason: 'signup_disabled',
+    };
+  }
+  if (lower.includes('unable to validate email') || lower.includes('invalid email')) {
+    return { message: 'Format email tidak valid.', reason: 'failed' };
+  }
+  if (lower.includes('database error saving new user')) {
+    return {
+      message: 'Pendaftaran gagal dibuat di server. Coba lagi beberapa saat lagi.',
+      reason: 'failed',
+    };
+  }
+
+  return {
+    message: message.length > 0 ? friendlyAuthError(message) : 'Permintaan gagal. Coba lagi.',
+    reason: 'failed',
+  };
+}
+
+function emailFailure(error: unknown): EmailAuthResult {
+  if (error instanceof MissingEnvironmentError) {
+    return { error: friendlyEmailAuthError(error.message).message, reason: 'not_configured' };
+  }
+  if (typeof error === 'object' && error !== null) {
+    const record = error as { message?: unknown; code?: unknown };
+    const message = typeof record.message === 'string' ? record.message : '';
+    const code = typeof record.code === 'string' ? record.code : undefined;
+    if (message.length > 0) {
+      const mapped = friendlyEmailAuthError(message, code);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+  }
+  return { error: 'Permintaan gagal. Coba lagi.', reason: 'failed' };
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +672,238 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
       error: toAuthError(error),
       reason: error instanceof MissingEnvironmentError ? 'not_configured' : 'oauth_failed',
     };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Email/password (P0 — recruiter tanpa akun GitHub)
+//
+// Akun email sengaja TIDAK diberi `githubId`, login GitHub, atau avatar GitHub.
+// Identitas GitHub hanya ditambahkan lewat `linkGitHubIdentity()` bila user
+// sendiri membutuhkannya untuk fitur developer.
+// ---------------------------------------------------------------------------
+
+/** Daftar akun email. Konfirmasi email mengikuti setelan Supabase project. */
+export async function signUpWithEmail(email: string, password: string): Promise<EmailAuthResult> {
+  try {
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: emailRedirectUrl() },
+    });
+
+    if (error) {
+      const mapped = friendlyEmailAuthError(error.message, error.code);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+
+    // Konfirmasi email aktif → Supabase membuat user tetapi belum sesi.
+    return {
+      error: null,
+      needsEmailConfirmation: Boolean(data.user) && !data.session,
+    };
+  } catch (error) {
+    return emailFailure(error);
+  }
+}
+
+/** Masuk dengan email/password. Sesi dipetakan oleh adapter/store. */
+export async function signInWithEmail(
+  email: string,
+  password: string,
+): Promise<EmailAuthResult> {
+  try {
+    const supabase = await getSupabase();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) {
+      const mapped = friendlyEmailAuthError(error.message, error.code);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+    return { error: null };
+  } catch (error) {
+    return emailFailure(error);
+  }
+}
+
+/** Kirim tautan reset password ke email yang terdaftar. */
+export async function resetPasswordForEmail(email: string): Promise<EmailAuthResult> {
+  try {
+    const supabase = await getSupabase();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      // Route khusus recovery: URL ini yang memberi tahu app bahwa user sedang
+      // mengganti password, bukan sekadar login biasa.
+      redirectTo: passwordRecoveryRedirectUrl(),
+    });
+    if (error) {
+      const mapped = friendlyEmailAuthError(error.message, error.code);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+    return { error: null };
+  } catch (error) {
+    return emailFailure(error);
+  }
+}
+
+/** Kirim ulang email konfirmasi pendaftaran (bila konfirmasi aktif). */
+export async function resendSignupConfirmation(email: string): Promise<EmailAuthResult> {
+  try {
+    const supabase = await getSupabase();
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: { emailRedirectTo: emailRedirectUrl() },
+    });
+    if (error) {
+      const mapped = friendlyEmailAuthError(error.message, error.code);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+    return { error: null };
+  } catch (error) {
+    return emailFailure(error);
+  }
+}
+
+/**
+ * Pesan recovery tidak boleh membocorkan token/URL mentah. Bedakan tautan
+ * kedaluwarsa/sudah dipakai dari sesi yang hilang dan gangguan jaringan.
+ */
+export function friendlyRecoveryError(message: string): {
+  message: string;
+  reason: PasswordUpdateReason;
+} {
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes('missing environment') ||
+    lower.includes('environment variable') ||
+    lower.includes('expo_public_')
+  ) {
+    return {
+      message:
+        'Build ini belum membawa konfigurasi Supabase (EXPO_PUBLIC_*). ' +
+        'Reset password tidak bisa dipakai sebelum env diisi.',
+      reason: 'not_configured',
+    };
+  }
+  if (
+    lower.includes('expired') ||
+    lower.includes('otp_expired') ||
+    lower.includes('token has expired') ||
+    lower.includes('already used') ||
+    lower.includes('already been used') ||
+    lower.includes('invalid flow state') ||
+    lower.includes('code challenge')
+  ) {
+    return {
+      message: 'Tautan reset sudah kedaluwarsa atau pernah dipakai. Minta tautan baru.',
+      reason: 'link_expired',
+    };
+  }
+  if (
+    lower.includes('auth session missing') ||
+    lower.includes('session_not_found') ||
+    lower.includes('session not found') ||
+    lower.includes('invalid jwt') ||
+    lower.includes('refresh token')
+  ) {
+    return {
+      message: 'Sesi reset tidak valid atau sudah berakhir. Minta tautan reset baru.',
+      reason: 'session_expired',
+    };
+  }
+  if (
+    lower.includes('weak_password') ||
+    lower.includes('password should be') ||
+    lower.includes('password is too short')
+  ) {
+    return { message: 'Password minimal 8 karakter.', reason: 'weak_password' };
+  }
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('network request failed') ||
+    lower.includes('networkerror') ||
+    lower.includes('timeout')
+  ) {
+    return {
+      message: 'Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.',
+      reason: 'failed',
+    };
+  }
+  if (lower.includes('new password should be different')) {
+    return {
+      message: 'Password baru harus berbeda dari password sebelumnya.',
+      reason: 'weak_password',
+    };
+  }
+
+  return {
+    message: friendlyAuthError(message),
+    reason: 'failed',
+  };
+}
+
+/** Apakah URL ini adalah deep link recovery (route atau `type=recovery`). */
+export function isPasswordRecoveryUrl(url: string): boolean {
+  const { params } = QueryParams.getQueryParams(url);
+  if (params.type === 'recovery') return true;
+  // Custom scheme (`gitscope://auth/update-password`) menaruh "auth" sebagai
+  // host, sehingga pathname hanya `/update-password`; cocokkan juga URL utuh.
+  if (url.includes(UPDATE_PASSWORD_PATH)) return true;
+  try {
+    return new URL(url).pathname.includes(UPDATE_PASSWORD_PATH);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Selesaikan tautan recovery: tukar code PKCE / token implicit, lalu biarkan
+ * layar `/auth/update-password` meminta password baru. Token hanya hidup di
+ * URL selama proses ini; fungsi tidak menyalinnya ke state atau storage.
+ */
+export async function completePasswordRecoveryFromUrl(
+  url: string,
+): Promise<OAuthResult> {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+  const providerError = params.error_description ?? params.error ?? errorCode;
+  if (providerError) {
+    const mapped = friendlyRecoveryError(providerError);
+    return { error: mapped.message, reason: 'oauth_failed' };
+  }
+
+  if (!params.code && !params.access_token) {
+    return {
+      error: 'Tautan reset tidak valid atau tidak membawa token. Minta tautan baru.',
+      reason: 'oauth_failed',
+    };
+  }
+
+  return completeOAuthFromUrl(url);
+}
+
+/** Simpan password baru untuk sesi recovery yang sedang aktif. */
+export async function updatePassword(password: string): Promise<PasswordUpdateResult> {
+  try {
+    const supabase = await getSupabase();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      const mapped = friendlyRecoveryError(error.message);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+    return { error: null };
+  } catch (error) {
+    if (error instanceof MissingEnvironmentError) {
+      const mapped = friendlyRecoveryError(error.message);
+      return { error: mapped.message, reason: mapped.reason };
+    }
+    const message = error instanceof Error ? error.message : '';
+    const mapped = friendlyRecoveryError(message);
+    return { error: mapped.message, reason: mapped.reason };
   }
 }
 

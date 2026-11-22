@@ -1,21 +1,34 @@
 // ---------------------------------------------------------------------------
-// FE-2 — auth `api` adapter: wraps `lib/auth.ts` (GitHub OAuth via Supabase)
-// and `lib/profile.ts` (RPC onboarding/settings, called by the screens).
+// FE-2 — auth `api` adapter: wraps `lib/auth.ts` (GitHub/Google OAuth and
+// email/password via Supabase) and `lib/profile.ts` (RPC onboarding/settings,
+// called by the screens).
 //
 // The existing api behaviour is unchanged: OAuth opens the browser, the
 // Supabase session is mapped into `useAuthStore`, and failures surface as a
-// readable AppError instead of a crash.
+// readable AppError instead of a crash. Email signup/signin never create a
+// local demo session — if the backend is missing, the error is returned.
 // ---------------------------------------------------------------------------
 
 import {
   deleteAccountRemote,
   getSessionRemote,
+  resetPasswordForEmail as resetPasswordRemote,
+  updatePassword as updatePasswordRemote,
+  resendSignupConfirmation as resendConfirmationRemote,
+  signInWithEmail as signInWithEmailRemote,
   signInWithGitHub as signInWithGitHubRemote,
   signOutRemote,
+  signUpWithEmail as signUpWithEmailRemote,
 } from '@/lib/auth';
 import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
 
-import type { AuthAdapter } from './types';
+import type {
+  AuthAdapter,
+  EmailActionResult,
+  EmailSignInResult,
+  EmailSignUpResult,
+  PasswordUpdateResult,
+} from './types';
 
 function toAuthSession(session: {
   login: string;
@@ -24,15 +37,14 @@ function toAuthSession(session: {
   githubId: number;
   bio: string | null;
   locationText: string | null;
+  provider?: 'github' | 'google' | 'email';
+  email?: string | null;
 }): AuthSession {
   return session;
 }
 
 function persist(session: AuthSession): AuthSession {
-  const current = useAuthStore.getState().session;
-  if (!current || current.login !== session.login) {
-    useAuthStore.getState().signIn(session);
-  }
+  useAuthStore.getState().signIn(session);
   return session;
 }
 
@@ -58,6 +70,56 @@ export const authApi: AuthAdapter = {
       };
     }
     return persist(toAuthSession(remote));
+  },
+
+  async signUpWithEmail(email: string, password: string): Promise<EmailSignUpResult> {
+    const result = await signUpWithEmailRemote(email, password);
+    const needsEmailConfirmation = result.needsEmailConfirmation ?? false;
+
+    // Bila konfirmasi email dimatikan, Supabase langsung membuat sesi. Simpan
+    // sesi itu supaya onboarding tidak jatuh kembali ke Welcome.
+    if (!result.error && !needsEmailConfirmation) {
+      const remote = await getSessionRemote();
+      if (remote) persist(toAuthSession(remote));
+    }
+
+    return {
+      error: result.error,
+      needsEmailConfirmation,
+      reason: result.reason,
+    };
+  },
+
+  async signInWithEmail(email: string, password: string): Promise<EmailSignInResult> {
+    const result = await signInWithEmailRemote(email, password);
+    if (result.error) {
+      return { error: result.error, session: null, reason: result.reason };
+    }
+
+    const remote = await getSessionRemote();
+    if (!remote) {
+      return {
+        error: 'Login berhasil tetapi sesi Supabase tidak terbaca. Coba lagi.',
+        session: null,
+        reason: 'failed',
+      };
+    }
+
+    return { error: null, session: persist(toAuthSession(remote)) };
+  },
+
+  async resetPasswordForEmail(email: string): Promise<EmailActionResult> {
+    const result = await resetPasswordRemote(email);
+    return { error: result.error, reason: result.reason };
+  },
+
+  async resendSignupConfirmation(email: string): Promise<EmailActionResult> {
+    const result = await resendConfirmationRemote(email);
+    return { error: result.error, reason: result.reason };
+  },
+
+  async updatePassword(password: string): Promise<PasswordUpdateResult> {
+    return updatePasswordRemote(password);
   },
 
   async signOut(): Promise<void> {

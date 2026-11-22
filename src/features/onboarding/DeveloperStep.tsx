@@ -9,6 +9,8 @@ import { T } from '@/components/ui/T';
 import { flagEmoji, findCountry } from '@/data/countries';
 import {
   AVAILABILITY_LABELS,
+  GITHUB_REQUIRED_LISTING_MESSAGE,
+  isGitHubConnected,
   useAuthStore,
   type Availability,
 } from '@/store/useAuthStore';
@@ -26,6 +28,8 @@ const AVAILABILITY_OPTIONS = (Object.keys(AVAILABILITY_LABELS) as Availability[]
  */
 export function DeveloperStep() {
   const theme = useTheme();
+  const session = useAuthStore((s) => s.session);
+  const githubConnected = isGitHubConnected(session);
   const countryCode = useAuthStore((s) => s.countryCode);
   const city = useAuthStore((s) => s.city);
   const listed = useAuthStore((s) => s.listed);
@@ -109,14 +113,16 @@ export function DeveloperStep() {
             Tampil di Feed & Discover
           </T>
           <T size={8} color="muted" lh={1.55}>
-            {country
-              ? 'Opt-in eksplisit (POL-1) — bisa dicabut kapan saja lewat Settings.'
-              : 'Pilih negara domisili dulu untuk mengaktifkan ini (POL-9).'}
+            {!githubConnected
+              ? GITHUB_REQUIRED_LISTING_MESSAGE
+              : country
+                ? 'Opt-in eksplisit (POL-1) — bisa dicabut kapan saja lewat Settings.'
+                : 'Pilih negara domisili dulu untuk mengaktifkan ini (POL-9).'}
           </T>
         </View>
         <Switch
           value={listed}
-          disabled={!country}
+          disabled={!country || !githubConnected}
           onValueChange={setListed}
           accessibilityLabel="Tampil di Feed dan Discover"
         />

@@ -64,8 +64,8 @@ export function ProjectCardComponent({
           {`0${index + 1}`}
         </T>
 
-        {/* D7 — badge stays "VERIFIED ACTIVE" even for active:false projects. */}
-        <Badge variant="verified">VERIFIED ACTIVE</Badge>
+        {/* Jangan klaim verifikasi; sumbernya metadata repo publik. */}
+        <Badge variant="verified">PUBLIC REPO</Badge>
 
         <ScoreCircle value={item.score} size={35} style={styles.score} />
       </View>

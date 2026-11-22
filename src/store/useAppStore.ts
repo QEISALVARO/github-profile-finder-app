@@ -149,18 +149,10 @@ export const useAppStore = create<AppState>()(
       resetAnalysis: () =>
         set({ analysis: { status: 'idle', step: null, progress: 0 } }),
 
-      // M0 demo state: one unread placeholder item so the Inbox dot (FR-G3)
-      // is visible before real notifications exist; replaced in M1+.
-      inbox: [
-        {
-          id: 'm0-welcome',
-          title: 'Selamat datang di Gitscope',
-          body: 'Notifikasi hasil analisis talent akan muncul di sini.',
-          createdAt: 0,
-          read: false,
-        },
-      ],
-      unreadCount: 1,
+      // Belum ada sumber notifikasi di backend: jangan tampilkan item/unread
+      // palsu seolah-olah ada pesan nyata.
+      inbox: [],
+      unreadCount: 0,
       markInboxRead: () =>
         set((s) => ({
           inbox: s.inbox.map((i) => ({ ...i, read: true })),

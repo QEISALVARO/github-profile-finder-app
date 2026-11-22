@@ -52,6 +52,7 @@ describe('auth store (R1)', () => {
 
   it('enforces POL-9: listing requires a residence country', () => {
     const store = () => useAuthStore.getState();
+    store().signIn(SESSION);
 
     // Belum ada negara → listed dipaksa false.
     store().setListed(true);
@@ -69,6 +70,25 @@ describe('auth store (R1)', () => {
     store().setResidence({ countryCode: null });
     expect(store().countryCode).toBeNull();
     expect(store().countrySource).toBeNull();
+    expect(store().listed).toBe(false);
+  });
+
+  it('rejects listing for an email account without GitHub identity', () => {
+    const store = () => useAuthStore.getState();
+    store().signIn({
+      login: 'user-abc123',
+      name: 'Rina',
+      avatarUrl: '',
+      githubId: 0,
+      bio: null,
+      locationText: null,
+      provider: 'email',
+      email: 'rina@company.com',
+    });
+    store().setResidence({ countryCode: 'ID' });
+
+    store().setListed(true);
+
     expect(store().listed).toBe(false);
   });
 

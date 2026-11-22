@@ -82,6 +82,26 @@ describe('Welcome — Continue with GitHub', () => {
     expect(mockedReplace).toHaveBeenCalledWith('/onboarding');
   });
 
+  it('never falls back to the demo session in a production build', async () => {
+    const originalDev = (globalThis as { __DEV__?: boolean }).__DEV__;
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    mockedSignIn.mockResolvedValueOnce({
+      error: 'Build ini belum membawa konfigurasi Supabase.',
+      reason: 'not_configured',
+    });
+
+    try {
+      const target = render();
+      await pressContinue(target);
+
+      expect(useAuthStore.getState().session).toBeNull();
+      expect(useAuthStore.getState().authError).toMatch(/konfigurasi Supabase/);
+      expect(mockedReplace).not.toHaveBeenCalled();
+    } finally {
+      (globalThis as { __DEV__?: boolean }).__DEV__ = originalDev;
+    }
+  });
+
   it('shows the real OAuth failure instead of forcing a demo session', async () => {
     mockedSignIn.mockResolvedValueOnce({
       error: 'Redirect URL belum diizinkan di Supabase.',

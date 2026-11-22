@@ -109,8 +109,22 @@ describe('ConnectGitHub — penautan', () => {
       // Metode login tetap Google; GitHub baru identitas yang ditautkan.
       provider: 'google',
     });
-    // Guard root yang memindahkan layar setelah sesi berubah, bukan layar ini.
-    expect(mockedReplace).not.toHaveBeenCalled();
+    // Belum onboarded → kembali ke onboarding setelah sesi diperbarui.
+    expect(mockedReplace).toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('returns an onboarded account to the profile after linking', async () => {
+    useAuthStore.getState().setRoles(['recruiter']);
+    useAuthStore.getState().completeOnboarding();
+    mockedLink.mockResolvedValueOnce({
+      error: null,
+      identity: { login: 'octocat', githubId: 583231, name: 'Octo Cat', avatarUrl: null },
+    });
+
+    const target = render();
+    await press(target, 'Hubungkan GitHub');
+
+    expect(mockedReplace).toHaveBeenCalledWith('/profile');
   });
 
   it('keeps the previous name and avatar when GitHub profile data is missing', async () => {

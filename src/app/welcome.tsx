@@ -8,6 +8,7 @@ import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { getDataSource, isProductionBuild } from '@/config/dataSource';
 import { signInWithGitHub, signInWithGoogle } from '@/lib/auth';
 import { useTheme } from '@/theme/useTheme';
 
@@ -21,6 +22,14 @@ import { useTheme } from '@/theme/useTheme';
 
 /** Identitas demo — ditandai eksplisit di UI supaya tidak dianggap data nyata. */
 const DEMO_LOGIN = 'octocat';
+
+/**
+ * Sesi demo hanya untuk dev/test mode `mock`. Build production (atau mode api
+ * yang kehilangan env) wajib menampilkan error konfigurasi, bukan octocat.
+ */
+function canUseDemoFallback(): boolean {
+  return !isProductionBuild() && getDataSource('auth') === 'mock';
+}
 
 export default function WelcomeScreen() {
   const theme = useTheme();
@@ -58,7 +67,7 @@ export default function WelcomeScreen() {
       if (error) {
         setAuthError(error);
         if (cancelled) return;
-        if (reason === 'not_configured') startDemoSession();
+        if (reason === 'not_configured' && canUseDemoFallback()) startDemoSession();
         return;
       }
       const current = useAuthStore.getState().session;
@@ -87,7 +96,7 @@ export default function WelcomeScreen() {
         // Build tanpa env Supabase / flag `api` → sesi demo lokal agar alur
         // onboarding tetap bisa dicoba.
         if (reason === 'not_configured') {
-          startDemoSession();
+          if (canUseDemoFallback()) startDemoSession();
           return;
         }
         // OAuth benar-benar gagal (redirect belum diizinkan, provider mati,
@@ -101,7 +110,6 @@ export default function WelcomeScreen() {
       // Jaring pengaman terakhir: apa pun yang melempar (mis. env Supabase
       // tidak ikut ter-bundle di APK release) tidak boleh membuat tombol diam.
       setAuthError(error instanceof Error ? error.message : 'Login GitHub gagal. Coba lagi.');
-      startDemoSession();
     } finally {
       setSigningIn(false);
     }
@@ -199,10 +207,42 @@ export default function WelcomeScreen() {
             </T>
           </Pressable>
 
+          <View style={styles.emailRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Masuk dengan email"
+              android_ripple={{ color: 'transparent' }}
+              onPress={() => router.push('/login')}
+              style={({ pressed }) => [
+                styles.emailButton,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.line },
+                pressed && styles.pressed,
+              ]}>
+              <T size={11} weight="700">
+                Masuk dengan email
+              </T>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Daftar akun recruiter"
+              android_ripple={{ color: 'transparent' }}
+              onPress={() => router.push('/register')}
+              style={({ pressed }) => [
+                styles.emailButton,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.line },
+                pressed && styles.pressed,
+              ]}>
+              <T size={11} weight="700">
+                Daftar akun recruiter
+              </T>
+            </Pressable>
+          </View>
+
           <T size={8} color="muted" lh={1.6} style={styles.ctaNote}>
-            Login OAuth GitHub (Supabase, scope <T mono size={8}>read:user</T> — tanpa akses email).
-            Masuk dengan Google juga bisa, tetapi akun GitHub tetap wajib ditautkan sebelum
-            onboarding. Bila backend belum hidup, dipakai sesi demo lokal.
+            Login email/password tidak membutuhkan GitHub. OAuth GitHub (Supabase, scope{' '}
+            <T mono size={8}>read:user</T> — tanpa akses email) dan Google tetap tersedia sebagai
+            alternatif. Akun email/Google baru perlu menghubungkan GitHub saat memakai fitur
+            developer. Sesi demo lokal hanya bisa muncul di build dev dengan mode data `mock`.
           </T>
           {authError !== null && authError !== '' ? (
             <T size={8} color="error" lh={1.6} style={styles.ctaNote}>
@@ -312,6 +352,20 @@ const styles = StyleSheet.create({
   ctaNote: {
     marginTop: 12,
     maxWidth: 380,
+  },
+  emailRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  emailButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   infoCard: {
     marginTop: 28,

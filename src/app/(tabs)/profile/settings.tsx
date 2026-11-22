@@ -11,9 +11,18 @@ import { Switch } from '@/components/ui/Switch';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { countryLabel, flagEmoji, findCountry, formatCountrySelection } from '@/data/countries';
+import { getDataSource } from '@/config/dataSource';
+import { deleteAccountRemote, signOutRemote } from '@/lib/auth';
+import {
+  setCountryRemote,
+  updateDeveloperSettingsRemote,
+  updateRecruiterProfileRemote,
+} from '@/lib/profile';
 import { useAppStore } from '@/store/useAppStore';
 import {
   AVAILABILITY_LABELS,
+  GITHUB_REQUIRED_LISTING_MESSAGE,
+  isGitHubConnected,
   useAuthStore,
   type Availability,
 } from '@/store/useAuthStore';
@@ -38,6 +47,7 @@ const THEME_OPTIONS = [
 export default function SettingsScreen() {
   const theme = useTheme();
 
+  const session = useAuthStore((s) => s.session);
   const roles = useAuthStore((s) => s.roles);
   const countryCode = useAuthStore((s) => s.countryCode);
   const city = useAuthStore((s) => s.city);
@@ -65,6 +75,100 @@ export default function SettingsScreen() {
   const isDeveloper = roles.includes('developer');
   const isRecruiter = roles.includes('recruiter');
   const country = findCountry(countryCode);
+  const githubConnected = isGitHubConnected(session);
+  // Backend adalah sumber kebenaran saat mode api; AsyncStorage hanya cache UI.
+  const apiMode = getDataSource('auth') === 'api';
+
+  const showSyncError = (message: string) => {
+    Alert.alert('Perubahan tidak tersimpan', message);
+  };
+
+  const pushDeveloperSettings = async (input: {
+    listed?: boolean;
+    openToMessages?: boolean;
+    availability?: Availability;
+  }) => {
+    if (!apiMode) return;
+    try {
+      const { error } = await updateDeveloperSettingsRemote(input);
+      if (error) showSyncError(error);
+    } catch (caught) {
+      showSyncError(caught instanceof Error ? caught.message : 'Server tidak dapat dihubungi.');
+    }
+  };
+
+  const toggleListed = (next: boolean) => {
+    if (next && !country) {
+      Alert.alert('Pilih negara domisili', 'Listing membutuhkan negara domisili (POL-9).');
+      return;
+    }
+    if (next && !githubConnected) {
+      Alert.alert('GitHub belum terhubung', GITHUB_REQUIRED_LISTING_MESSAGE);
+      return;
+    }
+    setListed(next);
+    void pushDeveloperSettings({ listed: next });
+  };
+
+  const toggleOpenToMessages = (next: boolean) => {
+    setOpenToMessages(next);
+    void pushDeveloperSettings({ openToMessages: next });
+  };
+
+  const changeAvailability = (next: Availability) => {
+    setAvailability(next);
+    void pushDeveloperSettings({ availability: next });
+  };
+
+  const changeResidence = async (iso2: string | null) => {
+    const previous = { countryCode, city };
+    setResidence({ countryCode: iso2 });
+    if (!apiMode) return;
+    try {
+      const { error } = await setCountryRemote(iso2, city);
+      if (error) {
+        setResidence(previous);
+        showSyncError(error);
+      }
+    } catch (caught) {
+      setResidence(previous);
+      showSyncError(caught instanceof Error ? caught.message : 'Server tidak dapat dihubungi.');
+    }
+  };
+
+  const saveCity = async () => {
+    if (!apiMode) return;
+    try {
+      const { error } = await setCountryRemote(countryCode, city);
+      if (error) showSyncError(error);
+    } catch (caught) {
+      showSyncError(caught instanceof Error ? caught.message : 'Server tidak dapat dihubungi.');
+    }
+  };
+
+  const saveRecruiterProfile = async (patch: { company?: string; title?: string }) => {
+    if (!apiMode) return;
+    try {
+      const { error } = await updateRecruiterProfileRemote({
+        company: patch.company,
+        title: patch.title,
+      });
+      if (error) showSyncError(error);
+    } catch (caught) {
+      showSyncError(caught instanceof Error ? caught.message : 'Server tidak dapat dihubungi.');
+    }
+  };
+
+  const saveTargetCountries = async (iso2: string[]) => {
+    setTargetCountries(iso2);
+    if (!apiMode) return;
+    try {
+      const { error } = await updateRecruiterProfileRemote({ targetCountries: iso2 });
+      if (error) showSyncError(error);
+    } catch (caught) {
+      showSyncError(caught instanceof Error ? caught.message : 'Server tidak dapat dihubungi.');
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert('Keluar dari akun?', 'Sesi lokal dihapus; pengaturan tetap tersimpan.', [
@@ -72,8 +176,19 @@ export default function SettingsScreen() {
       {
         text: 'Keluar',
         onPress: () => {
-          signOut();
-          router.replace('/welcome');
+          void (async () => {
+            try {
+              if (apiMode) await signOutRemote();
+            } catch (caught) {
+              // Sesi lokal tetap dibersihkan, tetapi kegagalan remote diberitahukan.
+              showSyncError(
+                caught instanceof Error ? caught.message : 'Sesi server tidak dapat dihapus.',
+              );
+            } finally {
+              signOut();
+              router.replace('/welcome');
+            }
+          })();
         },
       },
     ]);
@@ -89,8 +204,19 @@ export default function SettingsScreen() {
           text: 'Hapus',
           style: 'destructive',
           onPress: () => {
-            deleteAccount();
-            router.replace('/welcome');
+            void (async () => {
+              try {
+                if (apiMode) {
+                  await deleteAccountRemote();
+                }
+                deleteAccount();
+                router.replace('/welcome');
+              } catch (caught) {
+                showSyncError(
+                  caught instanceof Error ? caught.message : 'Akun tidak dapat dihapus. Coba lagi.',
+                );
+              }
+            })();
           },
         },
       ],
@@ -142,15 +268,17 @@ export default function SettingsScreen() {
                   Tampil di Feed & Discover
                 </T>
                 <T size={8} color="muted" style={styles.rowSub}>
-                  {country
-                    ? 'Opt-in eksplisit — bisa dicabut kapan saja (POL-1).'
-                    : 'Pilih negara domisili dulu (POL-9).'}
+                  {!githubConnected
+                    ? GITHUB_REQUIRED_LISTING_MESSAGE
+                    : country
+                      ? 'Opt-in eksplisit — bisa dicabut kapan saja (POL-1).'
+                      : 'Pilih negara domisili dulu (POL-9).'}
                 </T>
               </View>
               <Switch
                 value={listed}
-                disabled={!country}
-                onValueChange={setListed}
+                disabled={!country || !githubConnected}
+                onValueChange={toggleListed}
                 accessibilityLabel="Tampil di Feed dan Discover"
               />
             </View>
@@ -171,7 +299,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={openToMessages}
-                onValueChange={setOpenToMessages}
+                onValueChange={toggleOpenToMessages}
                 accessibilityLabel="Terima pesan recruiter"
               />
             </View>
@@ -193,7 +321,7 @@ export default function SettingsScreen() {
               <SelectField
                 value={availability}
                 options={AVAILABILITY_OPTIONS}
-                onChange={(value) => setAvailability(value as Availability)}
+                onChange={(value) => changeAvailability(value as Availability)}
                 icon={null}
                 estimatedWidth={140}
                 accessibilityLabel="Ketersediaan"
@@ -235,6 +363,7 @@ export default function SettingsScreen() {
               <TextInput
                 value={city ?? ''}
                 onChangeText={(value) => setResidence({ countryCode, city: value })}
+                onEndEditing={() => void saveCity()}
                 placeholder="Kota (opsional)"
                 placeholderTextColor={theme.colors.muted}
                 autoCapitalize="words"
@@ -270,6 +399,7 @@ export default function SettingsScreen() {
               <TextInput
                 value={company}
                 onChangeText={(value) => setRecruiterProfile({ company: value })}
+                onEndEditing={() => void saveRecruiterProfile({ company })}
                 placeholder="Nama perusahaan"
                 placeholderTextColor={theme.colors.muted}
                 autoCapitalize="words"
@@ -296,6 +426,7 @@ export default function SettingsScreen() {
               <TextInput
                 value={title}
                 onChangeText={(value) => setRecruiterProfile({ title: value })}
+                onEndEditing={() => void saveRecruiterProfile({ title })}
                 placeholder="Jabatan"
                 placeholderTextColor={theme.colors.muted}
                 autoCapitalize="words"
@@ -432,7 +563,7 @@ export default function SettingsScreen() {
         value={countryCode ? [countryCode] : []}
         title="NEGARA DOMISILI"
         helper="Domisili yang Anda nyatakan sendiri — bukan kewarganegaraan (POL-8)."
-        onApply={([iso2]) => setResidence({ countryCode: iso2 ?? null })}
+        onApply={([iso2]) => void changeResidence(iso2 ?? null)}
         onClose={() => setResidenceOpen(false)}
       />
 
@@ -442,7 +573,7 @@ export default function SettingsScreen() {
         value={targetCountries}
         title="NEGARA TUJUAN"
         helper="Kosongkan (All countries) untuk menargetkan semua negara."
-        onApply={setTargetCountries}
+        onApply={(iso2) => void saveTargetCountries(iso2)}
         onClose={() => setTargetOpen(false)}
       />
     </PageContainer>

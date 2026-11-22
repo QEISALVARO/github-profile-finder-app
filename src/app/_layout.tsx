@@ -69,34 +69,44 @@ function RootNavigatorSlot() {
   const hydrated = useAuthStore((s) => s.hydrated);
   const session = useAuthStore((s) => s.session);
   const onboarded = useAuthStore((s) => s.onboarded);
-  // Akun Google harus menautkan GitHub dulu; githubId berasal dari metadata
-  // sesi (lihat lib/auth mapSupabaseSession + linkGitHubIdentity).
-  const githubConnected = (session?.githubId ?? 0) > 0;
 
   // Tunggu persist auth selesai direhydrate (cold start) supaya guard tidak
   // sempat melempar user ke halaman yang salah.
   if (!hydrated) return null;
 
-  // R1 gate (PRD v2 §6.1): tanpa sesi → Welcome; sesi tanpa onboarding →
-  // Onboarding; sesi + onboarding → tabs. Stack.Protected menghapus history
-  // route yang guard-nya berubah sehingga tombol back tidak keluar jalur.
+  // P0 gate: tanpa sesi → Welcome/Login/Register; sesi tanpa onboarding →
+  // Onboarding untuk SEMUA provider. GitHub/Google tidak lagi menjadi syarat
+  // masuk aplikasi — kewajiban GitHub menempel pada fitur developer yang
+  // butuh identitas/ownership GitHub (listing/publish), bukan pada onboarding.
+  // Stack.Protected menghapus history route yang guard-nya berubah sehingga
+  // tombol back tidak keluar jalur.
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={session === null}>
         <Stack.Screen name="welcome" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="forgot-password" />
       </Stack.Protected>
 
-      {/* Deep link balik dari GitHub OAuth (gitscope://auth/callback).
+      {/* Deep link balik dari OAuth (gitscope://auth/callback).
           Tidak ikut di-guard: app bisa dibuka dingin lewat link ini sebelum
           sesi sempat direhidrasi. */}
       <Stack.Screen name="auth/callback" />
 
-      {/* Akun Google: GitHub wajib ditautkan sebelum onboarding. */}
-      <Stack.Protected guard={session !== null && !onboarded && !githubConnected}>
+      {/* Deep link reset password (gitscope://auth/update-password?code=...).
+          Route ini memvalidasi token recovery sendiri dan tidak membuka tabs;
+          tanpa token valid user hanya melihat pesan minta tautan baru. */}
+      <Stack.Screen name="auth/update-password" />
+
+      {/* Opsional: penautan GitHub untuk sesi yang sudah masuk. Tidak lagi
+          menjadi gerbang onboarding — akun email/Google boleh mencari talent
+          tanpa GitHub dan baru menautkannya saat fitur developer dibutuhkan. */}
+      <Stack.Protected guard={session !== null}>
         <Stack.Screen name="connect-github" />
       </Stack.Protected>
 
-      <Stack.Protected guard={session !== null && !onboarded && githubConnected}>
+      <Stack.Protected guard={session !== null && !onboarded}>
         <Stack.Screen name="onboarding" />
       </Stack.Protected>
 

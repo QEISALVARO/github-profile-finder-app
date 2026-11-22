@@ -15,5 +15,15 @@ export {
   useSendMessage,
   useStartConversation,
 } from './chat';
-export { useSession, useSignIn, useSignOut, useDeleteAccount } from './auth';
+export {
+  useSession,
+  useSignIn,
+  useSignInWithEmail,
+  useSignUpWithEmail,
+  useResetPassword,
+  useResendSignupConfirmation,
+  useUpdatePassword,
+  useSignOut,
+  useDeleteAccount,
+} from './auth';
 export { useReports, useExportReport } from './reports';

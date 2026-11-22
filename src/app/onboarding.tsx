@@ -10,6 +10,8 @@ import { hitSlopFor } from '@/components/ui/hit-slop';
 import { DeveloperStep } from '@/features/onboarding/DeveloperStep';
 import { RecruiterStep } from '@/features/onboarding/RecruiterStep';
 import { RoleStep } from '@/features/onboarding/RoleStep';
+import { getDataSource } from '@/config/dataSource';
+import { completeOnboardingRemote } from '@/lib/profile';
 import { useAuthStore, type UserRole } from '@/store/useAuthStore';
 import { useTheme } from '@/theme/useTheme';
 
@@ -49,10 +51,15 @@ export default function OnboardingScreen() {
   const setRoles = useAuthStore((s) => s.setRoles);
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
   const company = useAuthStore((s) => s.company);
+  const title = useAuthStore((s) => s.title);
+  const countryCode = useAuthStore((s) => s.countryCode);
+  const city = useAuthStore((s) => s.city);
+  const targetCountries = useAuthStore((s) => s.targetCountries);
 
   const [selectedRoles, setSelectedRoles] = useState<UserRole[]>(roles);
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const steps: StepKey[] = ['role', ...selectedRoles];
   const clampedIndex = Math.min(stepIndex, steps.length - 1);
@@ -77,7 +84,8 @@ export default function OnboardingScreen() {
     setStepIndex(clampedIndex - 1);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    if (saving) return;
     setError('');
 
     if (currentKey === 'role') {
@@ -96,6 +104,33 @@ export default function OnboardingScreen() {
     }
 
     if (isFinalStep) {
+      // Backend adalah sumber kebenaran saat mode api: kegagalan server tidak
+      // boleh ditelan atau diganti state lokal seolah onboarding berhasil.
+      if (getDataSource('auth') === 'api') {
+        setSaving(true);
+        try {
+          const { error: saveError } = await completeOnboardingRemote({
+            roles: selectedRoles,
+            countryCode,
+            city,
+            company,
+            title,
+            targetCountries,
+          });
+          if (saveError) {
+            setError(saveError);
+            return;
+          }
+        } catch (caught) {
+          setError(
+            caught instanceof Error ? caught.message : 'Onboarding gagal disimpan. Coba lagi.',
+          );
+          return;
+        } finally {
+          setSaving(false);
+        }
+      }
+
       completeOnboarding();
       router.replace('/explore');
       return;
@@ -170,7 +205,9 @@ export default function OnboardingScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={isFinalStep ? 'Selesaikan onboarding' : 'Lanjut'}
+        accessibilityState={{ disabled: saving, busy: saving }}
         android_ripple={{ color: 'transparent' }}
+        disabled={saving}
         onPress={handleNext}
         style={({ pressed }) => [
           styles.cta,
@@ -178,7 +215,7 @@ export default function OnboardingScreen() {
           pressed && styles.pressed,
         ]}>
         <T size={11} weight="800" color="onAccent">
-          {isFinalStep ? 'Selesai' : 'Lanjut'}
+          {saving ? 'Menyimpan…' : isFinalStep ? 'Selesai' : 'Lanjut'}
         </T>
         <Icon name="arrow" size={16} color={theme.colors.onAccent} />
       </Pressable>

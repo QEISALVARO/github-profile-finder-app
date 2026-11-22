@@ -52,6 +52,15 @@ const GOOGLE_SESSION: AuthSession = {
   provider: 'google',
 };
 
+const EMAIL_SESSION: AuthSession = {
+  ...GITHUB_SESSION,
+  login: 'user-abc123',
+  name: 'Rina Recruiter',
+  githubId: 0,
+  provider: 'email',
+  email: 'rina@company.com',
+};
+
 let tree: ReactTestRenderer | null = null;
 
 /** Render lalu biarkan efek async (exchange → routing) selesai. */
@@ -75,14 +84,24 @@ afterEach(() => {
  * code ditukar di sini, lalu tujuan mengikuti sesi yang sudah masuk store.
  */
 describe('auth/callback — routing setelah penukaran code', () => {
-  it('sends a Google account without GitHub to the link gate', async () => {
+  it('sends a Google account without GitHub to onboarding, not the link gate', async () => {
     useAuthStore.getState().signIn(GOOGLE_SESSION);
     mockedComplete.mockResolvedValueOnce({ error: null });
 
     await render();
 
     expect(mockedComplete).toHaveBeenCalledWith('gitscope://auth/callback?code=abc');
-    expect(mockedReplace).toHaveBeenCalledWith('/connect-github');
+    expect(mockedReplace).toHaveBeenCalledWith('/onboarding');
+    expect(mockedReplace).not.toHaveBeenCalledWith('/connect-github');
+  });
+
+  it('sends an email account without GitHub to onboarding', async () => {
+    useAuthStore.getState().signIn(EMAIL_SESSION);
+    mockedComplete.mockResolvedValueOnce({ error: null });
+
+    await render();
+
+    expect(mockedReplace).toHaveBeenCalledWith('/onboarding');
   });
 
   it('sends a GitHub account to onboarding', async () => {
@@ -135,6 +154,6 @@ describe('auth/callback — routing setelah penukaran code', () => {
 
     expect(mockedIsCallback).toHaveBeenCalled();
     expect(mockedComplete).not.toHaveBeenCalled();
-    expect(mockedReplace).toHaveBeenCalledWith('/connect-github');
+    expect(mockedReplace).toHaveBeenCalledWith('/onboarding');
   });
 });

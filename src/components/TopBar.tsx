@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
 import { hitSlopFor } from '@/components/ui/hit-slop';
+import { getDataSource } from '@/config/dataSource';
 import { useAppStore } from '@/store/useAppStore';
 import { useTheme } from '@/theme/useTheme';
 
@@ -13,12 +14,14 @@ const THEME_BUTTON = 39;
 
 /**
  * FR-G1 — Global TopBar: brand mark rotated −4°, "git"+"scope" wordmark,
- * "LIVE DATA" indicator and the theme toggle (FR-G2).
+ * status indicator and the theme toggle (FR-G2). Label mengikuti mode data:
+ * jangan klaim "LIVE DATA" saat adapter masih mock/belum tersambung.
  */
 export function TopBar() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const toggleTheme = useAppStore((s) => s.toggleTheme);
+  const dataLabel = getDataSource('feed') === 'api' ? 'API' : 'DEMO DATA';
 
   return (
     <View
@@ -53,7 +56,7 @@ export function TopBar() {
             ]}
           />
           <T size={7} mono color="muted" ls={0.7}>
-            LIVE DATA
+            {dataLabel}
           </T>
         </View>
 
