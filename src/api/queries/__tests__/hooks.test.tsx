@@ -121,10 +121,16 @@ describe('useFeed', () => {
 
   it('surfaces a readable error when the domain is switched to api', async () => {
     process.env.EXPO_PUBLIC_DS_FEED = 'api';
+    // Paksa env Supabase kosong: adapter `api` yang jujur menjelaskan dirinya
+    // (MissingEnvironmentError), bukan crash dan bukan kembali ke seed (POL-5).
+    delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    delete process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
     const feed = await renderHook(useFeed, DEFAULT_FEED_FILTERS);
 
     expect(feed.current.isError).toBe(true);
-    expect((feed.current.error as Error).message).toMatch(/belum tersedia di backend/);
+    expect((feed.current.error as Error).message).toMatch(/membutuhkan environment variable/);
 
     feed.unmount();
   });

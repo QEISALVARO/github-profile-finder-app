@@ -322,8 +322,6 @@ describe('mode mock = tanpa jaringan', () => {
 describe('flag api pada domain yang belum siap', () => {
   const run = async (domain: DomainKey): Promise<unknown> => {
     switch (domain) {
-      case 'feed':
-        return feedAdapter.fetchPage(DEFAULT_FEED_FILTERS);
       case 'talent':
         return talentAdapter.discover(DEFAULT_TALENT_FILTERS);
       case 'chat':
@@ -335,7 +333,9 @@ describe('flag api pada domain yang belum siap', () => {
     }
   };
 
-  it.each(['feed', 'talent', 'chat', 'reports'] as const)(
+  // `feed` tidak lagi di sini: adapter-nya sudah menyentuh RPC BE-3 —
+  // lihat src/api/feed/__tests__/api.test.ts.
+  it.each(['talent', 'chat', 'reports'] as const)(
     '%s throws ApiNotReadyError with friendly copy',
     async (domain) => {
       process.env[DATA_SOURCE_ENV[domain]] = 'api';

@@ -75,6 +75,7 @@ export default function ExploreScreen() {
         <ErrorState
           title="Feed gagal dimuat"
           message={feedError.message}
+          retryAfter={feedError.retryAfter}
           onRetry={() => feed.refetch()}
         />
       ) : feed.isPending ? (

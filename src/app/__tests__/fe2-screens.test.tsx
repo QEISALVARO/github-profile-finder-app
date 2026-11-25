@@ -6,6 +6,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { analysisAdapter } from '@/api/analysis';
 import { resetChat } from '@/api/chat/mock';
+import { VerifiedRepoCard } from '@/features/analysis/VerifiedRepoCard';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore, type AuthSession } from '@/store/useAuthStore';
 
@@ -188,12 +189,28 @@ describe('Analysis screen states (FE-2)', () => {
     expect(text).toContain('Coba lagi');
   });
 
-  it('shows the remaining wait for RATE_LIMITED', async () => {
+  it('shows a live remaining wait and locks retry for RATE_LIMITED', async () => {
     const tree = await openAnalysis('__ratelimited__');
     const text = textOf(tree.toJSON());
 
     expect(text).toContain('Terlalu banyak permintaan');
-    expect(text).toContain('42 detik');
+    expect(text).toContain('Batas permintaan tercapai.');
+    // Detiknya dihitung live oleh ErrorState, bukan salinan statis yang basi
+    // (flush di helper maju belasan detik — angka berapa pun tetap hidup).
+    expect(text).toMatch(/Coba lagi dalam \d+ detik\./);
+
+    // Retry terkunci selama jeda masih berjalan.
+    const retry = findButton(tree, 'Coba lagi');
+    expect(retry).toBeDefined();
+    expect(retry!.props.disabled).toBe(true);
+    expect(retry!.props.accessibilityState).toEqual({ disabled: true });
+
+    // Setelah jeda lewat, hitung mundur habis dan tombol terbuka kembali.
+    await act(async () => {
+      jest.advanceTimersByTime(60_000);
+    });
+    expect(textOf(tree.toJSON())).not.toContain('detik.');
+    expect(findButton(tree, 'Coba lagi')!.props.disabled).toBe(false);
   });
 
   it('offers "Buka di GitHub" for UPSTREAM_ERROR', async () => {
@@ -210,6 +227,19 @@ describe('Analysis screen states (FE-2)', () => {
 
     expect(text).toContain('Limited verifiable evidence');
     expect(text).toContain('0%');
+  });
+
+  it('states plainly when the profile has no public repositories', async () => {
+    const tree = await openAnalysis('__empty__');
+    const text = textOf(tree.toJSON());
+
+    expect(text).toContain('No public repositories');
+    expect(text).toContain('tidak memiliki repository publik');
+    // Muncul tepat di bawah heading PROJECT EVIDENCE, bukan evidence karangan.
+    expect(text.indexOf('PROJECT EVIDENCE')).toBeLessThan(
+      text.indexOf('No public repositories'),
+    );
+    expect(tree.root.findAllByType(VerifiedRepoCard)).toHaveLength(0);
   });
 
   it('redirects an unauthenticated deep link to login with a safe return URL', async () => {

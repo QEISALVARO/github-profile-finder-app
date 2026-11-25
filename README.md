@@ -94,7 +94,7 @@ Daftar variabel yang dibutuhkan untuk mode `api` (backend):
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Kunci anon Supabase (RLS) — nama baru: `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (keduanya didukung) |
 | `EXPO_PUBLIC_AUTH_REDIRECT_URL` | Opsional, timpa deep link `gitscope://auth/callback` |
 | `EXPO_PUBLIC_DS_AUTH` | `mock` \| `api` (auth) |
-| `EXPO_PUBLIC_DS_FEED` | `mock` \| `api` (feed) |
+| `EXPO_PUBLIC_DS_FEED` | `mock` \| `api` (feed → RPC `search_projects` / `country_facets`, butuh sesi login) |
 | `EXPO_PUBLIC_DS_ANALYSIS` | `mock` \| `api` (analysis) |
 | `EXPO_PUBLIC_DS_TALENT` | `mock` \| `api` (talent) |
 | `EXPO_PUBLIC_DS_CHAT` | `mock` \| `api` (chat) |
@@ -103,6 +103,25 @@ Daftar variabel yang dibutuhkan untuk mode `api` (backend):
 Nilai tambahan backend (lokal): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STUDIO_PORT`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_API_TOKEN`.
 
 Detail lengkap: lihat `.env.example` dan `docs/backend/README.md`.
+
+### Menyiapkan GitHub token (untuk Edge Function `analyze-developer`)
+
+`GITHUB_API_TOKEN` dipakai **hanya di server** (Edge Function ingestion) untuk
+membaca profil & repository publik GitHub. Token tidak pernah masuk bundle
+aplikasi mobile dan tidak boleh ditulis di `src/` atau `app.json`.
+
+1. Buat Personal Access Token di <https://github.com/settings/tokens>
+   (classic: scope `read:user` + `public_repo`; atau fine-grained dengan
+   *read-only* ke public repositories).
+2. Simpan nilainya di `.env` lokal. Untuk menjalankan fungsi secara lokal:
+   `npx supabase functions serve --env-file .env` (panduan lengkap:
+   [`docs/backend/ingestion.md`](docs/backend/ingestion.md) §1).
+3. Untuk deployment, set sebagai secret Supabase — jangan lewat repo:
+   `npx supabase secrets set GITHUB_API_TOKEN=<token>`.
+
+Tanpa token, Edge Function `analyze-developer` tetap aman: ia memakai
+cache/fallback yang jujur dan mengembalikan error yang terbaca, bukan data
+karangan.
 
 ### Login GitHub asli di APK
 
@@ -131,7 +150,7 @@ Setiap domain punya flag sendiri di `.env` (lihat `.env.example`):
 
 ```
 EXPO_PUBLIC_DS_AUTH=mock      # auth     → GitHub OAuth via Supabase
-EXPO_PUBLIC_DS_FEED=mock      # feed     → menunggu BE-3
+EXPO_PUBLIC_DS_FEED=mock      # feed     → RPC search_projects / country_facets (BE-3)
 EXPO_PUBLIC_DS_ANALYSIS=mock  # analysis → Edge Function analyze-developer
 EXPO_PUBLIC_DS_TALENT=mock    # talent   → menunggu BE-4
 EXPO_PUBLIC_DS_CHAT=mock      # chat     → menunggu BE-5
@@ -145,7 +164,9 @@ EXPO_PUBLIC_DS_REPORTS=mock   # reports  → menunggu BE-6
   `docs/backend/README.md`), Edge Functions berjalan, dan
   `EXPO_PUBLIC_SUPABASE_URL` + `EXPO_PUBLIC_SUPABASE_ANON_KEY` terisi (ambil
   nilainya lewat `npx supabase status`). Klien Supabase dibuat malas — hanya saat
-  minimal satu domain berflag `api`.
+  minimal satu domain berflag `api`. Feed dan analysis `api` membutuhkan sesi
+  login (RPC `search_projects` memakai `auth.uid()`; tanpa sesi kartu error
+  menampilkan "Sesi berakhir").
 - Domain yang backend-nya belum siap akan menampilkan pesan
   "Fitur ini belum tersedia di backend", bukan data palsu.
 - Skenario uji Analysis tanpa backend: buka `/explore/analysis?login=__stale__`

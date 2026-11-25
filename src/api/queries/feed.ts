@@ -26,6 +26,8 @@ export function useFeedCountryFacets(filters: FeedFilters) {
     queryKey: queryKeys.feedFacets(filters),
     queryFn: () => feedAdapter.fetchCountryFacets(filters),
     retry: shouldRetry,
-    staleTime: 10 * 60_000,
+    // Facet adalah angka yang berubah saat data feed masuk — jangan sampai
+    // hitungan negara tertinggal jauh dari daftar yang baru saja dimuat.
+    staleTime: 2 * 60_000,
   });
 }

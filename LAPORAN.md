@@ -492,3 +492,116 @@ jadi angka 119 di atas tidak termasuk dirinya.
 - `ChatSheet` (M5) belum ada, `openChat` hanya mengisi state seperti sebelumnya.
 - Branch lama `feat/fe-2-data-layer` sengaja dibiarkan; pemilik repo dapat
   menutupnya setelah PR ini diverifikasi.
+
+---
+
+# Laporan Fase — Integrasi Feed Real (audit TASK 1–6)
+
+Tanggal: 25 November 2026 · Basis: `npm run check` hijau sebelum & sesudah
+
+## 1. Ringkasan audit
+
+Enam task diaudit dulu terhadap kondisi repo, lalu sisa yang belum dikerjakan
+diselesaikan berurutan dengan `npm run check` setelah tiap task:
+
+| Task | Isi | Status audit | Tindakan |
+|---|---|---|---|
+| 1 | Edge Function `analyze-developer` (GraphQL + `GITHUB_API_TOKEN`, cache DB, rate limit, stale fallback) | ✅ sudah ada (BE-2) | — |
+| 2 | Sambungkan feed ke backend | ❌ `src/api/feed/api.ts` masih `apiNotReady` | **Dikerjakan** — wiring ke RPC BE-3 |
+| 3.1 | `src/api/analysis/api.ts` → `lib/analyze.ts` | ✅ sudah ada | — |
+| 3.2 | `src/api/feed/api.ts` | ❌ sama dengan task 2 | **Dikerjakan** (ikut task 2) |
+| 3.3 | `src/api/auth/api.ts` → `signInWithOAuth` GitHub | ✅ sudah ada | — |
+| 4 | StaleTime, `RATE_LIMITED`+`retry_after`, banner; **countdown live, tombol Retry terkunci, staleTime feed 10m** | 🟡 sebagian | **Dikerjakan** |
+| 5 | Fallback bio, lokasi null, 404, **empty state "No public repositories"** | 🟡 sebagian | **Dikerjakan** |
+| 6 | Test feed/search-projects + dokumen README/LAPORAN | 🟡 sebagian | **Dikerjakan** |
+
+Keputusan yang dikonfirmasi: feed disambungkan ke **RPC Postgres**
+`search_projects` + `country_facets` (BE-3, sudah diuji pgTAP), **bukan** Edge
+Function Search baru — kontrak `FeedItem` membutuhkan `score`/`role`/
+`availability`/`countryCode`/`city`/`demoVerified` yang hanya dimiliki tabel
+`projects`, dan POL-5 melarang mengarangnya.
+
+## 2. Yang dikerjakan
+
+### 2.1 TASK 2 + 3.2 — adapter feed `api` (`src/api/feed/api.ts`)
+
+- `fetchFeedPage` → `supabase.rpc('search_projects', …)`,
+  `fetchFeedCountryFacets` → `supabase.rpc('country_facets', …)`.
+- Pemetaan `FeedFilters` → parameter RPC: `query`→`p_q` (trim, kosong→null),
+  `role` (`All`→null)→`p_role`, `recentOnly`→`p_active_only`, `p_lim` 20.
+- Pemetaan chip lokasi v1 per PRD_V2 §11A: `All locations` → tanpa filter,
+  `Indonesia` → `p_countries=['ID']`, nama kota → `p_city`; filter v2
+  (`countries`/`city`) menimpa chip legacy. Facet sengaja **tidak** menerima
+  `countries` (kontrak BE-3: facet mencerminkan dimensi lain).
+- Fallback jujur dua field profil nullable: `developer.name` → `login`,
+  `avatarUrl` → endpoint GitHub canonical `https://github.com/{login}.png`
+  (pola yang sama dengan seed) — bukan nama/ foto karangan (POL-5).
+- Guard bentuk: payload bukan objek `items[]` → `UPSTREAM_ERROR`, tidak pernah
+  dianggap halaman kosong.
+
+### 2.2 `mapRpcError` (`src/api/errors.ts`)
+
+Konvensi BE-3 (`raise exception '<CODE>'`, errcode P0001) dipetakan ke
+`ErrorBody`: `RATE_LIMITED: retry_after=N` → kode `RATE_LIMITED` + `retry_after`
+terparse, `UNAUTHORIZED`→401, `FORBIDDEN`→403, `NOT_FOUND`→404,
+`VALIDATION`→400, sisanya `UPSTREAM_ERROR` 502 **membawa pesan aslinya**
+(tidak menyembunyikan kegagalan). Copy `RATE_LIMITED` diseragamkan menjadi
+"Batas permintaan tercapai…" (sebelumnya tertulis "Batas **analisis**", keliru
+untuk feed).
+
+### 2.3 TASK 4 — countdown `RATE_LIMITED` + staleTime feed
+
+- `ErrorState` menerima `retryAfter`: hitung mundur live (interval 500 ms,
+  berhenti sendiri di 0), baris "Coba lagi dalam N detik." tampil selama jeda,
+  tombol Retry `disabled` + `accessibilityState` terkunci lalu terbuka sendiri.
+  Reset saat `retryAfter` baru memakai pola resmi React *"adjusting state when
+  props change"* (lolos lint `react-hooks/set-state-in-effect`).
+- `describeError` untuk `RATE_LIMITED` tidak lagi membawa detik statis di
+  pesan — angka yang cepat basi kini hanya hidup di countdown.
+- `retryAfter` di-wire di layar Feed (`explore/index`) dan Analysis.
+- StaleTime facet feed `useFeedCountryFacets`: **10 mnt → 2 mnt**.
+
+### 2.4 TASK 5 — empty state repository kosong
+
+- `src/features/analysis/ReposEmpty.tsx`: "No public repositories" +
+  "Profil GitHub ini tidak memiliki repository publik." — dashed shell mengikuti
+  `FeedEmpty`, dipasang di bawah heading PROJECT EVIDENCE saat `vm.repos`
+  kosong (akun GitHub tanpa repo publik memang ada; sebutan jujur, bukan
+  placeholder).
+
+### 2.5 TASK 6 — test & dokumen
+
+- Baru: `src/api/feed/__tests__/api.test.ts` (15 test — parameter RPC,
+  pemetaan lokasi §11A, parse kontrak zod, fallback profil, seluruh kode error
+  Postgres, facet `<5`) dan `src/components/ui/__tests__/ErrorState.test.tsx`
+  (3 test countdown/lock/reset).
+- Diubah: `contracts.test.ts` — `feed` dikeluarkan dari daftar "domain belum
+  siap" (talent/chat/reports tetap); `hooks.test.tsx` — api-flip feed kini
+  menuntut `MissingEnvironmentError` yang terbaca; `fe2-screens.test.tsx` —
+  uji RATE_LIMITED disesuaikan ke countdown live + uji `__empty__`.
+- README: baris flag feed menunjuk RPC BE-3, section baru **GitHub token**
+  (scope, `functions serve --env-file`, `supabase secrets set`, token tidak
+  pernah masuk bundle), catatan feed `api` butuh sesi login.
+- LAPORAN: section ini.
+
+## 3. Hasil verifikasi
+
+| Pemeriksaan | Perintah | Hasil |
+|---|---|---|
+| Typecheck | `npm run typecheck` | ✅ 0 error |
+| Lint | `npx expo lint` | ✅ 0 error, 0 warning |
+| Unit test | `npx jest --ci` | ✅ **25 suite, 281 test** lulus (baseline: 23/263) |
+| Secret | `.env` tetap di `.gitignore` (baris 34); tidak ada token di `src/` | ✅ |
+
+## 4. Gap yang diketahui
+
+1. **Belum diuji terhadap backend hidup** — stack Supabase/Docker tidak
+   tersedia di lingkungan ini; yang teruji adalah adapter dengan `rpc` dimock.
+   Uji live: `make up`, isi `GITHUB_API_TOKEN` + sesi login, flag
+   `EXPO_PUBLIC_DS_FEED=api`, jalankan feed + facet.
+2. UI filter negara v2 (`CountryPicker` di Feed) belum ada — adapter sudah
+   menerima `countries`/`city`; chip lokasi v1 yang dipakai saat ini.
+3. Feed belum Infinite Scroll — `nextCursor` diteruskan dari RPC tetapi layar
+   hanya memuat halaman pertama (`p_lim` 20).
+4. Copy `RATE_LIMITED` di slot FR-E9 (`useAnalyze`, teks statis di bawah
+   search box) tidak ikut countdown — hanya kartu `ErrorState` yang live.

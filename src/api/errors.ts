@@ -86,6 +86,49 @@ export function toAppError(
   return { code: 'UPSTREAM_ERROR', message: fallbackMessage, status: 502 };
 }
 
+/**
+ * Bentuk error `supabase.rpc` (PostgrestError) — cukup `message` saja.
+ *
+ * Konvensi BE-3 (`docs/backend/feed.md`): RPC me-`raise exception '<CODE>'`
+ * dengan errcode P0001; `retry_after` disisipkan ke message
+ * (`RATE_LIMITED: retry_after=30`). Adapter FE memetakan message → `ErrorBody`.
+ */
+export type RpcErrorLike = { message?: string } | null | undefined;
+
+/** RPC failure → `AppError` (kode SP-0 + status HTTP yang masuk akal). */
+export function mapRpcError(error: RpcErrorLike): AppError {
+  const message = error?.message ?? '';
+
+  if (message.includes('RATE_LIMITED')) {
+    const retryAfter = Number(/retry_after=(\d+)/.exec(message)?.[1]);
+    return {
+      code: 'RATE_LIMITED',
+      message: 'Batas permintaan tercapai.',
+      status: 429,
+      ...(Number.isInteger(retryAfter) && retryAfter > 0 ? { retry_after: retryAfter } : {}),
+    };
+  }
+  if (message.includes('UNAUTHORIZED')) {
+    return { code: 'UNAUTHORIZED', message: 'Sesi berakhir. Masuk kembali.', status: 401 };
+  }
+  if (message.includes('FORBIDDEN')) {
+    return { code: 'FORBIDDEN', message: 'Akses ditolak.', status: 403 };
+  }
+  if (message.includes('NOT_FOUND')) {
+    return { code: 'NOT_FOUND', message: 'Data tidak ditemukan.', status: 404 };
+  }
+  if (message.includes('VALIDATION')) {
+    return { code: 'VALIDATION', message: 'Filter tidak valid.', status: 400 };
+  }
+  // Postgres error tak dikenal: bawa pesannya apa adanya (jujur), jangan
+  // mengarang copy yang menyembunyikan kegagalan (POL-5).
+  return {
+    code: 'UPSTREAM_ERROR',
+    message: message || 'Terjadi kesalahan saat mengambil data. Coba lagi.',
+    status: 502,
+  };
+}
+
 /** FR-E9 / FR-A1 — friendly copy per SP-0 `ErrorCode`. */
 export function errorMessage(error: unknown): string {
   const app = toAppError(error);
@@ -95,8 +138,8 @@ export function errorMessage(error: unknown): string {
       return 'Profil tidak ditemukan. Periksa kembali username.';
     case 'RATE_LIMITED':
       return typeof app.retry_after === 'number'
-        ? `Batas analisis tercapai. Coba lagi dalam ${app.retry_after} detik.`
-        : 'Batas analisis tercapai. Coba lagi nanti.';
+        ? `Batas permintaan tercapai. Coba lagi dalam ${app.retry_after} detik.`
+        : 'Batas permintaan tercapai. Coba lagi nanti.';
     case 'UNAUTHORIZED':
       return 'Sesi berakhir. Masuk kembali untuk melanjutkan.';
     case 'FORBIDDEN':
@@ -132,8 +175,12 @@ export function describeError(error: unknown): ErrorCopy {
       return { ...base, title: 'Profil tidak ditemukan' };
     case 'RATE_LIMITED':
       return {
-        ...base,
         title: 'Terlalu banyak permintaan',
+        // Detiknya dihitung live oleh `ErrorState` (prop `retryAfter`), jadi
+        // pesan tidak membeku pada angka detik yang sudah lewat. Tanpa
+        // `retry_after` tidak ada yang bisa dihitung — pesan statis biasa.
+        message:
+          typeof app.retry_after === 'number' ? 'Batas permintaan tercapai.' : errorMessage(app),
         ...(typeof app.retry_after === 'number' ? { retryAfter: app.retry_after } : {}),
       };
     case 'UNAUTHORIZED':

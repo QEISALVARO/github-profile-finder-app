@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { MetricGrid } from '@/features/analysis/MetricGrid';
 import { Heatmap } from '@/features/analysis/Heatmap';
 import { ProfileCard } from '@/features/analysis/ProfileCard';
+import { ReposEmpty } from '@/features/analysis/ReposEmpty';
 import { ScoreCard } from '@/features/analysis/ScoreCard';
 import { SkillCard } from '@/features/analysis/SkillCard';
 import { VerifiedRepoCard } from '@/features/analysis/VerifiedRepoCard';
@@ -207,6 +208,7 @@ export default function AnalysisScreen() {
           <ErrorState
             title={errorCopy.title}
             message={errorCopy.message}
+            retryAfter={errorCopy.retryAfter}
             onRetry={refetch}
             githubUrl={errorCopy.showGithub && login ? `https://github.com/${login}` : undefined}
           />
@@ -254,13 +256,17 @@ export default function AnalysisScreen() {
               viewAllLabel="View all"
               onPressViewAll={() => openGithubUrl(`${vm.user.htmlUrl}?tab=repositories`)}
             />
-            {vm.repos.slice(0, 3).map((repo) => (
-              <VerifiedRepoCard
-                key={repo.id}
-                repo={repo}
-                onDiscuss={(repoName) => openChat(repoName, vmToGithubUser(vm))}
-              />
-            ))}
+            {vm.repos.length === 0 ? (
+              <ReposEmpty />
+            ) : (
+              vm.repos.slice(0, 3).map((repo) => (
+                <VerifiedRepoCard
+                  key={repo.id}
+                  repo={repo}
+                  onDiscuss={(repoName) => openChat(repoName, vmToGithubUser(vm))}
+                />
+              ))
+            )}
           </>
         ) : null}
       </Animated.View>
