@@ -65,7 +65,7 @@ create trigger profiles_unlist_on_country_clear
 create or replace function public.sync_projects_country()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 begin

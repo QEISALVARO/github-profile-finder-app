@@ -98,6 +98,7 @@ insert into public.cities (id, country_code, name, aliases, population) values
   (87, 'DE', 'Hamburg', '{}', 1841179),
   (88, 'DE', 'Frankfurt', '{}', 759224),
   (89, 'FR', 'Paris', '{}', 2161000),
+  (140, 'US', 'Paris', '{}', 25000),
   (90, 'FR', 'Lyon', '{}', 522969),
   (91, 'FR', 'Marseille', '{}', 870731),
   (92, 'NL', 'Amsterdam', '{}', 921402),

@@ -2,6 +2,13 @@
 -- Row Level Security: aktifkan di semua tabel public + kebijakan PRD v2 §7.1
 -- DEFAULT DENY: tidak ada aksi yang diizinkan kecuali ada kebijakan eksplisit
 
+-- ─── Grants (table-level privileges) ─────────────────────────────────────────
+-- RLS mengatur baris; grant mengatur akses tabel. Tanpa grant, role
+-- authenticated/anon mendapat "permission denied" sebelum RLS dievaluasi.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant select on all tables in schema public to anon;
+
 -- ─── Aktifkan RLS ─────────────────────────────────────────────────────────────
 alter table public.countries          enable row level security;
 alter table public.cities             enable row level security;

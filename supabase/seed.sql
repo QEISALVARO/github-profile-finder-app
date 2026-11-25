@@ -1,0 +1,2 @@
+-- Intentionally empty: foundational seeds are loaded via [db.seed].sql_paths
+-- in config.toml (countries.sql, cities.sql, keyword_aliases.sql).

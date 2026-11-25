@@ -52,7 +52,7 @@ begin
     select jsonb_agg(jsonb_build_object('iso2', iso2, 'count', cnt) order by cnt desc, iso2)
     from (
       select p.country_code as iso2,
-        case when count(*) < v_min then to_jsonb('<5>'::text) else to_jsonb(count(*)) end as cnt
+        case when count(*) < v_min then to_jsonb('<5'::text) else to_jsonb(count(*)) end as cnt
       from public.projects p
       where p.visible = true
         and (v_ts is null or p.search @@ v_ts)
@@ -110,7 +110,7 @@ begin
     select jsonb_agg(jsonb_build_object('city', city, 'count', cnt) order by cnt desc, city)
     from (
       select p.city as city,
-        case when count(*) < v_min then to_jsonb('<5>'::text) else to_jsonb(count(*)) end as cnt
+        case when count(*) < v_min then to_jsonb('<5'::text) else to_jsonb(count(*)) end as cnt
       from public.projects p
       where p.visible = true
         and p.country_code = upper(p_country)

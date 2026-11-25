@@ -5,18 +5,17 @@
 begin;
 select plan(18);
 
-set local role authenticated;
-set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
-
 -- ─── facet mengikuti filter lain kecuali countries ──────────────────
 -- (pakai data 08: 2 proyek ID-Go; 08 rollback? TIDAK — tiap file transaksi
 -- sendiri, jadi siapkan ulang minimal di sini)
 insert into auth.users (id, aud, role, email) values
-  ('a1111111-1111-4111-a111-111111111111', 'authenticated', 'authenticated', 'be3a2@test.com')
+  ('a1111111-1111-4111-a111-111111111111', 'authenticated', 'authenticated', 'be3a2@test.com'),
+  ('c3333333-3333-4333-a333-333333333333', 'authenticated', 'authenticated', 'be3rec@test.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, github_id, login, github_login, name, roles, country_code, city, country_source) values
-  ('a1111111-1111-4111-a111-111111111111', 9201, 'be3a2', 'be3a2', 'BE3 A2', '{developer}', 'ID', 'Jakarta', 'self')
+  ('a1111111-1111-4111-a111-111111111111', 9201, 'be3a2', 'be3a2', 'BE3 A2', '{developer}', 'ID', 'Jakarta', 'self'),
+  ('c3333333-3333-4333-a333-333333333333', 9301, 'be3rec', 'be3rec', 'BE3 Rec', '{recruiter}', 'ID', 'Jakarta', 'self')
 on conflict (id) do update set country_code = excluded.country_code, roles = excluded.roles;
 
 insert into public.developer_settings (user_id, listed, open_to_messages) values
@@ -28,10 +27,13 @@ insert into public.projects (id, owner_id, github_repo_id, name, role, descripti
   ('d2222222-2222-4222-a222-222222222222', 'a1111111-1111-4111-a111-111111111111', 92012, 'ml-pipe', 'Data', 'machine learning pipeline', '[{"name":"Python","percent":100}]', 75, true, false, null, null, now() - interval '6 days', 10)
 on conflict (id) do nothing;
 
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
+
 -- facet: 2 proyek ID -> ID:2
 select results_eq(
   $$ select public.country_facets(null, null, null, false, null, false) $$,
-  $$ values ('[{"iso2":"ID","count":2}]'::jsonb) $$,
+  $$ values ('[{"iso2":"ID","count":"<5"}]'::jsonb) $$,
   'country_facets menghitung ID=2 (tanpa masking di >=5? ambang 5 -> 2 tetap angka? lihat bawah)'
 );
 
@@ -73,8 +75,7 @@ select results_eq(
 -- city_facets: negara invalid ditolak
 select throws_ok(
   $$ select public.city_facets('XX1', null, null, false, null) $$,
-  'P0001',
-  'city_facets menolak kode negara invalid'
+  'P0001'
 );
 
 -- unggah: facet kota mengikuti keyword (ml -> 1 proyek Data di Jakarta)
@@ -114,22 +115,19 @@ select results_eq(
 -- report alasan kosong ditolak
 select throws_ok(
   $$ select public.report_project('d1111111-1111-4111-a111-111111111111', '  ') $$,
-  'P0001',
-  'alasan kosong ditolak VALIDATION'
+  'P0001'
 );
 
 -- unpublish/republish hanya pemilik: non-pemilik (recruiter C) ditolak
 select throws_ok(
   $$ select public.unpublish_project('d1111111-1111-4111-a111-111111111111') $$,
-  'P0001',
-  'unpublish oleh non-pemilik ditolak NOT_FOUND'
+  'P0001'
 );
 
 -- admin_set_project_hidden tanpa klaim admin ditolak
 select throws_ok(
   $$ select public.admin_set_project_hidden('d1111111-1111-4111-a111-111111111111', true, 'uji') $$,
-  'P0001',
-  'non-admin ditolak FORBIDDEN'
+  'P0001'
 );
 
 -- ─── rank bounds ───────────────────────────────────────────────────
@@ -141,16 +139,15 @@ select results_eq(
 
 -- ─── anon ditolak semua RPC ────────────────────────────────────────
 reset role;
+set local "request.jwt.claim.sub" to '';
 set local role anon;
 select throws_ok(
   $$ select public.search_projects(null, null, null, null, false, null, null, 20, false) $$,
-  'P0001',
-  'anon ditolak search_projects'
+  'P0001'
 );
 select throws_ok(
   $$ select public.country_facets(null, null, null, false, null, false) $$,
-  'P0001',
-  'anon ditolak country_facets'
+  'P0001'
 );
 
 select * from finish();

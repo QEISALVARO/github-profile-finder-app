@@ -107,7 +107,7 @@ create trigger projects_computed_update_trigger
 create or replace function public.sync_projects_owner()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = public, extensions
 as $func$
 declare

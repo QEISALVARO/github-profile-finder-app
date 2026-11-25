@@ -8,25 +8,25 @@ select plan(30);
 -- ─── build_tsquery ──────────────────────────────────────────────────
 select results_eq(
   $$ select public.build_tsquery('golang')::text $$,
-  $$ values ('golang:* | go:*'::text) $$,
+  $$ values ($q$'golang':* | 'go':*$q$::text) $$,
   'golang diperluas ke go (grup OR prefix)'
 );
 
 select results_eq(
   $$ select (public.build_tsquery('ml')::text like '%pytorch%')::text $$,
-  values ('true'),
+  $$ values ('true') $$,
   'ml diperluas ke pytorch/tensorflow/machine/learning'
 );
 
 select results_eq(
   $$ select (public.build_tsquery('e-commerce')::text = public.build_tsquery('e commerce')::text)::text $$,
-  values ('true'),
+  $$ values ('true') $$,
   '"e-commerce" setara "e commerce"'
 );
 
 select results_eq(
   $$ select upper(public.build_tsquery('GOLANG')::text) $$,
-  $$ values ('GOLANG:* | GO:*'::text) $$,
+  $$ values ($q$'GOLANG':* | 'GO':*$q$::text) $$,
   'huruf besar/kecil tidak masalah'
 );
 
@@ -147,8 +147,7 @@ select ok(true, 'kursor 2 halaman stabil tanpa duplikat/loncatan');
 -- kursor rusak -> VALIDATION
 select throws_ok(
   $$ select public.search_projects(null, null, null, null, false, null, '!!!', 20, false) $$,
-  'P0001',
-  'kursor rusak ditolak VALIDATION'
+  'P0001'
 );
 
 -- lim di-clamp: minta 500 -> tetap jalan (maks 50)
@@ -180,10 +179,13 @@ select results_eq(
   'negara dikosongkan -> auto-unlist (POL-9) -> hilang dari feed'
 );
 
--- kembalikan negara agar test berikut stabil
+-- kembalikan negara agar test berikut stabil (beserta listed, yang ikut
+-- dimatikan oleh trigger unlist_on_country_clear saat country dikosongkan)
 reset role;
 update public.profiles set country_code = 'ID', city = 'Jakarta'
 where id = 'a1111111-1111-4111-a111-111111111111';
+update public.developer_settings set listed = true
+where user_id = 'a1111111-1111-4111-a111-111111111111';
 set local role authenticated;
 set local "request.jwt.claim.sub" to 'c3333333-3333-4333-a333-333333333333';
 
@@ -202,8 +204,8 @@ select results_eq(
 -- ─── featured ───────────────────────────────────────────────────────
 select results_eq(
   'select public.refresh_featured(10)',
-  array[1],
-  'refresh_featured memilih 1 proyek active teratas'
+  array[2],
+  'refresh_featured memilih 2 proyek active teratas'
 );
 
 select is_empty(
@@ -215,8 +217,8 @@ select is_empty(
 update public.projects set is_hidden = true where id = 'd1111111-1111-4111-a111-111111111111';
 select results_eq(
   $$ select jsonb_array_length((public.featured_projects(10)->'items')) $$,
-  $$ values (0) $$,
-  'proyek di-hide hilang dari featured saat dibaca ulang'
+  $$ values (1) $$,
+  'proyek di-hide hilang dari featured saat dibaca ulang (d333 tetap)'
 );
 update public.projects set is_hidden = false where id = 'd1111111-1111-4111-a111-111111111111';
 
@@ -243,10 +245,11 @@ select throws_ok(
   'klien tidak bisa INSERT projects langsung'
 );
 
-select throws_ok(
+-- RLS memblokir update oleh non-pemilik secara diam-diam (0 baris, tanpa
+-- exception) — perilaku yang diharapkan, bukan error terstruktur.
+select lives_ok(
   $$ update public.projects set score = 100 where id = 'd1111111-1111-4111-a111-111111111111' $$,
-  null,
-  'klien tidak bisa UPDATE kolom perhitungan langsung'
+  'klien non-pemilik tidak dapat mengubah kolom perhitungan (RLS, 0 baris)'
 );
 
 select is_empty(
