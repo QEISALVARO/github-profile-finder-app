@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/ui/Icon';
 import { T } from '@/components/ui/T';
 import { flagEmoji, searchCountries } from '@/data/countries';
+import type { CountryFacet } from '@/api/contracts';
 import { useTheme } from '@/theme/useTheme';
 import { hitSlopFor } from '@/components/ui/hit-slop';
 import { MAX_FONT_SCALE, fontFamilyFor, fs } from '@/theme/typography';
@@ -32,6 +33,9 @@ export type CountryPickerProps = {
   title?: string;
   /** Teks bantu privasi (§11A): "Filter berdasarkan lokasi domisili…". */
   helper?: string;
+  /** Facet counts from `country_facets` RPC. Jika diberikan, tampilkan angka
+   * per negara (mis. `128` atau `<5`) di sebelah kanan baris. */
+  facets?: CountryFacet[];
 };
 
 /**
@@ -72,6 +76,7 @@ function CountrySheet({
   onClose,
   title,
   helper,
+  facets,
 }: Omit<CountryPickerProps, 'visible'>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -88,6 +93,7 @@ function CountrySheet({
     }).start();
   }, [progress]);
 
+  const facetMap = useMemo(() => new Map(facets?.map((f) => [f.iso2, f.count]) ?? []), [facets]);
   const results = useMemo(() => searchCountries(query), [query]);
 
   const close = () => {
@@ -273,6 +279,11 @@ function CountrySheet({
                         {country.iso2} · {country.region}
                       </T>
                     </View>
+                    {facetMap.has(country.iso2) ? (
+                      <T size={8} mono color="muted" style={styles.facetCount}>
+                        {String(facetMap.get(country.iso2))}
+                      </T>
+                    ) : null}
                     {isSelected ? (
                       <Icon name="check" size={15} color={theme.colors.greenStrong} />
                     ) : null}
@@ -428,6 +439,9 @@ const styles = StyleSheet.create({
   },
   helper: {
     marginTop: 8,
+  },
+  facetCount: {
+    marginLeft: 4,
   },
   footer: {
     flexDirection: 'row',

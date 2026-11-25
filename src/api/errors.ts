@@ -87,19 +87,24 @@ export function toAppError(
 }
 
 /**
- * Bentuk error `supabase.rpc` (PostgrestError) — cukup `message` saja.
+ * Bentuk error `supabase.rpc` (PostgrestError) — `message` saja, atau `code`
+ * bila klien membawanya.
  *
  * Konvensi BE-3 (`docs/backend/feed.md`): RPC me-`raise exception '<CODE>'`
  * dengan errcode P0001; `retry_after` disisipkan ke message
  * (`RATE_LIMITED: retry_after=30`). Adapter FE memetakan message → `ErrorBody`.
  */
-export type RpcErrorLike = { message?: string } | null | undefined;
+export type RpcErrorLike = { message?: string; code?: string } | null | undefined;
 
 /** RPC failure → `AppError` (kode SP-0 + status HTTP yang masuk akal). */
 export function mapRpcError(error: RpcErrorLike): AppError {
   const message = error?.message ?? '';
+  // Kode bisa muncul di pesan (`raise exception 'CODE'`) maupun di field
+  // `code` — keduanya diterima supaya pemetaan tidak bergantung satu bentuk.
+  const code = error?.code ?? '';
+  const matches = (candidate: string) => message.includes(candidate) || code === candidate;
 
-  if (message.includes('RATE_LIMITED')) {
+  if (matches('RATE_LIMITED')) {
     const retryAfter = Number(/retry_after=(\d+)/.exec(message)?.[1]);
     return {
       code: 'RATE_LIMITED',
@@ -108,16 +113,16 @@ export function mapRpcError(error: RpcErrorLike): AppError {
       ...(Number.isInteger(retryAfter) && retryAfter > 0 ? { retry_after: retryAfter } : {}),
     };
   }
-  if (message.includes('UNAUTHORIZED')) {
+  if (matches('UNAUTHORIZED')) {
     return { code: 'UNAUTHORIZED', message: 'Sesi berakhir. Masuk kembali.', status: 401 };
   }
-  if (message.includes('FORBIDDEN')) {
+  if (matches('FORBIDDEN')) {
     return { code: 'FORBIDDEN', message: 'Akses ditolak.', status: 403 };
   }
-  if (message.includes('NOT_FOUND')) {
+  if (matches('NOT_FOUND')) {
     return { code: 'NOT_FOUND', message: 'Data tidak ditemukan.', status: 404 };
   }
-  if (message.includes('VALIDATION')) {
+  if (matches('VALIDATION')) {
     return { code: 'VALIDATION', message: 'Filter tidak valid.', status: 400 };
   }
   // Postgres error tak dikenal: bawa pesannya apa adanya (jujur), jangan

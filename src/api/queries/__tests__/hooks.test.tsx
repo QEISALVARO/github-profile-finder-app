@@ -28,6 +28,8 @@ const DEFAULT_FEED_FILTERS = {
   role: 'All',
   location: 'All locations',
   recentOnly: false,
+  countries: [],
+  city: '',
 };
 
 /** Let the microtask queue and react-query's effects settle. */
@@ -122,7 +124,8 @@ describe('useFeed', () => {
   it('surfaces a readable error when the domain is switched to api', async () => {
     process.env.EXPO_PUBLIC_DS_FEED = 'api';
     // Paksa env Supabase kosong: adapter `api` yang jujur menjelaskan dirinya
-    // (MissingEnvironmentError), bukan crash dan bukan kembali ke seed (POL-5).
+    // (ApiNotReadyError via getFeedSupabase), bukan crash dan bukan kembali ke
+    // seed (POL-5).
     delete process.env.EXPO_PUBLIC_SUPABASE_URL;
     delete process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -130,7 +133,7 @@ describe('useFeed', () => {
     const feed = await renderHook(useFeed, DEFAULT_FEED_FILTERS);
 
     expect(feed.current.isError).toBe(true);
-    expect((feed.current.error as Error).message).toMatch(/membutuhkan environment variable/);
+    expect((feed.current.error as Error).message).toMatch(/belum tersedia di backend/);
 
     feed.unmount();
   });

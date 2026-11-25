@@ -1,13 +1,17 @@
 import { CountryFacet, FeedPage } from '@contracts/feed';
 
-import { fetchFeedCountryFacets, fetchFeedPage } from '@/api/feed/api';
+import { fetchFeedCityFacets, fetchFeedCountryFacets, fetchFeedPage, reportProject } from '@/api/feed/api';
 import { getSupabase } from '@/lib/supabase';
 
 /**
- * FE-2 + BE-3 gate — `feed.api` wraps the `search_projects` /
- * `country_facets` RPCs:
- *  - `FeedFilters` → named params (PRD v2 §11A pemetaan chip lokasi v1),
+ * FE-10a + BE-3 gate — `feed.api` wraps the `search_projects` /
+ * `country_facets` / `city_facets` / `report_project` RPCs:
+ *  - `FeedFilters` → named params (v2 `countries`/`city` adalah sumber
+ *    kebenaran setelah integrasi FE-10a; chip lokasi v1 tidak lagi dipakai),
  *  - hasil jsonb memuaskan skema SP-0, termasuk fallback field profil nullable,
+ *  - facet mengirim parameter persis sesuai signature migrasi (tanpa
+ *    `p_countries` untuk `country_facets` / tanpa `p_city`+`p_include_unknown`
+ *    untuk `city_facets`) — regression guard terhadap bug live PGRST202,
  *  - setiap kegagalan Postgres menjadi `AppError` — tidak pernah data palsu
  *    (POL-5).
  */
@@ -27,7 +31,14 @@ beforeEach(() => {
     .mockResolvedValue({ rpc: mockRpc } as unknown as SupabaseClient);
 });
 
-const DEFAULT_FILTERS = { query: '', role: 'All', location: 'All locations', recentOnly: false };
+const DEFAULT_FILTERS = {
+  query: '',
+  role: 'All',
+  location: 'All locations',
+  recentOnly: false,
+  countries: [] as string[],
+  city: '',
+};
 
 /** Bentuk jsonb persis keluaran `search_projects` (BE-3). */
 function rpcPage(overrides: Record<string, unknown> = {}) {
@@ -80,14 +91,15 @@ describe('feed api adapter — search_projects params', () => {
     expect(mockRpc).toHaveBeenCalledWith(
       'search_projects',
       expect.objectContaining({
-        p_q: null,
         p_role: null,
         p_countries: null,
-        p_city: null,
         p_active_only: false,
         p_lim: 20,
       }),
     );
+    const defaultArgs = mockRpc.mock.calls[0][1] as Record<string, unknown>;
+    expect(defaultArgs).not.toHaveProperty('p_q');
+    expect(defaultArgs).not.toHaveProperty('p_city');
   });
 
   it('trims the query and maps the role chip', async () => {
@@ -101,35 +113,11 @@ describe('feed api adapter — search_projects params', () => {
     );
   });
 
-  it('maps the legacy location chip per PRD v2 §11A', async () => {
-    okRpc(rpcPage());
-    await fetchFeedPage({ ...DEFAULT_FILTERS, location: 'Indonesia' });
-    expect(mockRpc).toHaveBeenLastCalledWith(
-      'search_projects',
-      expect.objectContaining({ p_countries: ['ID'], p_city: null }),
-    );
-
-    okRpc(rpcPage());
-    await fetchFeedPage({ ...DEFAULT_FILTERS, location: 'Jakarta' });
-    expect(mockRpc).toHaveBeenLastCalledWith(
-      'search_projects',
-      expect.objectContaining({ p_countries: null, p_city: 'Jakarta' }),
-    );
-
-    okRpc(rpcPage());
-    await fetchFeedPage({ ...DEFAULT_FILTERS, location: 'All locations' });
-    expect(mockRpc).toHaveBeenLastCalledWith(
-      'search_projects',
-      expect.objectContaining({ p_countries: null, p_city: null }),
-    );
-  });
-
-  it('lets the v2 countries/city filters override the legacy chip', async () => {
+  it('lets the v2 countries/city filters drive the RPC (D1)', async () => {
     okRpc(rpcPage());
 
     await fetchFeedPage({
       ...DEFAULT_FILTERS,
-      location: 'Indonesia',
       countries: ['SG', 'ID'],
       city: 'Bandung',
     });
@@ -148,6 +136,17 @@ describe('feed api adapter — search_projects params', () => {
     expect(mockRpc).toHaveBeenCalledWith(
       'search_projects',
       expect.objectContaining({ p_active_only: true }),
+    );
+  });
+
+  it('forwards the cursor as p_cursor when given', async () => {
+    okRpc(rpcPage());
+
+    await fetchFeedPage(DEFAULT_FILTERS, 'cursor-xyz');
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      'search_projects',
+      expect.objectContaining({ p_cursor: 'cursor-xyz' }),
     );
   });
 });
@@ -243,7 +242,7 @@ describe('feed api adapter — country_facets', () => {
       ...DEFAULT_FILTERS,
       query: 'ml',
       role: 'Data',
-      location: 'Jakarta',
+      city: 'Jakarta',
       recentOnly: true,
       countries: ['SG'],
     });
@@ -284,6 +283,72 @@ describe('feed api adapter — country_facets', () => {
       code: 'RATE_LIMITED',
       status: 429,
       retry_after: 7,
+    });
+  });
+});
+
+describe('feed api adapter — city_facets', () => {
+  it('sends p_country (singular) and drops params the RPC does not accept', async () => {
+    okRpc([]);
+
+    await fetchFeedCityFacets('ID', {
+      ...DEFAULT_FILTERS,
+      query: 'ml',
+      role: 'Data',
+      city: 'Jakarta',
+      recentOnly: true,
+      countries: ['ID'],
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      'city_facets',
+      expect.objectContaining({
+        p_country: 'ID',
+        p_q: 'ml',
+        p_role: 'Data',
+        p_active_only: true,
+      }),
+    );
+    const args = mockRpc.mock.calls[0][1] as Record<string, unknown>;
+    expect(args).not.toHaveProperty('p_countries');
+    expect(args).not.toHaveProperty('p_city');
+    expect(args).not.toHaveProperty('p_include_unknown');
+    expect(args).not.toHaveProperty('p_lim');
+  });
+
+  it('parses city facet counts against the contract', async () => {
+    okRpc([
+      { city: 'Jakarta', count: 12 },
+      { city: 'Bandung', count: '<5' },
+    ]);
+
+    const facets = await fetchFeedCityFacets('ID', DEFAULT_FILTERS);
+
+    expect(facets).toHaveLength(2);
+    expect(facets[0]).toMatchObject({ city: 'Jakarta' });
+  });
+});
+
+describe('feed api adapter — report_project', () => {
+  it('returns true on success', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await reportProject('proj-1', 'spam');
+
+    expect(mockRpc).toHaveBeenCalledWith('report_project', {
+      p_project_id: 'proj-1',
+      p_reason: 'spam',
+    });
+    expect(result).toBe(true);
+  });
+
+  it('maps RPC failures to AppError', async () => {
+    failRpc('RATE_LIMITED: retry_after=3');
+
+    await expect(reportProject('proj-1', 'spam')).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      status: 429,
+      retry_after: 3,
     });
   });
 });

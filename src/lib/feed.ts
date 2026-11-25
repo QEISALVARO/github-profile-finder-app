@@ -19,9 +19,9 @@ export type FeedFilters = {
   location: string;
   recentOnly: boolean;
   /** PRD v2 §11A — ISO 3166-1 alpha-2 codes; empty/undefined = every country. */
-  countries?: string[];
+  countries: string[];
   /** City filter; empty/undefined = every city. */
-  city?: string;
+  city: string;
 };
 
 export function filterProjects(projects: FeedProject[], f: FeedFilters): FeedProject[] {

@@ -1,28 +1,106 @@
 // ---------------------------------------------------------------------------
-// FE-2 + BE-3 — feed `api` adapter.
+// FE-10a + BE-3 — feed `api` adapter.
 //
-// Connects the SP-0 contract to the BE-3 RPCs `search_projects` and
-// `country_facets` (supabase/migrations/20261001000020/…21, contract doc:
-// docs/backend/feed.md). The RPC already answers with the `FeedPage` jsonb
-// shape, so this file only:
-//   1. maps `FeedFilters` (UI) → RPC named params,
-//   2. normalises the two nullable profile fields (`profiles.name`,
-//      `profiles.avatar_url`) onto the non-nullable contract,
-//   3. turns Postgres `raise exception '<CODE>'` failures into `AppError`.
-// Failures are surfaced through `ErrorState` — never replaced with invented
-// projects (POL-5).
+// Calls the BE-3 RPCs (`search_projects`, `country_facets`, `city_facets`,
+// `report_project`) over Supabase. Every response is validated with the Zod
+// contract schema before it reaches the UI — a shape mismatch becomes
+// `UPSTREAM_ERROR`, never silently invented data (POL-5).
+//
+// Parameter naming follows `docs/backend/feed.md`: `p_q`, `p_role`,
+// `p_countries`, `p_city`, `p_active_only`, `p_min_score`, `p_cursor`,
+// `p_lim`, `p_include_unknown`.
+//
+// Hasil integrasi FE-10a × TASK 2 — dua koreksi penting:
+//   1. `country_facets`/`city_facets` TIDAK menerima `p_countries`
+//      (migrasi 20261001000021): facet memantau dimensi lain / drill-down
+//      kota per negara, jadi parameter dikirim persis sesuai signature —
+//      tanpa ini PostgREST menjawab PGRST202 saat live.
+//   2. `profiles.name`/`avatar_url` nullable di DB (migrasi …020 tidak
+//      coalesce) dikoaleskan ke identitas ASLI (login, endpoint GitHub
+//      canonical) SEBELUM validasi Zod — bukan ditolak dan bukan diarang
+//      (POL-5).
 // ---------------------------------------------------------------------------
 
-import type { CountryFacet, FeedItem, FeedPage } from '@/api/contracts';
+import type { CityFacet, CountryFacet, FeedItem, FeedPage } from '@/api/contracts';
 
-import { mapRpcError, toAppError, type AppError } from '@/api/errors';
-import type { FeedFilters } from '@/lib/feed';
+import { FeedPage as FeedPageSchema, CountryFacet as CountryFacetSchema } from '@contracts/feed';
+import { CityFacet as CityFacetSchema } from '@contracts/projects';
 import { getSupabase } from '@/lib/supabase';
+import { apiNotReady, mapRpcError, MissingEnvironmentError } from '@/api/errors';
+import type { FeedFilters } from '@/lib/feed';
+import { openGithubUrl, openHttpsUrl } from '@/lib/links';
+import { queryKeys } from '@/api/queryKeys';
 
-/** RPC page size (docs/backend/feed.md: `lim` clamped 1–50, default 20). */
-const PAGE_SIZE = 20;
+// --- RPC parameter mapping (D1, D4) ---
 
-/** `profiles.name` / `avatar_url` are nullable; the contract is not. */
+function mapFilters(filters: FeedFilters): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  // Trim whitespace so stray spaces from the search box never reach the backend
+  // tsquery (PRD v2 §11A / TASK 2: query → p_q trim, kosong → null).
+  if (filters.query?.trim()) params.p_q = filters.query.trim();
+  // Role: 'All' is normalized to null so the server treats it as "all roles";
+  // everything else is sent verbatim. Related D4 gate: 'All' always routes through null.
+  params.p_role = filters.role === 'All' ? null : filters.role;
+  // Countries: an explicit non-empty list is sent as-is; empty/undefined becomes null
+  // so the server treats it as "all countries". Related D4 gate: empty → null always.
+  if (filters.countries && filters.countries.length > 0) {
+    params.p_countries = filters.countries;
+  } else {
+    params.p_countries = null;
+  }
+  if (filters.city?.trim()) params.p_city = filters.city.trim();
+  params.p_active_only = filters.recentOnly;
+  // Keep unknown-score filtering consistent independent of whether a city is chosen.
+  params.p_include_unknown = false;
+  params.p_min_score = null;
+  return params;
+}
+
+/**
+ * `country_facets(p_q, p_role, p_city, p_active_only, p_min_score,
+ * p_include_unknown)` — sama dengan search KECUALI countries (kontrak BE-3:
+ * facet mencerminkan dimensi lain), jadi `p_countries` tidak boleh ikut.
+ */
+function countryFacetArgs(filters: FeedFilters): Record<string, unknown> {
+  const params = mapFilters(filters);
+  delete params.p_countries;
+  return params;
+}
+
+/**
+ * `city_facets(p_country, p_q, p_role, p_active_only, p_min_score)` —
+ * drill-down kota untuk SATU negara; signature tidak punya `p_city`,
+ * `p_include_unknown`, maupun `p_countries`.
+ */
+function cityFacetArgs(country: string, filters: FeedFilters): Record<string, unknown> {
+  const params = mapFilters(filters);
+  delete params.p_countries;
+  delete params.p_city;
+  delete params.p_include_unknown;
+  params.p_country = country;
+  return params;
+}
+
+// --- re-export test-only symbols (D2/D3/error-mapping tests) ---
+
+export { mapRpcError, openGithubUrl, openHttpsUrl, queryKeys };
+
+// --- Supabase accessor ---
+
+async function getFeedSupabase() {
+  try {
+    return await getSupabase();
+  } catch (error) {
+    if (error instanceof MissingEnvironmentError) {
+      throw apiNotReady('feed', 'Menunggu konfigurasi Supabase (BE-3).');
+    }
+    throw error;
+  }
+}
+
+// --- nullable profile normalisation (POL-5) ---
+
+/** `profiles.name` / `avatar_url` nullable; the contract (and Zod) is not. */
 type RpcFeedItem = Omit<FeedItem, 'developer'> & {
   developer: Omit<FeedItem['developer'], 'name' | 'avatarUrl'> & {
     name: string | null;
@@ -31,88 +109,96 @@ type RpcFeedItem = Omit<FeedItem, 'developer'> & {
 };
 
 /**
- * PRD v2 §11A — pemetaan chip lokasi v1 (PRD_V2_REAL.md §11A):
- * `All locations` → semua negara; `Indonesia` → `ID`; nama kota → `p_city`.
+ * Koalesce dua field profil nullable ke identitas asli SEBELUM Zod:
+ * `name` → `login`, `avatarUrl` → endpoint GitHub canonical untuk login
+ * tersebut (pola yang sama dengan seed). Payload yang bukan objek/halaman
+ * dilewatkan apa adanya supaya Zod tetap menolaknya (bukan dianggap kosong).
  */
-function legacyLocation(filters: FeedFilters): { countries: string[] | null; city: string | null } {
-  const location = filters.location.trim();
-  if (location === '' || location === 'All locations') return { countries: null, city: null };
-  if (location === 'Indonesia') return { countries: ['ID'], city: null };
-  return { countries: null, city: location };
-}
-
-/** `FeedFilters` → `search_projects` named params. */
-function searchArgs(filters: FeedFilters) {
-  const legacy = legacyLocation(filters);
+function normaliseNullableDeveloper(data: unknown): unknown {
+  const page = data as { items?: unknown } | null | undefined;
+  if (page === null || typeof page !== 'object' || !Array.isArray(page.items)) return data;
   return {
-    p_q: filters.query.trim() || null,
-    p_role: filters.role === 'All' ? null : filters.role,
-    // v2 `countries` (bila diisi) menimpa chip lokasi legacy.
-    p_countries: filters.countries?.length ? [...filters.countries] : legacy.countries,
-    p_city: filters.city?.trim() || legacy.city,
-    p_active_only: filters.recentOnly,
-    p_lim: PAGE_SIZE,
+    ...page,
+    items: page.items.map((raw) => {
+      const item = raw as Partial<RpcFeedItem> | null;
+      if (item === null || typeof item !== 'object') return raw;
+      const developer = item.developer;
+      if (developer === null || typeof developer !== 'object') return raw;
+      return {
+        ...item,
+        developer: {
+          ...developer,
+          name: developer.name ?? developer.login,
+          avatarUrl: developer.avatarUrl ?? `https://github.com/${developer.login}.png`,
+        },
+      };
+    }),
   };
 }
 
-/** `FeedFilters` → `country_facets` params: same filters *except* `countries`. */
-function facetArgs(filters: FeedFilters) {
-  const legacy = legacyLocation(filters);
-  return {
-    p_q: filters.query.trim() || null,
-    p_role: filters.role === 'All' ? null : filters.role,
-    p_city: filters.city?.trim() || legacy.city,
-    p_active_only: filters.recentOnly,
-  };
-}
+// --- public adapter API ---
 
-function upstream(message = 'Feed gagal dimuat. Coba lagi.'): AppError {
-  return toAppError({ code: 'UPSTREAM_ERROR', message, status: 502 });
-}
+export async function fetchFeedPage(filters: FeedFilters, cursor?: string | null): Promise<FeedPage> {
+  const supabase = await getFeedSupabase();
+  const params = mapFilters(filters);
+  if (cursor) params.p_cursor = cursor;
+  params.p_lim = 20;
 
-function toFeedItem(row: RpcFeedItem): FeedItem {
-  return {
-    ...row,
-    developer: {
-      ...row.developer,
-      // Nullable profile fields fall back to the real GitHub identity (login),
-      // never an invented display name (POL-5). The avatar URL is GitHub's
-      // canonical endpoint for that login — the same pattern the seed uses.
-      name: row.developer.name ?? row.developer.login,
-      avatarUrl: row.developer.avatarUrl ?? `https://github.com/${row.developer.login}.png`,
-    },
-  };
-}
+  const { data, error } = await supabase.rpc('search_projects', params);
 
-/** Shape guard: the RPC must answer with the contract jsonb object. */
-function toFeedPage(data: unknown): FeedPage {
-  const record = data as { items?: unknown } | null | undefined;
-  if (record === null || typeof record !== 'object' || !Array.isArray(record.items)) {
-    throw upstream();
-  }
-  const page = record as {
-    items: RpcFeedItem[];
-    nextCursor?: string | null;
-    totalCount?: number;
-  };
-  return {
-    items: page.items.map(toFeedItem),
-    nextCursor: page.nextCursor ?? null,
-    totalCount: typeof page.totalCount === 'number' ? page.totalCount : page.items.length,
-  };
-}
-
-export async function fetchFeedPage(filters: FeedFilters): Promise<FeedPage> {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc('search_projects', searchArgs(filters));
   if (error) throw mapRpcError(error);
-  return toFeedPage(data);
+  if (!data) throw { code: 'UPSTREAM_ERROR', message: 'Respons kosong dari server.', status: 502 };
+
+  const parsed = FeedPageSchema.safeParse(normaliseNullableDeveloper(data));
+  if (!parsed.success) {
+    console.warn('[feed.api] search_projects bentuk salah:', parsed.error.flatten());
+    throw { code: 'UPSTREAM_ERROR', message: 'Bentuk respons tidak sesuai kontrak.', status: 502 };
+  }
+
+  return parsed.data;
 }
 
 export async function fetchFeedCountryFacets(filters: FeedFilters): Promise<CountryFacet[]> {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc('country_facets', facetArgs(filters));
+  const supabase = await getFeedSupabase();
+  const params = countryFacetArgs(filters);
+
+  const { data, error } = await supabase.rpc('country_facets', params);
+
   if (error) throw mapRpcError(error);
-  if (!Array.isArray(data)) throw upstream();
-  return data as CountryFacet[];
+  if (!data) throw { code: 'UPSTREAM_ERROR', message: 'Respons kosong dari server.', status: 502 };
+
+  const parsed = CountryFacetSchema.array().safeParse(data);
+  if (!parsed.success) {
+    console.warn('[feed.api] country_facets bentuk salah:', parsed.error.flatten());
+    throw { code: 'UPSTREAM_ERROR', message: 'Bentuk respons tidak sesuai kontrak.', status: 502 };
+  }
+
+  return parsed.data;
+}
+
+export async function fetchFeedCityFacets(country: string, filters: FeedFilters): Promise<CityFacet[]> {
+  const supabase = await getFeedSupabase();
+  const params = cityFacetArgs(country, filters);
+
+  const { data, error } = await supabase.rpc('city_facets', params);
+
+  if (error) throw mapRpcError(error);
+  if (!data) throw { code: 'UPSTREAM_ERROR', message: 'Respons kosong dari server.', status: 502 };
+
+  const parsed = CityFacetSchema.array().safeParse(data);
+  if (!parsed.success) {
+    console.warn('[feed.api] city_facets bentuk salah:', parsed.error.flatten());
+    throw { code: 'UPSTREAM_ERROR', message: 'Bentuk respons tidak sesuai kontrak.', status: 502 };
+  }
+
+  return parsed.data;
+}
+
+export async function reportProject(projectId: string, reason: string): Promise<boolean> {
+  const supabase = await getFeedSupabase();
+  const { error } = await supabase.rpc('report_project', { p_project_id: projectId, p_reason: reason });
+
+  if (error) throw mapRpcError(error);
+  // Backend returns void on success; absence of error = accepted.
+  return true;
 }

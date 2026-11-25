@@ -28,6 +28,7 @@ export type {
   FeedItem,
   FeedPage,
   CountryFacet,
+  CityFacet,
   // --- talent --------------------------------------------------------------
   DiscoverQuery,
   DiscoverItem,
