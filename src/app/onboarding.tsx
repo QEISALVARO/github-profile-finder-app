@@ -62,6 +62,9 @@ export default function OnboardingScreen() {
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Sesi kedaluwarsa / hilang saat menyimpan: tampilkan jalan keluar yang
+  // selalu bisa ditekan, bukan teks error buntu.
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const steps: StepKey[] = ['role', ...selectedRoles];
   const clampedIndex = Math.min(stepIndex, steps.length - 1);
@@ -78,6 +81,13 @@ export default function OnboardingScreen() {
     setSelectedRoles((prev) =>
       prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
     );
+  };
+
+  /** Bersihkan sesi lokal + remote lalu keluar dari onboarding ke login. */
+  const returnToLogin = () => {
+    signOut();
+    void signOutRemote().catch(() => {});
+    router.replace('/login');
   };
 
   const handleBack = () => {
@@ -120,13 +130,12 @@ export default function OnboardingScreen() {
             targetCountries,
           });
           if (saveError) {
-            if (code === 'UNAUTHORIZED') {
-              // Sesi server sudah tidak berlaku. Tanpa membersihkan sesi lokal,
-              // guard root tetap mengunci layar onboarding dan user tidak punya
-              // jalan kembali ke login.
-              signOut();
-              void signOutRemote().catch(() => {});
-              router.replace('/login');
+            // Sesi server sudah tidak berlaku. Tanpa membersihkan sesi lokal,
+            // guard root tetap mengunci layar onboarding dan user tidak punya
+            // jalan kembali ke login.
+            if (code === 'UNAUTHORIZED' || saveError.startsWith('Sesi berakhir')) {
+              setSessionExpired(true);
+              returnToLogin();
               return;
             }
             setError(saveError);
@@ -206,7 +215,24 @@ export default function OnboardingScreen() {
         )}
       </View>
 
-      {error.length > 0 ? (
+      {sessionExpired ? (
+        <View style={styles.error}>
+          <T size={9} color="error" lh={1.5}>
+            Sesi berakhir. Masuk kembali untuk melanjutkan.
+          </T>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Masuk kembali"
+            hitSlop={hitSlopFor(44, 44)}
+            onPress={returnToLogin}
+            style={({ pressed }) => [styles.loginLink, pressed && styles.pressed]}>
+            <T size={9} weight="700" color="greenText">
+              Masuk kembali
+            </T>
+            <Icon name="arrow" size={14} color={theme.colors.greenText} />
+          </Pressable>
+        </View>
+      ) : error.length > 0 ? (
         <T size={9} color="error" lh={1.5} style={styles.error}>
           {error}
         </T>
@@ -272,6 +298,13 @@ const styles = StyleSheet.create({
   },
   error: {
     marginTop: 14,
+    gap: 8,
+  },
+  loginLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
   },
   cta: {
     marginTop: 28,
