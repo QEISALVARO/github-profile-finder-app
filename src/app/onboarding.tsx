@@ -11,6 +11,7 @@ import { DeveloperStep } from '@/features/onboarding/DeveloperStep';
 import { RecruiterStep } from '@/features/onboarding/RecruiterStep';
 import { RoleStep } from '@/features/onboarding/RoleStep';
 import { getDataSource } from '@/config/dataSource';
+import { signOutRemote } from '@/lib/auth';
 import { completeOnboardingRemote } from '@/lib/profile';
 import { useAuthStore, type UserRole } from '@/store/useAuthStore';
 import { useTheme } from '@/theme/useTheme';
@@ -50,6 +51,7 @@ export default function OnboardingScreen() {
   const roles = useAuthStore((s) => s.roles);
   const setRoles = useAuthStore((s) => s.setRoles);
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
+  const signOut = useAuthStore((s) => s.signOut);
   const company = useAuthStore((s) => s.company);
   const title = useAuthStore((s) => s.title);
   const countryCode = useAuthStore((s) => s.countryCode);
@@ -109,7 +111,7 @@ export default function OnboardingScreen() {
       if (getDataSource('auth') === 'api') {
         setSaving(true);
         try {
-          const { error: saveError } = await completeOnboardingRemote({
+          const { error: saveError, code } = await completeOnboardingRemote({
             roles: selectedRoles,
             countryCode,
             city,
@@ -118,6 +120,15 @@ export default function OnboardingScreen() {
             targetCountries,
           });
           if (saveError) {
+            if (code === 'UNAUTHORIZED') {
+              // Sesi server sudah tidak berlaku. Tanpa membersihkan sesi lokal,
+              // guard root tetap mengunci layar onboarding dan user tidak punya
+              // jalan kembali ke login.
+              signOut();
+              void signOutRemote().catch(() => {});
+              router.replace('/login');
+              return;
+            }
             setError(saveError);
             return;
           }

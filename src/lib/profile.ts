@@ -7,6 +7,12 @@ import type { Availability } from '@/store/useAuthStore';
 // Pesan error Postgres (VALIDATION:/POL9_*) diterjemahkan ke kalimat UI.
 // ---------------------------------------------------------------------------
 
+export interface RemoteResult {
+  error: string | null;
+  /** Kode kegagalan yang perlu ditangani pemanggil (mis. sesi kedaluwarsa). */
+  code?: 'UNAUTHORIZED';
+}
+
 export interface OnboardingInput {
   roles: ('developer' | 'recruiter')[];
   countryCode?: string | null;
@@ -16,7 +22,7 @@ export interface OnboardingInput {
   targetCountries?: string[];
 }
 
-export async function completeOnboardingRemote(input: OnboardingInput): Promise<{ error: string | null }> {
+export async function completeOnboardingRemote(input: OnboardingInput): Promise<RemoteResult> {
   const supabase = await getSupabase();
   const { error } = await supabase.rpc('complete_onboarding', {
     p_roles: input.roles,
@@ -26,19 +32,19 @@ export async function completeOnboardingRemote(input: OnboardingInput): Promise<
     p_title: input.title ?? null,
     p_target_countries: input.targetCountries ?? [],
   });
-  return { error: rpcErrorMessage(error) };
+  return rpcResult(error);
 }
 
 export async function setCountryRemote(
   countryCode: string | null,
   city?: string | null,
-): Promise<{ error: string | null }> {
+): Promise<RemoteResult> {
   const supabase = await getSupabase();
   const { error } = await supabase.rpc('set_country', {
     p_country_code: countryCode,
     p_city: city ?? null,
   });
-  return { error: rpcErrorMessage(error) };
+  return rpcResult(error);
 }
 
 export interface DeveloperSettingsInput {
@@ -50,7 +56,7 @@ export interface DeveloperSettingsInput {
 
 export async function updateDeveloperSettingsRemote(
   input: DeveloperSettingsInput,
-): Promise<{ error: string | null }> {
+): Promise<RemoteResult> {
   const supabase = await getSupabase();
   const { error } = await supabase.rpc('update_developer_settings', {
     p_listed: input.listed ?? null,
@@ -58,7 +64,7 @@ export async function updateDeveloperSettingsRemote(
     p_availability: input.availability ?? null,
     p_headline: input.headline ?? null,
   });
-  return { error: rpcErrorMessage(error, true) };
+  return rpcResult(error, true);
 }
 
 export interface RecruiterProfileInput {
@@ -69,34 +75,37 @@ export interface RecruiterProfileInput {
 
 export async function updateRecruiterProfileRemote(
   input: RecruiterProfileInput,
-): Promise<{ error: string | null }> {
+): Promise<RemoteResult> {
   const supabase = await getSupabase();
   const { error } = await supabase.rpc('update_recruiter_profile', {
     p_company: input.company ?? null,
     p_title: input.title ?? null,
     p_target_countries: input.targetCountries ?? null,
   });
-  return { error: rpcErrorMessage(error) };
+  return rpcResult(error);
 }
 
 type RpcError = { message: string } | null;
 
-function rpcErrorMessage(error: RpcError, isListing = false): string | null {
-  if (!error) return null;
+function rpcResult(error: RpcError, isListing = false): RemoteResult {
+  if (!error) return { error: null };
   const message = error.message ?? '';
   if (message.includes('POL9_COUNTRY_REQUIRED')) {
-    return 'Pilih negara domisili dulu sebelum mengaktifkan listing.';
+    return { error: 'Pilih negara domisili dulu sebelum mengaktifkan listing.' };
   }
   if (message.includes('VALIDATION: company is required')) {
-    return 'Nama perusahaan wajib diisi untuk peran recruiter.';
+    return { error: 'Nama perusahaan wajib diisi untuk peran recruiter.' };
   }
   if (message.includes('VALIDATION: invalid country_code')) {
-    return 'Kode negara tidak dikenal. Pilih dari daftar.';
+    return { error: 'Kode negara tidak dikenal. Pilih dari daftar.' };
   }
   if (message.includes('UNAUTHORIZED')) {
-    return isListing
-      ? 'Sesi berakhir. Masuk kembali untuk mengubah visibilitas.'
-      : 'Sesi berakhir. Masuk kembali.';
+    return {
+      error: isListing
+        ? 'Sesi berakhir. Masuk kembali untuk mengubah visibilitas.'
+        : 'Sesi berakhir. Masuk kembali.',
+      code: 'UNAUTHORIZED',
+    };
   }
-  return 'Perubahan gagal disimpan. Coba lagi.';
+  return { error: 'Perubahan gagal disimpan. Coba lagi.' };
 }
