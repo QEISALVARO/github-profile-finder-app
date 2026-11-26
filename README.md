@@ -80,6 +80,30 @@ Alternatif lokal (perlu Android SDK + Gradle):
 npx expo run:android
 ```
 
+### Update OTA (EAS Update)
+
+Perbaikan yang hanya menyentuh JavaScript/styling/asset bisa dikirim **tanpa** build APK baru:
+
+1. Buka tab **Actions** → workflow **OTA Update** → **Run workflow**, pilih channel `preview`
+   (atau `production`), isi pesan update, lalu jalankan.
+2. Atau dari terminal:
+
+   ```bash
+   npx eas-cli@latest update --channel preview --environment preview --message "fix: ..."
+   ```
+
+Cara kerjanya: aplikasi mengecek update saat dibuka, mengunduhnya di background, lalu
+memakainya pada pembukaan berikutnya (bisa perlu buka-tutup dua kali). APK yang bisa
+menerima OTA adalah APK dari build yang sudah memuat konfigurasi `updates` di `app.json`
+(`eas.json` → `channel: preview`). APK lama tanpa konfigurasi itu tetap harus di-install
+ulang sekali.
+
+Batasan penting: OTA hanya untuk perubahan JS/asset. Perubahan native (menambah library
+native, config plugin, atau pengaturan native di `app.json`) **wajib** build APK baru.
+`runtimeVersion` memakai policy `appVersion`, jadi saat ada perubahan native naikkan
+`expo.version` di `app.json` — update yang dipublikasikan hanya terpasang pada APK dengan
+versi yang sama.
+
 ### Mode default aplikasi
 
 Mode default aplikasi **gitscope** menggunakan **mock data** jika backend belum dikonfigurasi. Tidak ada secret backend (Supabase / GitHub API) yang diperlukan untuk menjalankan aplikasi.

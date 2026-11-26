@@ -3,6 +3,13 @@
     "name": "gitscope",
     "slug": "gitscope",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ffe21932-fa63-49bb-8ba6-bd4aad1b0a94",
+      "checkAutomatically": "ON_LOAD"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gitscope",
